@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { QuoteEditor } from "@/components/quote-editor/quote-editor";
 import { requireQuoter } from "@/lib/auth/require-quoter";
@@ -17,6 +17,10 @@ export default async function EditQuotePage({
 
   if (!quote) {
     notFound();
+  }
+
+  if (quote.status === "locked") {
+    redirect(`/quotes/${quote.id}/preview`);
   }
 
   return (

@@ -174,6 +174,17 @@ export type Quote = {
   updatedAt: string;
 } & QuoteTotals;
 
+export type UpdateQuoteResult =
+  | { ok: true; quote: Quote }
+  | { ok: false; code: "QUOTE_NOT_FOUND" | "QUOTE_LOCKED" };
+
+export type SendQuoteResult =
+  | { ok: true; quote: Quote; version: QuoteVersion }
+  | {
+      ok: false;
+      code: "QUOTE_NOT_FOUND" | "QUOTE_LOCKED" | "QUOTE_NOT_SENDABLE";
+    };
+
 export type ClientQuoteView = {
   quoteId: string;
   versionNumber: number;

@@ -23,6 +23,8 @@ import type {
   QuoteDraft,
   QuoteLineItem,
   QuoteRecipient,
+  SendQuoteResult,
+  UpdateQuoteResult,
   QuoteVersion,
   SignatureAsset,
   SignaturePlacement,
@@ -213,11 +215,18 @@ export function createDemoQuote(draft: QuoteDraft) {
   return quote;
 }
 
-export function updateDemoQuote(quoteId: string, draft: QuoteDraft) {
+export function updateDemoQuote(
+  quoteId: string,
+  draft: QuoteDraft,
+): UpdateQuoteResult {
   const quote = getDemoQuote(quoteId);
 
   if (!quote) {
-    return null;
+    return { ok: false, code: "QUOTE_NOT_FOUND" };
+  }
+
+  if (quote.status === "locked") {
+    return { ok: false, code: "QUOTE_LOCKED" };
   }
 
   const lineItems = normalizeLineItems(draft.lineItems);
@@ -244,14 +253,18 @@ export function updateDemoQuote(quoteId: string, draft: QuoteDraft) {
   }));
   appendAudit(quote.id, "quote.updated", "quoter", DEMO_USER_ID);
 
-  return quote;
+  return { ok: true, quote };
 }
 
-export function sendDemoQuote(quoteId: string) {
+export function sendDemoQuote(quoteId: string): SendQuoteResult {
   const quote = getDemoQuote(quoteId);
 
   if (!quote) {
     return { ok: false as const, code: "QUOTE_NOT_FOUND" };
+  }
+
+  if (quote.status === "locked") {
+    return { ok: false as const, code: "QUOTE_LOCKED" };
   }
 
   if (quote.lineItems.length === 0 || quote.signatureFields.length === 0) {

@@ -12,12 +12,16 @@ export async function POST(
   const result = await sendQuote(quoter, quoteId);
 
   if (!result.ok) {
+    const quoteLocked = result.code === "QUOTE_LOCKED";
+
     return errorResponse(
       result.code,
       result.code === "QUOTE_NOT_FOUND"
         ? "Quote was not found."
-        : "The quote must have line items, recipients, and signature fields.",
-      result.code === "QUOTE_NOT_FOUND" ? 404 : 422,
+        : quoteLocked
+          ? "Locked quotes cannot be edited."
+          : "The quote must have line items, recipients, and signature fields.",
+      result.code === "QUOTE_NOT_FOUND" ? 404 : quoteLocked ? 409 : 422,
     );
   }
 

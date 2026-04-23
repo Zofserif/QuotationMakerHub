@@ -43,14 +43,16 @@ export function QuoteList({ quotes }: { quotes: Quote[] }) {
                 {formatMoney(quote.totalMinor, quote.currency)}
               </p>
               <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
-                <LinkButton
-                  href={`/quotes/${quote.id}/edit`}
-                  variant="secondary"
-                  size="sm"
-                >
-                  <Edit3 className="size-4" />
-                  Edit
-                </LinkButton>
+                {quote.status !== "locked" ? (
+                  <LinkButton
+                    href={`/quotes/${quote.id}/edit`}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    <Edit3 className="size-4" />
+                    Edit
+                  </LinkButton>
+                ) : null}
                 <LinkButton
                   href={`/quotes/${quote.id}/preview`}
                   variant="secondary"

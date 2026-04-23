@@ -31,9 +31,11 @@ export default async function PreviewQuotePage({
             Quote preview
           </h1>
         </section>
-        <LinkButton href={`/quotes/${quote.id}/edit`} variant="secondary">
-          Back to editor
-        </LinkButton>
+        {quote.status !== "locked" ? (
+          <LinkButton href={`/quotes/${quote.id}/edit`} variant="secondary">
+            Back to editor
+          </LinkButton>
+        ) : null}
       </div>
       <QuotePreview quote={quote} />
     </div>

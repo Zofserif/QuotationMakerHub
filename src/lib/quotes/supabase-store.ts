@@ -25,6 +25,7 @@ import type {
   QuoteLineItem,
   QuoteRecipient,
   QuoteStatus,
+  SendQuoteResult,
   QuoteVersion,
   QuoteVersionSnapshot,
   RecipientStatus,
@@ -32,6 +33,7 @@ import type {
   SignatureField,
   SignaturePlacement,
   SourceMethod,
+  UpdateQuoteResult,
 } from "@/lib/quotes/types";
 import { renderQuotePdf } from "@/lib/pdf/render-pdf";
 import { dataUrlToBuffer, hashImageBytes } from "@/lib/signatures/hash-image";
@@ -47,10 +49,6 @@ export type QuoterContext = {
   clerkUserId: string;
   organizationId: string;
 };
-
-export type SendQuoteResult =
-  | { ok: true; quote: Quote; version: QuoteVersion }
-  | { ok: false; code: "QUOTE_NOT_FOUND" | "QUOTE_NOT_SENDABLE" };
 
 export type PlaceSignatureResult =
   | { ok: true; asset: SignatureAsset; placement: SignaturePlacement }
@@ -332,13 +330,17 @@ export async function updateSupabaseQuote(
   quoter: QuoterContext,
   quoteId: string,
   draft: QuoteDraft,
-) {
+): Promise<UpdateQuoteResult> {
   const db = createSupabaseAdminClient();
   const organization = await ensureWorkspace(db, quoter);
   const existing = await loadQuote(db, quoteId, organization.id);
 
   if (!existing) {
-    return null;
+    return { ok: false, code: "QUOTE_NOT_FOUND" };
+  }
+
+  if (existing.status === "locked") {
+    return { ok: false, code: "QUOTE_LOCKED" };
   }
 
   const client = await upsertClient(db, organization.id, draft.client);
@@ -404,7 +406,13 @@ export async function updateSupabaseQuote(
     eventType: "quote.updated",
   });
 
-  return loadQuote(db, quoteId, organization.id);
+  const quote = await loadQuote(db, quoteId, organization.id);
+
+  if (!quote) {
+    return { ok: false, code: "QUOTE_NOT_FOUND" };
+  }
+
+  return { ok: true, quote };
 }
 
 export async function sendSupabaseQuote(
@@ -417,6 +425,10 @@ export async function sendSupabaseQuote(
 
   if (!quote) {
     return { ok: false, code: "QUOTE_NOT_FOUND" };
+  }
+
+  if (quote.status === "locked") {
+    return { ok: false, code: "QUOTE_LOCKED" };
   }
 
   if (quote.lineItems.length === 0 || quote.signatureFields.length === 0) {

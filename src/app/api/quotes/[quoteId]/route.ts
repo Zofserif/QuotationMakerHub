@@ -37,11 +37,19 @@ export async function PATCH(
     );
   }
 
-  const quote = await updateQuote(quoter, quoteId, parsed.data);
+  const result = await updateQuote(quoter, quoteId, parsed.data);
 
-  if (!quote) {
-    return errorResponse("QUOTE_NOT_FOUND", "Quote was not found.", 404);
+  if (!result.ok) {
+    return errorResponse(
+      result.code,
+      result.code === "QUOTE_LOCKED"
+        ? "Locked quotes cannot be edited."
+        : "Quote was not found.",
+      result.code === "QUOTE_LOCKED" ? 409 : 404,
+    );
   }
+
+  const { quote } = result;
 
   await captureServerEvent({
     distinctId: quoter.clerkUserId,
