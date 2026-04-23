@@ -1,19 +1,35 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import type { NextFetchEvent, NextRequest } from "next/server";
 
 import { dashboardRoutes, isClerkConfigured } from "@/lib/auth/clerk";
 
-const isProtectedRoute = createRouteMatcher(dashboardRoutes);
-
-export default clerkMiddleware(async (auth, request) => {
+export default async function proxy(
+  request: NextRequest,
+  event: NextFetchEvent,
+) {
   if (!isClerkConfigured()) {
     return;
   }
 
-  if (isProtectedRoute(request)) {
-    await auth.protect();
+  if (!isProtectedPath(request.nextUrl.pathname)) {
+    return;
   }
-});
+
+  const { clerkMiddleware } = await import("@clerk/nextjs/server");
+  const middleware = clerkMiddleware(async (auth) => {
+    await auth.protect();
+  });
+
+  return middleware(request, event);
+}
 
 export const config = {
   matcher: ["/((?!_next|.*\\..*).*)", "/api/(.*)"],
 };
+
+function isProtectedPath(pathname: string) {
+  return dashboardRoutes.some((route) => {
+    const prefix = route.replace("(.*)", "");
+
+    return pathname === prefix || pathname.startsWith(`${prefix}/`);
+  });
+}

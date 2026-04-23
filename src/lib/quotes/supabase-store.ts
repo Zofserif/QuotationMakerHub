@@ -12,6 +12,12 @@ import {
   calculateQuoteTotals,
   withCalculatedLineTotals,
 } from "@/lib/quotes/calculate-totals";
+import type {
+  LineItemData,
+  LineItemDataDraft,
+  LineItemImageMimeType,
+  LineItemImageUploadResult,
+} from "@/lib/line-item-data/types";
 import { mergeQuoteTemplate } from "@/lib/quote-templates/defaults";
 import { formatQuoteNumber } from "@/lib/quote-templates/numbering";
 import type { QuoteTemplate } from "@/lib/quote-templates/types";
@@ -42,12 +48,14 @@ import type {
 import { renderQuotePdf } from "@/lib/pdf/render-pdf";
 import { dataUrlToBuffer, hashImageBytes } from "@/lib/signatures/hash-image";
 import {
+  lineItemImageStoragePath,
   pdfStoragePath,
   signatureStoragePath,
 } from "@/lib/signatures/storage-paths";
 
 const SIGNATURE_BUCKET = "signature-assets";
 const PDF_BUCKET = "quote-pdfs";
+const LINE_ITEM_IMAGE_BUCKET = "line-item-images";
 
 export type QuoterContext = {
   clerkUserId: string;
@@ -127,11 +135,14 @@ type QuoteLineItemRow = {
   sort_order: number;
   name: string;
   description: string | null;
+  unit: string | null;
   quantity: number | string;
   unit_price_minor: number | string;
   discount_minor: number | string;
   tax_rate: number | string;
   line_total_minor: number | string;
+  description_image_storage_path: string | null;
+  description_image_mime_type: LineItemImageMimeType | null;
 };
 
 type QuoteRecipientRow = {
@@ -219,6 +230,20 @@ type QuoteTemplateRow = {
   updated_at: string;
 };
 
+type LineItemDataRow = {
+  id: string;
+  organization_id: string;
+  title: string;
+  detailed_description: string;
+  unit: string;
+  unit_price_minor: number | string;
+  description_image_storage_path: string | null;
+  description_image_mime_type: LineItemImageMimeType | null;
+  created_by_clerk_user_id: string;
+  created_at: string;
+  updated_at: string;
+};
+
 type SupabaseError = {
   message: string;
   code?: string;
@@ -252,6 +277,134 @@ export async function updateSupabaseQuoteTemplate(
   throwIfError(error, "Save quote template");
 
   return content;
+}
+
+export async function listSupabaseLineItemData(quoter: QuoterContext) {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  const { data, error } = await db
+    .from("line_item_data")
+    .select("*")
+    .eq("organization_id", organization.id)
+    .order("updated_at", { ascending: false });
+
+  throwIfError(error, "List line item data");
+
+  return Promise.all(
+    ((data ?? []) as LineItemDataRow[]).map((row) =>
+      mapLineItemDataRow(db, row),
+    ),
+  );
+}
+
+export async function createSupabaseLineItemData(
+  quoter: QuoterContext,
+  draft: LineItemDataDraft,
+) {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  const now = new Date().toISOString();
+  const { data, error } = await db
+    .from("line_item_data")
+    .insert({
+      organization_id: organization.id,
+      title: draft.title,
+      detailed_description: draft.detailedDescription,
+      unit: draft.unit,
+      unit_price_minor: draft.unitPriceMinor,
+      description_image_storage_path: emptyToNull(
+        draft.descriptionImageStoragePath,
+      ),
+      description_image_mime_type: draft.descriptionImageMimeType ?? null,
+      created_by_clerk_user_id: quoter.clerkUserId,
+      created_at: now,
+      updated_at: now,
+    })
+    .select("*")
+    .single();
+
+  throwIfError(error, "Create line item data");
+
+  return mapLineItemDataRow(db, data as LineItemDataRow);
+}
+
+export async function updateSupabaseLineItemData(
+  quoter: QuoterContext,
+  lineItemDataId: string,
+  draft: LineItemDataDraft,
+) {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  const { data, error } = await db
+    .from("line_item_data")
+    .update({
+      title: draft.title,
+      detailed_description: draft.detailedDescription,
+      unit: draft.unit,
+      unit_price_minor: draft.unitPriceMinor,
+      description_image_storage_path: emptyToNull(
+        draft.descriptionImageStoragePath,
+      ),
+      description_image_mime_type: draft.descriptionImageMimeType ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", lineItemDataId)
+    .eq("organization_id", organization.id)
+    .select("*")
+    .maybeSingle();
+
+  throwIfError(error, "Update line item data");
+
+  return data ? mapLineItemDataRow(db, data as LineItemDataRow) : null;
+}
+
+export async function deleteSupabaseLineItemData(
+  quoter: QuoterContext,
+  lineItemDataId: string,
+) {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  const { data, error } = await db
+    .from("line_item_data")
+    .delete()
+    .eq("id", lineItemDataId)
+    .eq("organization_id", organization.id)
+    .select("id")
+    .maybeSingle();
+
+  throwIfError(error, "Delete line item data");
+
+  return Boolean(data);
+}
+
+export async function uploadSupabaseLineItemDataImage(
+  quoter: QuoterContext,
+  file: File,
+): Promise<LineItemImageUploadResult> {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  const extension = extensionForMimeType(file.type as LineItemImageMimeType);
+  const storagePath = lineItemImageStoragePath({
+    organizationId: organization.id,
+    imageId: randomUUID(),
+    extension,
+  });
+  const objectPath = stripBucketPrefix(storagePath, LINE_ITEM_IMAGE_BUCKET);
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const { error } = await db.storage
+    .from(LINE_ITEM_IMAGE_BUCKET)
+    .upload(objectPath, bytes, {
+      contentType: file.type,
+      upsert: false,
+    });
+
+  throwIfError(error, "Upload line item image");
+
+  return {
+    storagePath,
+    mimeType: file.type as LineItemImageMimeType,
+    url: await createStorageSignedUrl(db, LINE_ITEM_IMAGE_BUCKET, storagePath),
+  };
 }
 
 export async function listSupabaseQuotes(quoter: QuoterContext) {
@@ -909,7 +1062,11 @@ export async function listSupabaseQuoteVersions(
     return [];
   }
 
-  return getQuoteVersions(db, quote.id);
+  return Promise.all(
+    (await getQuoteVersions(db, quote.id)).map((version) =>
+      withSignedSnapshotLineItemUrls(db, version),
+    ),
+  );
 }
 
 export async function listSupabaseAuditEvents(
@@ -1123,6 +1280,9 @@ async function loadQuote(
     getSignatureFieldRows(db, quoteRow.id),
   ]);
   const client = await getQuoteClient(db, organizationId, recipients);
+  const mappedLineItems = await Promise.all(
+    lineItems.map((lineItem) => mapLineItemRow(db, lineItem)),
+  );
 
   return {
     id: quoteRow.id,
@@ -1136,7 +1296,7 @@ async function loadQuote(
     taxMinor: Number(quoteRow.tax_minor),
     totalMinor: Number(quoteRow.total_minor),
     client,
-    lineItems: lineItems.map(mapLineItemRow),
+    lineItems: mappedLineItems,
     recipients: recipients.map(mapRecipientRow),
     signatureFields: signatureFields.map(mapSignatureFieldRow),
     currentVersion: quoteRow.current_version,
@@ -1260,11 +1420,15 @@ async function insertLineItems(
       sort_order: lineItem.sortOrder,
       name: lineItem.name,
       description: lineItem.description ?? null,
+      unit: lineItem.unit,
       quantity: lineItem.quantity,
       unit_price_minor: lineItem.unitPriceMinor,
       discount_minor: lineItem.discountMinor,
       tax_rate: lineItem.taxRate,
       line_total_minor: lineItem.lineTotalMinor,
+      description_image_storage_path:
+        lineItem.descriptionImageStoragePath ?? null,
+      description_image_mime_type: lineItem.descriptionImageMimeType ?? null,
     })),
   );
 
@@ -1478,6 +1642,7 @@ async function buildClientView(
       }),
     ),
   );
+  const signedVersion = await withSignedSnapshotLineItemUrls(db, version);
 
   return {
     quoteId: quote.id,
@@ -1490,8 +1655,8 @@ async function buildClientView(
       acceptedAt: recipient.acceptedAt,
       lockedAt: recipient.lockedAt,
     },
-    quote: version.snapshot,
-    requiredSignatureFields: version.snapshot.signatureFields
+    quote: signedVersion.snapshot,
+    requiredSignatureFields: signedVersion.snapshot.signatureFields
       .filter((field) => field.recipientId === recipient.id)
       .map((field) => {
         const placement = placements.find(
@@ -1593,25 +1758,46 @@ function normalizeLineItems(
       sortOrder: index + 1,
       name: lineItem.name,
       description: emptyToUndefined(lineItem.description),
+      unit: lineItem.unit || "Unit",
       quantity: lineItem.quantity,
       unitPriceMinor: lineItem.unitPriceMinor,
       discountMinor: lineItem.discountMinor,
       taxRate: lineItem.taxRate,
+      descriptionImageStoragePath: emptyToUndefined(
+        lineItem.descriptionImageStoragePath,
+      ),
+      descriptionImageMimeType: lineItem.descriptionImageMimeType,
     })),
   );
 }
 
-function mapLineItemRow(row: QuoteLineItemRow): QuoteLineItem {
+async function mapLineItemRow(
+  db: SupabaseClient,
+  row: QuoteLineItemRow,
+): Promise<QuoteLineItem> {
+  const descriptionImageStoragePath =
+    row.description_image_storage_path ?? undefined;
+
   return {
     id: row.id,
     sortOrder: row.sort_order,
     name: row.name,
     description: row.description ?? undefined,
+    unit: row.unit ?? "Unit",
     quantity: Number(row.quantity),
     unitPriceMinor: Number(row.unit_price_minor),
     discountMinor: Number(row.discount_minor),
     taxRate: Number(row.tax_rate),
     lineTotalMinor: Number(row.line_total_minor),
+    descriptionImageStoragePath,
+    descriptionImageMimeType: row.description_image_mime_type ?? undefined,
+    descriptionImageUrl: descriptionImageStoragePath
+      ? await createStorageSignedUrl(
+          db,
+          LINE_ITEM_IMAGE_BUCKET,
+          descriptionImageStoragePath,
+        )
+      : undefined,
   };
 }
 
@@ -1657,6 +1843,60 @@ function mapVersionRow(row: QuoteVersionRow): QuoteVersion {
   };
 }
 
+async function withSignedSnapshotLineItemUrls(
+  db: SupabaseClient,
+  version: QuoteVersion,
+): Promise<QuoteVersion> {
+  return {
+    ...version,
+    snapshot: {
+      ...version.snapshot,
+      lineItems: await Promise.all(
+        version.snapshot.lineItems.map(async (lineItem) => ({
+          ...lineItem,
+          unit: lineItem.unit || "Unit",
+          descriptionImageUrl: lineItem.descriptionImageStoragePath
+            ? await createStorageSignedUrl(
+                db,
+                LINE_ITEM_IMAGE_BUCKET,
+                lineItem.descriptionImageStoragePath,
+              )
+            : undefined,
+        })),
+      ),
+    },
+  };
+}
+
+async function mapLineItemDataRow(
+  db: SupabaseClient,
+  row: LineItemDataRow,
+): Promise<LineItemData> {
+  const descriptionImageStoragePath =
+    row.description_image_storage_path ?? undefined;
+
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    title: row.title,
+    detailedDescription: row.detailed_description,
+    unit: row.unit,
+    unitPriceMinor: Number(row.unit_price_minor),
+    descriptionImageStoragePath,
+    descriptionImageMimeType: row.description_image_mime_type ?? undefined,
+    descriptionImageUrl: descriptionImageStoragePath
+      ? await createStorageSignedUrl(
+          db,
+          LINE_ITEM_IMAGE_BUCKET,
+          descriptionImageStoragePath,
+        )
+      : undefined,
+    createdByClerkUserId: row.created_by_clerk_user_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 function mapSignaturePlacementRow(
   row: SignaturePlacementRow,
 ): SignaturePlacement {
@@ -1698,6 +1938,37 @@ function emptyToNull(value: string | undefined) {
 
 function stripBucketPrefix(path: string, bucket: string) {
   return path.startsWith(`${bucket}/`) ? path.slice(bucket.length + 1) : path;
+}
+
+async function createStorageSignedUrl(
+  db: SupabaseClient,
+  bucket: string,
+  storagePath: string,
+) {
+  if (storagePath.startsWith("data:")) {
+    return storagePath;
+  }
+
+  const objectPath = stripBucketPrefix(storagePath, bucket);
+  const { data, error } = await db.storage
+    .from(bucket)
+    .createSignedUrl(objectPath, 300);
+
+  throwIfError(error, "Create storage signed URL");
+
+  return data?.signedUrl;
+}
+
+function extensionForMimeType(mimeType: LineItemImageMimeType) {
+  if (mimeType === "image/jpeg") {
+    return "jpg";
+  }
+
+  if (mimeType === "image/webp") {
+    return "webp";
+  }
+
+  return "png";
 }
 
 function normalizeIpAddress(value?: string) {

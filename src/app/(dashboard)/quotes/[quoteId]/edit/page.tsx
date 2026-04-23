@@ -2,7 +2,11 @@ import { notFound, redirect } from "next/navigation";
 
 import { QuoteEditor } from "@/components/quote-editor/quote-editor";
 import { requireQuoter } from "@/lib/auth/require-quoter";
-import { getQuote } from "@/lib/quotes/persistence";
+import {
+  getQuote,
+  getQuoteTemplate,
+  listLineItemData,
+} from "@/lib/quotes/persistence";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +17,11 @@ export default async function EditQuotePage({
 }) {
   const { quoteId } = await params;
   const quoter = await requireQuoter();
-  const quote = await getQuote(quoter, quoteId);
+  const [quote, template, lineItemData] = await Promise.all([
+    getQuote(quoter, quoteId),
+    getQuoteTemplate(quoter),
+    listLineItemData(quoter),
+  ]);
 
   if (!quote) {
     notFound();
@@ -31,7 +39,7 @@ export default async function EditQuotePage({
           Edit quotation
         </h1>
       </section>
-      <QuoteEditor quote={quote} />
+      <QuoteEditor quote={quote} template={template} lineItemData={lineItemData} />
     </div>
   );
 }

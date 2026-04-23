@@ -2,6 +2,8 @@ import { PenLine } from "lucide-react";
 
 import { QuoteTotalsView } from "@/components/quote-editor/quote-totals";
 import { SignatureFieldConfig } from "@/components/quote-editor/signature-field-config";
+import { MarkdownText } from "@/components/ui/markdown-text";
+import { getLineItemImageSrc } from "@/lib/line-item-data/images";
 import type { QuoteTemplate } from "@/lib/quote-templates/types";
 import type { Quote } from "@/lib/quotes/types";
 import { formatDate, formatMoney } from "@/lib/utils";
@@ -96,31 +98,48 @@ export function QuotePreview({
 
       <section className="py-6">
         <div className="overflow-hidden rounded-lg border border-stone-200">
-          <div className="grid grid-cols-[1.4fr_0.4fr_0.6fr_0.6fr] gap-4 bg-stone-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-stone-500">
+          <div className="grid grid-cols-[1.4fr_0.35fr_0.45fr_0.65fr_0.65fr] gap-4 bg-stone-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-stone-500">
             <span>Item</span>
             <span>Qty</span>
             <span>Unit</span>
+            <span>Unit Price</span>
             <span className="text-right">Total</span>
           </div>
           <div className="divide-y divide-stone-200">
-            {quote.lineItems.map((lineItem) => (
-              <div
-                className="grid grid-cols-[1.4fr_0.4fr_0.6fr_0.6fr] gap-4 px-4 py-4 text-sm"
-                key={lineItem.id}
-              >
-                <div>
-                  <p className="font-medium text-stone-950">{lineItem.name}</p>
-                  <p className="mt-1 text-stone-500">{lineItem.description}</p>
+            {quote.lineItems.map((lineItem) => {
+              const imageSrc = getLineItemImageSrc(lineItem);
+
+              return (
+                <div
+                  className="grid grid-cols-[1.4fr_0.35fr_0.45fr_0.65fr_0.65fr] gap-4 px-4 py-4 text-sm"
+                  key={lineItem.id}
+                >
+                  <div>
+                    {template?.lineItems.showDescriptionPicture && imageSrc ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        alt=""
+                        className="mb-3 h-32 w-full rounded-md border border-stone-200 object-cover"
+                        src={imageSrc}
+                      />
+                    ) : null}
+                    <p className="font-medium text-stone-950">{lineItem.name}</p>
+                    <MarkdownText
+                      className="mt-1 text-stone-500"
+                      value={lineItem.description}
+                    />
+                  </div>
+                  <span>{lineItem.quantity}</span>
+                  <span>{lineItem.unit || "Unit"}</span>
+                  <span>
+                    {formatMoney(lineItem.unitPriceMinor, quote.currency)}
+                  </span>
+                  <span className="text-right font-semibold">
+                    {formatMoney(lineItem.lineTotalMinor, quote.currency)}
+                  </span>
                 </div>
-                <span>{lineItem.quantity}</span>
-                <span>
-                  {formatMoney(lineItem.unitPriceMinor, quote.currency)}
-                </span>
-                <span className="text-right font-semibold">
-                  {formatMoney(lineItem.lineTotalMinor, quote.currency)}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>

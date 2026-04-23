@@ -1,12 +1,15 @@
 import { QuoteEditor } from "@/components/quote-editor/quote-editor";
 import { requireQuoter } from "@/lib/auth/require-quoter";
-import { getQuoteTemplate } from "@/lib/quotes/persistence";
+import { getQuoteTemplate, listLineItemData } from "@/lib/quotes/persistence";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewQuotePage() {
   const quoter = await requireQuoter();
-  const template = await getQuoteTemplate(quoter);
+  const [template, lineItemData] = await Promise.all([
+    getQuoteTemplate(quoter),
+    listLineItemData(quoter),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -16,7 +19,7 @@ export default async function NewQuotePage() {
           Create quotation
         </h1>
       </section>
-      <QuoteEditor template={template} />
+      <QuoteEditor template={template} lineItemData={lineItemData} />
     </div>
   );
 }

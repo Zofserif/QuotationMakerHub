@@ -12,6 +12,12 @@ import {
   calculateQuoteTotals,
   withCalculatedLineTotals,
 } from "@/lib/quotes/calculate-totals";
+import type {
+  LineItemData,
+  LineItemDataDraft,
+  LineItemImageMimeType,
+  LineItemImageUploadResult,
+} from "@/lib/line-item-data/types";
 import {
   createVersionSnapshot,
   hashSnapshot,
@@ -50,6 +56,7 @@ type DemoState = {
   auditEvents: Record<string, AuditEvent[]>;
   quoteCounter: number;
   quoteTemplate: QuoteTemplate;
+  lineItemData: LineItemData[];
 };
 
 const globalForDemo = globalThis as typeof globalThis & {
@@ -71,6 +78,7 @@ function seedDemoState(): DemoState {
     {
       name: "Discovery and Planning",
       description: "Project kickoff, stakeholder interviews, and scope plan.",
+      unit: "Lot",
       quantity: 1,
       unitPriceMinor: 150000,
       discountMinor: 0,
@@ -79,6 +87,7 @@ function seedDemoState(): DemoState {
     {
       name: "Responsive Website Build",
       description: "Design implementation, CMS-ready pages, and QA pass.",
+      unit: "Lot",
       quantity: 1,
       unitPriceMinor: 420000,
       discountMinor: 25000,
@@ -148,6 +157,32 @@ function seedDemoState(): DemoState {
     },
     quoteCounter: 2,
     quoteTemplate: structuredClone(defaultQuoteTemplate),
+    lineItemData: [
+      {
+        id: randomUUID(),
+        organizationId: DEMO_ORG_ID,
+        title: "Discovery and Planning",
+        detailedDescription:
+          "- Project kickoff\n- Stakeholder interviews\n- Scope plan and implementation roadmap",
+        unit: "Lot",
+        unitPriceMinor: 150000,
+        createdByClerkUserId: DEMO_USER_ID,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: randomUUID(),
+        organizationId: DEMO_ORG_ID,
+        title: "Responsive Website Build",
+        detailedDescription:
+          "- Responsive page implementation\n- CMS-ready content structure\n- Quality assurance pass before handoff",
+        unit: "Lot",
+        unitPriceMinor: 420000,
+        createdByClerkUserId: DEMO_USER_ID,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
   };
 }
 
@@ -181,8 +216,89 @@ export function updateDemoQuoteTemplate(template: QuoteTemplate) {
   return demoState.quoteTemplate;
 }
 
+export function listDemoLineItemData() {
+  return demoState.lineItemData.toSorted((a, b) =>
+    b.updatedAt.localeCompare(a.updatedAt),
+  );
+}
+
+export function createDemoLineItemData(draft: LineItemDataDraft) {
+  const now = new Date().toISOString();
+  const lineItemData: LineItemData = {
+    id: randomUUID(),
+    organizationId: DEMO_ORG_ID,
+    title: draft.title,
+    detailedDescription: draft.detailedDescription,
+    unit: draft.unit,
+    unitPriceMinor: draft.unitPriceMinor,
+    descriptionImageStoragePath: emptyToUndefined(
+      draft.descriptionImageStoragePath,
+    ),
+    descriptionImageMimeType: draft.descriptionImageMimeType,
+    descriptionImageUrl: draft.descriptionImageStoragePath,
+    createdByClerkUserId: DEMO_USER_ID,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  demoState.lineItemData.unshift(lineItemData);
+
+  return lineItemData;
+}
+
+export function updateDemoLineItemData(
+  lineItemDataId: string,
+  draft: LineItemDataDraft,
+) {
+  const existing = demoState.lineItemData.find(
+    (candidate) => candidate.id === lineItemDataId,
+  );
+
+  if (!existing) {
+    return null;
+  }
+
+  existing.title = draft.title;
+  existing.detailedDescription = draft.detailedDescription;
+  existing.unit = draft.unit;
+  existing.unitPriceMinor = draft.unitPriceMinor;
+  existing.descriptionImageStoragePath = emptyToUndefined(
+    draft.descriptionImageStoragePath,
+  );
+  existing.descriptionImageMimeType = draft.descriptionImageMimeType;
+  existing.descriptionImageUrl = draft.descriptionImageStoragePath;
+  existing.updatedAt = new Date().toISOString();
+
+  return existing;
+}
+
+export function deleteDemoLineItemData(lineItemDataId: string) {
+  const originalLength = demoState.lineItemData.length;
+  demoState.lineItemData = demoState.lineItemData.filter(
+    (candidate) => candidate.id !== lineItemDataId,
+  );
+
+  return demoState.lineItemData.length !== originalLength;
+}
+
+export async function uploadDemoLineItemDataImage(
+  file: File,
+): Promise<LineItemImageUploadResult> {
+  const dataUrl = await fileToDataUrl(file);
+
+  return {
+    storagePath: dataUrl,
+    mimeType: file.type as LineItemImageMimeType,
+    url: dataUrl,
+  };
+}
+
 function withAppCurrency(quote: Quote) {
   quote.currency = normalizeCurrency(quote.currency);
+  quote.lineItems = quote.lineItems.map((lineItem) => ({
+    ...lineItem,
+    unit: lineItem.unit || "Unit",
+  }));
   return quote;
 }
 
@@ -540,10 +656,16 @@ function normalizeLineItems(
       sortOrder: index + 1,
       name: lineItem.name,
       description: emptyToUndefined(lineItem.description),
+      unit: lineItem.unit || "Unit",
       quantity: lineItem.quantity,
       unitPriceMinor: lineItem.unitPriceMinor,
       discountMinor: lineItem.discountMinor,
       taxRate: lineItem.taxRate,
+      descriptionImageStoragePath: emptyToUndefined(
+        lineItem.descriptionImageStoragePath,
+      ),
+      descriptionImageMimeType: lineItem.descriptionImageMimeType,
+      descriptionImageUrl: emptyToUndefined(lineItem.descriptionImageStoragePath),
     })),
   );
 }
@@ -641,4 +763,10 @@ function buildClientView(
 
 function emptyToUndefined<T extends string | undefined>(value: T) {
   return value?.trim() ? value : undefined;
+}
+
+async function fileToDataUrl(file: File) {
+  const bytes = Buffer.from(await file.arrayBuffer());
+
+  return `data:${file.type};base64,${bytes.toString("base64")}`;
 }

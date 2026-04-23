@@ -1,0 +1,406 @@
+"use client";
+
+import {
+  ImagePlus,
+  Pencil,
+  Plus,
+  Save,
+  Trash2,
+  X,
+} from "lucide-react";
+import { useState, useTransition, type ChangeEvent, type ReactNode } from "react";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { MarkdownText } from "@/components/ui/markdown-text";
+import { Textarea } from "@/components/ui/textarea";
+import { getLineItemImageSrc } from "@/lib/line-item-data/images";
+import type {
+  LineItemData,
+  LineItemDataDraft,
+  LineItemImageMimeType,
+} from "@/lib/line-item-data/types";
+import { formatMoney } from "@/lib/utils";
+
+type FormState = {
+  title: string;
+  detailedDescription: string;
+  unit: string;
+  unitPriceMajor: string;
+  descriptionImageStoragePath: string;
+  descriptionImageMimeType?: LineItemImageMimeType;
+  descriptionImageUrl: string;
+};
+
+const emptyForm: FormState = {
+  title: "",
+  detailedDescription: "",
+  unit: "Unit",
+  unitPriceMajor: "0.00",
+  descriptionImageStoragePath: "",
+  descriptionImageMimeType: undefined,
+  descriptionImageUrl: "",
+};
+
+export function LineItemDataManager({
+  initialItems,
+  unitOptions,
+}: {
+  initialItems: LineItemData[];
+  unitOptions: string[];
+}) {
+  const [items, setItems] = useState(initialItems);
+  const [form, setForm] = useState<FormState>(emptyForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const [isUploading, startUploadTransition] = useTransition();
+
+  function updateForm(patch: Partial<FormState>) {
+    setForm((current) => ({ ...current, ...patch }));
+  }
+
+  function resetForm() {
+    setEditingId(null);
+    setForm(emptyForm);
+    setMessage(null);
+  }
+
+  function editItem(item: LineItemData) {
+    setEditingId(item.id);
+    setForm({
+      title: item.title,
+      detailedDescription: item.detailedDescription,
+      unit: item.unit,
+      unitPriceMajor: (item.unitPriceMinor / 100).toFixed(2),
+      descriptionImageStoragePath: item.descriptionImageStoragePath ?? "",
+      descriptionImageMimeType: item.descriptionImageMimeType,
+      descriptionImageUrl: getLineItemImageSrc(item) ?? "",
+    });
+    setMessage(null);
+  }
+
+  async function uploadImage(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await fetch("/api/line-item-data/image", {
+      method: "POST",
+      body: formData,
+    });
+    const payload = await response.json();
+
+    if (!response.ok) {
+      setMessage(payload.error?.message ?? "Could not upload description picture.");
+      return;
+    }
+
+    updateForm({
+      descriptionImageStoragePath: payload.upload.storagePath,
+      descriptionImageMimeType: payload.upload.mimeType,
+      descriptionImageUrl: payload.upload.url ?? "",
+    });
+    setMessage(null);
+  }
+
+  async function saveItem() {
+    setMessage(null);
+
+    const draft = toDraft(form);
+    const response = await fetch(
+      editingId ? `/api/line-item-data/${editingId}` : "/api/line-item-data",
+      {
+        method: editingId ? "PUT" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(draft),
+      },
+    );
+    const payload = await response.json();
+
+    if (!response.ok) {
+      setMessage(payload.error?.message ?? "Could not save line item data.");
+      return;
+    }
+
+    const saved = payload.lineItemData as LineItemData;
+    setItems((current) => {
+      const withoutSaved = current.filter((item) => item.id !== saved.id);
+      return [saved, ...withoutSaved].toSorted((a, b) =>
+        b.updatedAt.localeCompare(a.updatedAt),
+      );
+    });
+    setEditingId(null);
+    setForm(emptyForm);
+    setMessage("Line item data saved.");
+  }
+
+  async function deleteItem(item: LineItemData) {
+    const response = await fetch(`/api/line-item-data/${item.id}`, {
+      method: "DELETE",
+    });
+    const payload = await response.json();
+
+    if (!response.ok) {
+      setMessage(payload.error?.message ?? "Could not delete line item data.");
+      return;
+    }
+
+    setItems((current) => current.filter((candidate) => candidate.id !== item.id));
+
+    if (editingId === item.id) {
+      resetForm();
+    }
+
+    setMessage("Line item data deleted.");
+  }
+
+  const previewImage = getLineItemImageSrc({
+    descriptionImageStoragePath: form.descriptionImageStoragePath,
+    descriptionImageUrl: form.descriptionImageUrl,
+  });
+
+  return (
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <section className="space-y-4">
+        {items.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-stone-300 bg-white p-8 text-center">
+            <p className="font-semibold text-stone-950">No saved line item data</p>
+            <p className="mt-2 text-sm text-stone-500">
+              Create reusable items that can be inserted into new quotations.
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-4">
+            {items.map((item) => {
+              const imageSrc = getLineItemImageSrc(item);
+
+              return (
+                <article
+                  className="rounded-lg border border-stone-200 bg-white p-4"
+                  key={item.id}
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-lg font-semibold text-stone-950">
+                        {item.title}
+                      </p>
+                      <p className="mt-1 text-sm font-medium text-stone-600">
+                        {item.unit} · {formatMoney(item.unitPriceMinor)}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => editItem(item)}
+                      >
+                        <Pencil className="size-4" />
+                        Edit
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="danger"
+                        size="sm"
+                        onClick={() => startTransition(() => deleteItem(item))}
+                      >
+                        <Trash2 className="size-4" />
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-4 md:grid-cols-[160px_1fr]">
+                    {imageSrc ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        alt=""
+                        className="h-32 w-full rounded-md border border-stone-200 object-cover"
+                        src={imageSrc}
+                      />
+                    ) : (
+                      <div className="flex h-32 items-center justify-center rounded-md border border-dashed border-stone-300 bg-stone-50 text-sm text-stone-500">
+                        No picture
+                      </div>
+                    )}
+                    <MarkdownText
+                      className="text-stone-600"
+                      value={item.detailedDescription}
+                    />
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <aside className="space-y-4">
+        <form
+          className="sticky top-6 rounded-lg border border-stone-200 bg-white p-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            startTransition(saveItem);
+          }}
+        >
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="font-semibold text-stone-950">
+              {editingId ? "Edit Line Item Data" : "New Line Item Data"}
+            </h2>
+            {editingId ? (
+              <Button
+                aria-label="Cancel edit"
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={resetForm}
+              >
+                <X className="size-4" />
+              </Button>
+            ) : null}
+          </div>
+
+          <div className="space-y-4">
+            <Field label="Line Item Title">
+              <Input
+                required
+                value={form.title}
+                onChange={(event) => updateForm({ title: event.target.value })}
+              />
+            </Field>
+            <Field label="Description Picture">
+              <div className="space-y-3">
+                {previewImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    alt=""
+                    className="h-36 w-full rounded-md border border-stone-200 object-cover"
+                    src={previewImage}
+                  />
+                ) : (
+                  <div className="flex h-36 items-center justify-center rounded-md border border-dashed border-stone-300 bg-stone-50 text-sm text-stone-500">
+                    No picture
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-stone-200 bg-white px-3 text-sm font-medium text-stone-900 transition hover:bg-stone-100">
+                    <ImagePlus className="size-4" />
+                    Upload
+                    <input
+                      accept="image/png,image/jpeg,image/webp"
+                      className="sr-only"
+                      type="file"
+                      onChange={(event) =>
+                        startUploadTransition(() => uploadImage(event))
+                      }
+                    />
+                  </label>
+                  {previewImage ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() =>
+                        updateForm({
+                          descriptionImageStoragePath: "",
+                          descriptionImageMimeType: undefined,
+                          descriptionImageUrl: "",
+                        })
+                      }
+                    >
+                      <Trash2 className="size-4" />
+                      Remove
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            </Field>
+            <Field label="Detailed Description">
+              <Textarea
+                required
+                className="min-h-40"
+                value={form.detailedDescription}
+                onChange={(event) =>
+                  updateForm({ detailedDescription: event.target.value })
+                }
+              />
+            </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Unit">
+                <>
+                  <Input
+                    required
+                    list="line-item-unit-options"
+                    value={form.unit}
+                    onChange={(event) => updateForm({ unit: event.target.value })}
+                  />
+                  <datalist id="line-item-unit-options">
+                    {unitOptions.map((option) => (
+                      <option key={option} value={option} />
+                    ))}
+                  </datalist>
+                </>
+              </Field>
+              <Field label="Unit Price">
+                <Input
+                  required
+                  min="0"
+                  step="0.01"
+                  type="number"
+                  value={form.unitPriceMajor}
+                  onChange={(event) =>
+                    updateForm({ unitPriceMajor: event.target.value })
+                  }
+                />
+              </Field>
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center gap-2">
+            <Button type="submit" disabled={isPending || isUploading}>
+              {editingId ? <Save className="size-4" /> : <Plus className="size-4" />}
+              {editingId ? "Save changes" : "Create item"}
+            </Button>
+            {message ? (
+              <p className="text-sm font-medium text-stone-600">{message}</p>
+            ) : null}
+          </div>
+        </form>
+      </aside>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function toDraft(form: FormState): LineItemDataDraft {
+  return {
+    title: form.title,
+    detailedDescription: form.detailedDescription,
+    unit: form.unit,
+    unitPriceMinor: Math.round(Number(form.unitPriceMajor || 0) * 100),
+    descriptionImageStoragePath: form.descriptionImageStoragePath || undefined,
+    descriptionImageMimeType: form.descriptionImageMimeType,
+  };
+}

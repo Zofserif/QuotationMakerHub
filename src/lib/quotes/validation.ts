@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { APP_CURRENCY, normalizeCurrency } from "@/lib/currency";
+import { lineItemImageMimeTypes } from "@/lib/line-item-data/types";
 
 export const clientSchema = z.object({
   companyName: z.string().max(200).optional().or(z.literal("")),
@@ -11,11 +12,14 @@ export const clientSchema = z.object({
 
 export const quoteLineItemInputSchema = z.object({
   name: z.string().min(1).max(200),
-  description: z.string().max(2000).optional().or(z.literal("")),
+  description: z.string().max(10000).optional().or(z.literal("")),
+  unit: z.string().trim().min(1).max(40).default("Unit"),
   quantity: z.coerce.number().positive(),
   unitPriceMinor: z.coerce.number().int().min(0),
   discountMinor: z.coerce.number().int().min(0),
   taxRate: z.coerce.number().min(0).max(1),
+  descriptionImageStoragePath: z.string().max(1000).optional().or(z.literal("")),
+  descriptionImageMimeType: z.enum(lineItemImageMimeTypes).optional(),
 });
 
 export const quoteDraftSchema = z.object({

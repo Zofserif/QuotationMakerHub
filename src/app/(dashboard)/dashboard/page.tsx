@@ -1,4 +1,5 @@
 import {
+  Database,
   FileSignature,
   FileText,
   Send,
@@ -35,6 +36,10 @@ export default async function DashboardPage() {
         <LinkButton href="/quote-template" variant="secondary">
           <FileText className="size-4" />
           Quote Template
+        </LinkButton>
+        <LinkButton href="/line-item-data" variant="secondary">
+          <Database className="size-4" />
+          Line Item Data
         </LinkButton>
       </section>
 

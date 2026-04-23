@@ -5,7 +5,9 @@ import { CheckCircle2, FileSignature, Lock, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MarkdownText } from "@/components/ui/markdown-text";
 import { SignatureModal } from "@/components/signature/signature-modal";
+import { getLineItemImageSrc } from "@/lib/line-item-data/images";
 import type { ClientQuoteView } from "@/lib/quotes/types";
 import { formatDate, formatMoney } from "@/lib/utils";
 
@@ -135,22 +137,42 @@ export function ClientQuoteViewComponent({
 
           <section className="py-6">
             <div className="overflow-hidden rounded-lg border border-stone-200">
-              {view.quote.lineItems.map((lineItem) => (
-                <div
-                  className="grid gap-3 border-b border-stone-200 px-4 py-4 text-sm last:border-b-0 sm:grid-cols-[1fr_120px] sm:items-start"
-                  key={lineItem.id}
-                >
-                  <div>
-                    <p className="font-medium text-stone-950">{lineItem.name}</p>
-                    <p className="mt-1 text-stone-500">
-                      {lineItem.description}
-                    </p>
+              {view.quote.lineItems.map((lineItem) => {
+                const imageSrc = getLineItemImageSrc(lineItem);
+
+                return (
+                  <div
+                    className="grid gap-3 border-b border-stone-200 px-4 py-4 text-sm last:border-b-0 sm:grid-cols-[1fr_160px] sm:items-start"
+                    key={lineItem.id}
+                  >
+                    <div>
+                      {view.quote.template?.lineItems.showDescriptionPicture &&
+                      imageSrc ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          alt=""
+                          className="mb-3 h-32 w-full rounded-md border border-stone-200 object-cover"
+                          src={imageSrc}
+                        />
+                      ) : null}
+                      <p className="font-medium text-stone-950">
+                        {lineItem.name}
+                      </p>
+                      <MarkdownText
+                        className="mt-1 text-stone-500"
+                        value={lineItem.description}
+                      />
+                    </div>
+                    <div className="space-y-1 font-semibold text-stone-950 sm:text-right">
+                      <p>{formatMoney(lineItem.lineTotalMinor, view.quote.currency)}</p>
+                      <p className="text-xs font-medium text-stone-500">
+                        {lineItem.quantity} {lineItem.unit || "Unit"} ·{" "}
+                        {formatMoney(lineItem.unitPriceMinor, view.quote.currency)}
+                      </p>
+                    </div>
                   </div>
-                  <p className="font-semibold text-stone-950 sm:text-right">
-                    {formatMoney(lineItem.lineTotalMinor, view.quote.currency)}
-                  </p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
 

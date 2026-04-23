@@ -17,12 +17,14 @@ import {
 } from "@/lib/currency";
 import { createDraftFromTemplate } from "@/lib/quote-templates/defaults";
 import type { QuoteTemplate } from "@/lib/quote-templates/types";
+import type { LineItemData } from "@/lib/line-item-data/types";
 import { calculateQuoteTotals } from "@/lib/quotes/calculate-totals";
 import type { Quote, QuoteDraft } from "@/lib/quotes/types";
 
 const emptyLineItem: QuoteDraft["lineItems"][number] = {
   name: "Discovery and Planning",
   description: "Project discovery workshop and implementation plan.",
+  unit: "Unit",
   quantity: 1,
   unitPriceMinor: 150000,
   discountMinor: 0,
@@ -32,9 +34,11 @@ const emptyLineItem: QuoteDraft["lineItems"][number] = {
 export function QuoteEditor({
   quote,
   template,
+  lineItemData = [],
 }: {
   quote?: Quote;
   template?: QuoteTemplate;
+  lineItemData?: LineItemData[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -177,6 +181,10 @@ export function QuoteEditor({
           <LineItemsTable
             currency={draft.currency}
             lineItems={draft.lineItems}
+            lineItemData={lineItemData}
+            defaultTaxRate={
+              template?.lineItems.vat.enabled ? template.lineItems.vat.rate : 0
+            }
             onChange={(lineItems) => updateDraft({ lineItems })}
           />
         </section>
@@ -280,10 +288,14 @@ function createInitialDraft(quote?: Quote, template?: QuoteTemplate): QuoteDraft
     lineItems: quote.lineItems.map((lineItem) => ({
       name: lineItem.name,
       description: lineItem.description,
+      unit: lineItem.unit || "Unit",
       quantity: lineItem.quantity,
       unitPriceMinor: lineItem.unitPriceMinor,
       discountMinor: lineItem.discountMinor,
       taxRate: lineItem.taxRate,
+      descriptionImageStoragePath: lineItem.descriptionImageStoragePath,
+      descriptionImageMimeType: lineItem.descriptionImageMimeType,
+      descriptionImageUrl: lineItem.descriptionImageUrl,
     })),
   };
 }

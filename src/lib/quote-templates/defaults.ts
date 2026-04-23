@@ -214,6 +214,7 @@ export function createDraftFromTemplate(template: QuoteTemplate): QuoteDraft {
       {
         name: "",
         description: "",
+        unit: template.lineItems.unit.options[0] ?? "Unit",
         quantity: 1,
         unitPriceMinor: 0,
         discountMinor: 0,

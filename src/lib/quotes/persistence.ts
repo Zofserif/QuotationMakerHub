@@ -6,16 +6,22 @@ import {
   getDemoClientQuoteView,
   getDemoQuote,
   getDemoQuoteTemplate,
+  listDemoLineItemData,
   getDemoQuoteVersions,
+  createDemoLineItemData,
   listDemoQuotes,
+  deleteDemoLineItemData,
   placeDemoSignature,
   sendDemoQuote,
+  updateDemoLineItemData,
   updateDemoQuoteTemplate,
   updateDemoQuote,
+  uploadDemoLineItemDataImage,
 } from "@/lib/demo/store";
 import { hasSupabaseAdminConfig } from "@/lib/supabase/admin";
 import { renderQuotePdf } from "@/lib/pdf/render-pdf";
 import type { QuoteTemplate } from "@/lib/quote-templates/types";
+import type { LineItemDataDraft } from "@/lib/line-item-data/types";
 import type { QuoteDraft, SourceMethod } from "@/lib/quotes/types";
 import {
   acceptSupabaseQuote,
@@ -24,13 +30,18 @@ import {
   getSupabaseClientQuoteView,
   getSupabaseQuote,
   getSupabaseQuoteTemplate,
+  listSupabaseLineItemData,
+  createSupabaseLineItemData,
+  deleteSupabaseLineItemData,
   listSupabaseAuditEvents,
   listSupabaseQuoteVersions,
   listSupabaseQuotes,
   placeSupabaseSignature,
   sendSupabaseQuote,
+  updateSupabaseLineItemData,
   updateSupabaseQuoteTemplate,
   updateSupabaseQuote,
+  uploadSupabaseLineItemDataImage,
   type QuoterContext,
 } from "@/lib/quotes/supabase-store";
 
@@ -73,6 +84,59 @@ export async function updateQuoteTemplate(
   }
 
   return updateSupabaseQuoteTemplate(quoter, template);
+}
+
+export async function listLineItemData(quoter: QuoterContext) {
+  if (shouldUseDemoPersistence()) {
+    return listDemoLineItemData();
+  }
+
+  return listSupabaseLineItemData(quoter);
+}
+
+export async function createLineItemData(
+  quoter: QuoterContext,
+  draft: LineItemDataDraft,
+) {
+  if (shouldUseDemoPersistence()) {
+    return createDemoLineItemData(draft);
+  }
+
+  return createSupabaseLineItemData(quoter, draft);
+}
+
+export async function updateLineItemData(
+  quoter: QuoterContext,
+  lineItemDataId: string,
+  draft: LineItemDataDraft,
+) {
+  if (shouldUseDemoPersistence()) {
+    return updateDemoLineItemData(lineItemDataId, draft);
+  }
+
+  return updateSupabaseLineItemData(quoter, lineItemDataId, draft);
+}
+
+export async function deleteLineItemData(
+  quoter: QuoterContext,
+  lineItemDataId: string,
+) {
+  if (shouldUseDemoPersistence()) {
+    return deleteDemoLineItemData(lineItemDataId);
+  }
+
+  return deleteSupabaseLineItemData(quoter, lineItemDataId);
+}
+
+export async function uploadLineItemDataImage(
+  quoter: QuoterContext,
+  file: File,
+) {
+  if (shouldUseDemoPersistence()) {
+    return uploadDemoLineItemDataImage(file);
+  }
+
+  return uploadSupabaseLineItemDataImage(quoter, file);
 }
 
 export async function createQuote(

@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 
+import { MarkdownText } from "@/components/ui/markdown-text";
+import { getLineItemImageSrc } from "@/lib/line-item-data/images";
 import { requireQuoter } from "@/lib/auth/require-quoter";
 import { getQuote, listQuoteVersions } from "@/lib/quotes/persistence";
 import { formatDate, formatMoney } from "@/lib/utils";
@@ -108,25 +110,43 @@ export default async function PrintQuotePage({
                 <th className="py-2">Item</th>
                 <th className="py-2">Qty</th>
                 <th className="py-2">Unit</th>
+                <th className="py-2">Unit Price</th>
                 <th className="py-2 text-right">Total</th>
               </tr>
             </thead>
             <tbody>
-              {snapshot.lineItems.map((lineItem) => (
-                <tr className="border-b border-stone-200" key={lineItem.id}>
-                  <td className="py-3">
-                    <p className="font-medium">{lineItem.name}</p>
-                    <p className="text-stone-500">{lineItem.description}</p>
-                  </td>
-                  <td className="py-3">{lineItem.quantity}</td>
-                  <td className="py-3">
-                    {formatMoney(lineItem.unitPriceMinor, snapshot.currency)}
-                  </td>
-                  <td className="py-3 text-right font-medium">
-                    {formatMoney(lineItem.lineTotalMinor, snapshot.currency)}
-                  </td>
-                </tr>
-              ))}
+              {snapshot.lineItems.map((lineItem) => {
+                const imageSrc = getLineItemImageSrc(lineItem);
+
+                return (
+                  <tr className="border-b border-stone-200" key={lineItem.id}>
+                    <td className="py-3">
+                      {snapshot.template?.lineItems.showDescriptionPicture &&
+                      imageSrc ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          alt=""
+                          className="mb-3 h-28 w-full rounded-md border border-stone-200 object-cover"
+                          src={imageSrc}
+                        />
+                      ) : null}
+                      <p className="font-medium">{lineItem.name}</p>
+                      <MarkdownText
+                        className="text-stone-500"
+                        value={lineItem.description}
+                      />
+                    </td>
+                    <td className="py-3">{lineItem.quantity}</td>
+                    <td className="py-3">{lineItem.unit || "Unit"}</td>
+                    <td className="py-3">
+                      {formatMoney(lineItem.unitPriceMinor, snapshot.currency)}
+                    </td>
+                    <td className="py-3 text-right font-medium">
+                      {formatMoney(lineItem.lineTotalMinor, snapshot.currency)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </section>

@@ -1,4 +1,5 @@
 import type { QuoteTemplate } from "@/lib/quote-templates/types";
+import type { LineItemImageMimeType } from "@/lib/line-item-data/types";
 
 export const quoteStatuses = [
   "draft",
@@ -38,11 +39,15 @@ export type QuoteLineItem = {
   sortOrder: number;
   name: string;
   description?: string;
+  unit: string;
   quantity: number;
   unitPriceMinor: number;
   discountMinor: number;
   taxRate: number;
   lineTotalMinor: number;
+  descriptionImageStoragePath?: string;
+  descriptionImageMimeType?: LineItemImageMimeType;
+  descriptionImageUrl?: string;
 };
 
 export type QuoteTotals = {

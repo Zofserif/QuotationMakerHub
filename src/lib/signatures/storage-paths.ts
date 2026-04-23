@@ -15,3 +15,11 @@ export function pdfStoragePath(input: {
 }) {
   return `quote-pdfs/${input.organizationId}/${input.quoteId}/v${input.versionNumber}/${input.pdfExportId}.pdf`;
 }
+
+export function lineItemImageStoragePath(input: {
+  organizationId: string;
+  imageId: string;
+  extension: string;
+}) {
+  return `line-item-images/${input.organizationId}/line-item-data/${input.imageId}.${input.extension}`;
+}

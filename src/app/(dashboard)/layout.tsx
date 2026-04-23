@@ -1,4 +1,10 @@
-import { FileSignature, FileText, LayoutDashboard, Plus } from "lucide-react";
+import {
+  Database,
+  FileSignature,
+  FileText,
+  LayoutDashboard,
+  Plus,
+} from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -34,6 +40,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               <LinkButton href="/quote-template" variant="secondary" size="sm">
                 <FileText className="size-4" />
                 Quote Template
+              </LinkButton>
+              <LinkButton href="/line-item-data" variant="secondary" size="sm">
+                <Database className="size-4" />
+                Line Item Data
               </LinkButton>
               <LinkButton href="/quotes/new" size="sm">
                 <Plus className="size-4" />

@@ -39,7 +39,10 @@ export function createVersionSnapshot(
       email,
       role,
     })),
-    lineItems: quote.lineItems,
+    lineItems: quote.lineItems.map(({ descriptionImageUrl, ...lineItem }) => {
+      void descriptionImageUrl;
+      return lineItem;
+    }),
     signatureFields: quote.signatureFields,
     subtotalMinor: quote.subtotalMinor,
     discountMinor: quote.discountMinor,

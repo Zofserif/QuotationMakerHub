@@ -1,5 +1,3 @@
-import { auth } from "@clerk/nextjs/server";
-
 import { isClerkConfigured } from "./clerk";
 
 export async function requireQuoter() {
@@ -10,6 +8,7 @@ export async function requireQuoter() {
     };
   }
 
+  const { auth } = await import("@clerk/nextjs/server");
   const session = await auth.protect();
 
   return {
