@@ -1,6 +1,12 @@
-import { FileSignature, Send, ShieldCheck, TrendingUp } from "lucide-react";
-import { redirect } from "next/navigation";
+import {
+  FileSignature,
+  FileText,
+  Send,
+  ShieldCheck,
+  TrendingUp,
+} from "lucide-react";
 
+import { LinkButton } from "@/components/ui/button";
 import { QuoteList } from "@/components/dashboard/quote-list";
 import { requireQuoter } from "@/lib/auth/require-quoter";
 import { listQuotes } from "@/lib/quotes/persistence";
@@ -17,17 +23,19 @@ export default async function DashboardPage() {
   ).length;
   const totalPipeline = quotes.reduce((sum, quote) => sum + quote.totalMinor, 0);
 
-  if (quotes.length === 0) {
-    redirect("/quotes/new");
-  }
-
   return (
     <div className="space-y-6">
-      <section>
-        <p className="text-sm font-medium text-stone-500">Workspace</p>
-        <h1 className="mt-1 text-3xl font-bold text-stone-950">
-          Quote dashboard
-        </h1>
+      <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-medium text-stone-500">Workspace</p>
+          <h1 className="mt-1 text-3xl font-bold text-stone-950">
+            Quote dashboard
+          </h1>
+        </div>
+        <LinkButton href="/quote-template" variant="secondary">
+          <FileText className="size-4" />
+          Quote Template
+        </LinkButton>
       </section>
 
       <section className="grid gap-4 md:grid-cols-4">

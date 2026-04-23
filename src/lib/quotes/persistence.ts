@@ -5,14 +5,17 @@ import {
   getDemoAuditEvents,
   getDemoClientQuoteView,
   getDemoQuote,
+  getDemoQuoteTemplate,
   getDemoQuoteVersions,
   listDemoQuotes,
   placeDemoSignature,
   sendDemoQuote,
+  updateDemoQuoteTemplate,
   updateDemoQuote,
 } from "@/lib/demo/store";
 import { hasSupabaseAdminConfig } from "@/lib/supabase/admin";
 import { renderQuotePdf } from "@/lib/pdf/render-pdf";
+import type { QuoteTemplate } from "@/lib/quote-templates/types";
 import type { QuoteDraft, SourceMethod } from "@/lib/quotes/types";
 import {
   acceptSupabaseQuote,
@@ -20,11 +23,13 @@ import {
   createSupabaseQuote,
   getSupabaseClientQuoteView,
   getSupabaseQuote,
+  getSupabaseQuoteTemplate,
   listSupabaseAuditEvents,
   listSupabaseQuoteVersions,
   listSupabaseQuotes,
   placeSupabaseSignature,
   sendSupabaseQuote,
+  updateSupabaseQuoteTemplate,
   updateSupabaseQuote,
   type QuoterContext,
 } from "@/lib/quotes/supabase-store";
@@ -49,6 +54,25 @@ export async function getQuote(quoter: QuoterContext, quoteId: string) {
   }
 
   return getSupabaseQuote(quoter, quoteId);
+}
+
+export async function getQuoteTemplate(quoter: QuoterContext) {
+  if (shouldUseDemoPersistence()) {
+    return getDemoQuoteTemplate();
+  }
+
+  return getSupabaseQuoteTemplate(quoter);
+}
+
+export async function updateQuoteTemplate(
+  quoter: QuoterContext,
+  template: QuoteTemplate,
+) {
+  if (shouldUseDemoPersistence()) {
+    return updateDemoQuoteTemplate(template);
+  }
+
+  return updateSupabaseQuoteTemplate(quoter, template);
 }
 
 export async function createQuote(

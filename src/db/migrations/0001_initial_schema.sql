@@ -38,7 +38,7 @@ create table quotes (
   status text not null check (
     status in ('draft', 'sent', 'viewed', 'partially_signed', 'accepted', 'rejected', 'expired', 'locked')
   ) default 'draft',
-  currency text not null default 'USD',
+  currency text not null default 'PHP',
   subtotal_minor bigint not null default 0,
   discount_minor bigint not null default 0,
   tax_minor bigint not null default 0,

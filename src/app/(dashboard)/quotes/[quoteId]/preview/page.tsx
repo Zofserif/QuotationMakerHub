@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { LinkButton } from "@/components/ui/button";
 import { QuotePreview } from "@/components/quote-editor/quote-preview";
 import { requireQuoter } from "@/lib/auth/require-quoter";
-import { getQuote } from "@/lib/quotes/persistence";
+import { getQuote, getQuoteTemplate } from "@/lib/quotes/persistence";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,10 @@ export default async function PreviewQuotePage({
 }) {
   const { quoteId } = await params;
   const quoter = await requireQuoter();
-  const quote = await getQuote(quoter, quoteId);
+  const [quote, template] = await Promise.all([
+    getQuote(quoter, quoteId),
+    getQuoteTemplate(quoter),
+  ]);
 
   if (!quote) {
     notFound();
@@ -37,7 +40,7 @@ export default async function PreviewQuotePage({
           </LinkButton>
         ) : null}
       </div>
-      <QuotePreview quote={quote} />
+      <QuotePreview quote={quote} template={template} />
     </div>
   );
 }

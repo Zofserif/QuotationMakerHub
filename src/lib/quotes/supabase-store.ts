@@ -7,10 +7,14 @@ import {
   defaultTokenExpiry,
   hashClientAccessToken,
 } from "@/lib/client-links/token";
+import { APP_CURRENCY, normalizeCurrency } from "@/lib/currency";
 import {
   calculateQuoteTotals,
   withCalculatedLineTotals,
 } from "@/lib/quotes/calculate-totals";
+import { mergeQuoteTemplate } from "@/lib/quote-templates/defaults";
+import { formatQuoteNumber } from "@/lib/quote-templates/numbering";
+import type { QuoteTemplate } from "@/lib/quote-templates/types";
 import {
   createVersionSnapshot,
   hashSnapshot,
@@ -206,10 +210,49 @@ type AuditEventRow = {
   created_at: string;
 };
 
+type QuoteTemplateRow = {
+  id: string;
+  organization_id: string;
+  content: QuoteTemplate;
+  created_by_clerk_user_id: string;
+  created_at: string;
+  updated_at: string;
+};
+
 type SupabaseError = {
   message: string;
   code?: string;
 } | null;
+
+export async function getSupabaseQuoteTemplate(quoter: QuoterContext) {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+
+  return getQuoteTemplateContent(db, organization.id);
+}
+
+export async function updateSupabaseQuoteTemplate(
+  quoter: QuoterContext,
+  template: QuoteTemplate,
+) {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  const now = new Date().toISOString();
+  const content = mergeQuoteTemplate(template);
+  const { error } = await db.from("quote_templates").upsert(
+    {
+      organization_id: organization.id,
+      content,
+      created_by_clerk_user_id: quoter.clerkUserId,
+      updated_at: now,
+    },
+    { onConflict: "organization_id" },
+  );
+
+  throwIfError(error, "Save quote template");
+
+  return content;
+}
 
 export async function listSupabaseQuotes(quoter: QuoterContext) {
   const db = createSupabaseAdminClient();
@@ -254,7 +297,12 @@ export async function createSupabaseQuote(
   const recipientId = randomUUID();
   const signatureFieldId = randomUUID();
   const now = new Date().toISOString();
-  const quoteNumber = await nextQuoteNumber(db, organization.id);
+  const template = await getQuoteTemplateContent(db, organization.id);
+  const quoteNumber = await nextQuoteNumber(
+    db,
+    organization.id,
+    template.company.quoteNumberFormat,
+  );
   const dormantToken = createClientAccessToken();
 
   const { error: quoteError } = await db.from("quotes").insert({
@@ -263,7 +311,7 @@ export async function createSupabaseQuote(
     quote_number: quoteNumber,
     title: draft.title,
     status: "draft",
-    currency: draft.currency,
+    currency: APP_CURRENCY,
     subtotal_minor: totals.subtotalMinor,
     discount_minor: totals.discountMinor,
     tax_minor: totals.taxMinor,
@@ -355,7 +403,7 @@ export async function updateSupabaseQuote(
     .from("quotes")
     .update({
       title: draft.title,
-      currency: draft.currency,
+      currency: APP_CURRENCY,
       subtotal_minor: totals.subtotalMinor,
       discount_minor: totals.discountMinor,
       tax_minor: totals.taxMinor,
@@ -436,7 +484,8 @@ export async function sendSupabaseQuote(
   }
 
   const versionNumber = await nextVersionNumber(db, quote.id);
-  const snapshot = createVersionSnapshot(quote);
+  const template = await getQuoteTemplateContent(db, organization.id);
+  const snapshot = createVersionSnapshot(quote, template);
   const versionId = randomUUID();
   const version: QuoteVersion = {
     id: versionId,
@@ -1013,6 +1062,23 @@ async function ensureWorkspace(
   return organization;
 }
 
+async function getQuoteTemplateContent(
+  db: SupabaseClient,
+  organizationId: string,
+) {
+  const { data, error } = await db
+    .from("quote_templates")
+    .select("content")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  throwIfError(error, "Get quote template");
+
+  return mergeQuoteTemplate(
+    (data as Pick<QuoteTemplateRow, "content"> | null)?.content,
+  );
+}
+
 async function upsertClient(
   db: SupabaseClient,
   organizationId: string,
@@ -1064,7 +1130,7 @@ async function loadQuote(
     quoteNumber: quoteRow.quote_number,
     title: quoteRow.title,
     status: quoteRow.status,
-    currency: quoteRow.currency,
+    currency: normalizeCurrency(quoteRow.currency),
     subtotalMinor: Number(quoteRow.subtotal_minor),
     discountMinor: Number(quoteRow.discount_minor),
     taxMinor: Number(quoteRow.tax_minor),
@@ -1242,8 +1308,11 @@ async function createDefaultRecipientAndField(
   throwIfError(fieldError, "Create default signature field");
 }
 
-async function nextQuoteNumber(db: SupabaseClient, organizationId: string) {
-  const year = new Date().getFullYear();
+async function nextQuoteNumber(
+  db: SupabaseClient,
+  organizationId: string,
+  format: string,
+) {
   const { count, error } = await db
     .from("quotes")
     .select("id", { count: "exact", head: true })
@@ -1251,7 +1320,7 @@ async function nextQuoteNumber(db: SupabaseClient, organizationId: string) {
 
   throwIfError(error, "Count quotes");
 
-  return `Q-${year}-${String((count ?? 0) + 1).padStart(4, "0")}`;
+  return formatQuoteNumber(format, (count ?? 0) + 1);
 }
 
 async function nextVersionNumber(db: SupabaseClient, quoteId: string) {

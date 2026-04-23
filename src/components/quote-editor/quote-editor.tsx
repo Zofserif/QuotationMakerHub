@@ -10,6 +10,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { LineItemsTable } from "@/components/quote-editor/line-items-table";
 import { QuoteTotalsView } from "@/components/quote-editor/quote-totals";
+import {
+  APP_CURRENCY,
+  APP_CURRENCY_DISPLAY_NAME,
+  normalizeCurrency,
+} from "@/lib/currency";
+import { createDraftFromTemplate } from "@/lib/quote-templates/defaults";
+import type { QuoteTemplate } from "@/lib/quote-templates/types";
 import { calculateQuoteTotals } from "@/lib/quotes/calculate-totals";
 import type { Quote, QuoteDraft } from "@/lib/quotes/types";
 
@@ -22,32 +29,19 @@ const emptyLineItem: QuoteDraft["lineItems"][number] = {
   taxRate: 0.12,
 };
 
-export function QuoteEditor({ quote }: { quote?: Quote }) {
+export function QuoteEditor({
+  quote,
+  template,
+}: {
+  quote?: Quote;
+  template?: QuoteTemplate;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
-  const [draft, setDraft] = useState<QuoteDraft>({
-    title: quote?.title ?? "Website Redesign Quotation",
-    client: quote?.client ?? {
-      companyName: "Acme Corp",
-      contactName: "Jane Client",
-      email: "jane@example.com",
-      phone: "",
-    },
-    currency: quote?.currency ?? "USD",
-    validUntil: quote?.validUntil ?? "2026-05-31",
-    terms: quote?.terms ?? "50% down payment, 50% on completion.",
-    notes: quote?.notes ?? "Timeline starts after written acceptance.",
-    lineItems:
-      quote?.lineItems.map((lineItem) => ({
-        name: lineItem.name,
-        description: lineItem.description,
-        quantity: lineItem.quantity,
-        unitPriceMinor: lineItem.unitPriceMinor,
-        discountMinor: lineItem.discountMinor,
-        taxRate: lineItem.taxRate,
-      })) ?? [emptyLineItem],
-  });
+  const [draft, setDraft] = useState<QuoteDraft>(() =>
+    createInitialDraft(quote, template),
+  );
 
   const totals = useMemo(
     () => calculateQuoteTotals(draft.lineItems, draft.quoteLevelDiscountMinor),
@@ -131,11 +125,8 @@ export function QuoteEditor({ quote }: { quote?: Quote }) {
             </Field>
             <Field label="Currency">
               <Input
-                maxLength={3}
-                value={draft.currency}
-                onChange={(event) =>
-                  updateDraft({ currency: event.target.value.toUpperCase() })
-                }
+                readOnly
+                value={APP_CURRENCY_DISPLAY_NAME}
               />
             </Field>
             <Field label="Valid until">
@@ -259,12 +250,50 @@ export function QuoteEditor({ quote }: { quote?: Quote }) {
   );
 }
 
+function createInitialDraft(quote?: Quote, template?: QuoteTemplate): QuoteDraft {
+  if (!quote) {
+    return template
+      ? createDraftFromTemplate(template)
+      : {
+          title: "Website Redesign Quotation",
+          client: {
+            companyName: "Acme Corp",
+            contactName: "Jane Client",
+            email: "jane@example.com",
+            phone: "",
+          },
+          currency: APP_CURRENCY,
+          validUntil: "2026-05-31",
+          terms: "50% down payment, 50% on completion.",
+          notes: "Timeline starts after written acceptance.",
+          lineItems: [emptyLineItem],
+        };
+  }
+
+  return {
+    title: quote.title,
+    client: quote.client,
+    currency: normalizeCurrency(quote.currency),
+    validUntil: quote.validUntil ?? "",
+    terms: quote.terms ?? "",
+    notes: quote.notes ?? "",
+    lineItems: quote.lineItems.map((lineItem) => ({
+      name: lineItem.name,
+      description: lineItem.description,
+      quantity: lineItem.quantity,
+      unitPriceMinor: lineItem.unitPriceMinor,
+      discountMinor: lineItem.discountMinor,
+      taxRate: lineItem.taxRate,
+    })),
+  };
+}
+
 function Field({
   label,
   children,
 }: {
   label: string;
-      children: ReactNode;
+  children: ReactNode;
 }) {
   return (
     <label className="space-y-2">

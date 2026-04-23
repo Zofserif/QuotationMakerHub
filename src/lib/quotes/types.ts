@@ -1,3 +1,5 @@
+import type { QuoteTemplate } from "@/lib/quote-templates/types";
+
 export const quoteStatuses = [
   "draft",
   "sent",
@@ -121,7 +123,12 @@ export type QuoteVersionSnapshot = {
     name: string;
     email: string;
     address: string;
+    logoDataUrl?: string;
+    telephone?: string;
+    phone?: string;
+    vatRegTin?: string;
   };
+  template?: QuoteTemplate;
   client: ClientInput;
   recipients: Pick<QuoteRecipient, "id" | "name" | "email" | "role">[];
   lineItems: QuoteLineItem[];

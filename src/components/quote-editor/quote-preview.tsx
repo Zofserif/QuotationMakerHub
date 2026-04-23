@@ -2,10 +2,50 @@ import { PenLine } from "lucide-react";
 
 import { QuoteTotalsView } from "@/components/quote-editor/quote-totals";
 import { SignatureFieldConfig } from "@/components/quote-editor/signature-field-config";
+import type { QuoteTemplate } from "@/lib/quote-templates/types";
 import type { Quote } from "@/lib/quotes/types";
 import { formatDate, formatMoney } from "@/lib/utils";
 
-export function QuotePreview({ quote }: { quote: Quote }) {
+export function QuotePreview({
+  quote,
+  template,
+}: {
+  quote: Quote;
+  template?: QuoteTemplate;
+}) {
+  const business: {
+    name: string;
+    email: string;
+    address: string;
+    logoDataUrl?: string;
+    telephone?: string;
+    phone?: string;
+    vatRegTin?: string;
+  } = template
+    ? {
+        name: template.company.name.enabled ? template.company.name.value : "",
+        email: template.company.email.enabled ? template.company.email.value : "",
+        address: template.company.address,
+        logoDataUrl:
+          template.logo.enabled && template.logo.dataUrl
+            ? template.logo.dataUrl
+            : undefined,
+        telephone: template.company.telephone.enabled
+          ? template.company.telephone.value
+          : undefined,
+        phone: template.company.phone.enabled
+          ? template.company.phone.value
+          : undefined,
+        vatRegTin: template.company.vatRegTin.enabled
+          ? template.company.vatRegTin.value
+          : undefined,
+      }
+    : {
+        name: "Quotation Maker Hub",
+        email: "quotes@example.com",
+        address: "MVP business profile placeholder",
+      };
+
   return (
     <div className="bg-white p-6 shadow-sm ring-1 ring-stone-200 sm:p-8">
       <header className="flex flex-col gap-6 border-b border-stone-200 pb-6 sm:flex-row sm:items-start sm:justify-between">
@@ -21,9 +61,22 @@ export function QuotePreview({ quote }: { quote: Quote }) {
           </p>
         </div>
         <div className="text-sm text-stone-600 sm:text-right">
-          <p className="font-semibold text-stone-950">Quotation Maker Hub</p>
-          <p>quotes@example.com</p>
-          <p>MVP business profile placeholder</p>
+          {business.logoDataUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              alt="Company logo"
+              className="mb-3 h-16 w-full object-contain sm:ml-auto sm:w-40"
+              src={business.logoDataUrl}
+            />
+          ) : null}
+          {business.name ? (
+            <p className="font-semibold text-stone-950">{business.name}</p>
+          ) : null}
+          {business.email ? <p>{business.email}</p> : null}
+          <p>{business.address}</p>
+          {business.telephone ? <p>{business.telephone}</p> : null}
+          {business.phone ? <p>{business.phone}</p> : null}
+          {business.vatRegTin ? <p>{business.vatRegTin}</p> : null}
         </div>
       </header>
 

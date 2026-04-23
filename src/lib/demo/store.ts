@@ -6,6 +6,7 @@ import {
   hashClientAccessToken,
   isClientTokenHashMatch,
 } from "@/lib/client-links/token";
+import { APP_CURRENCY, normalizeCurrency } from "@/lib/currency";
 import { createAuditEvent } from "@/lib/audit/write-audit-event";
 import {
   calculateQuoteTotals,
@@ -15,6 +16,12 @@ import {
   createVersionSnapshot,
   hashSnapshot,
 } from "@/lib/quotes/create-version-snapshot";
+import {
+  defaultQuoteTemplate,
+  mergeQuoteTemplate,
+} from "@/lib/quote-templates/defaults";
+import { formatQuoteNumber } from "@/lib/quote-templates/numbering";
+import type { QuoteTemplate } from "@/lib/quote-templates/types";
 import { getAggregateQuoteStatus } from "@/lib/quotes/quote-state";
 import type {
   AuditEvent,
@@ -42,6 +49,7 @@ type DemoState = {
   placements: SignaturePlacement[];
   auditEvents: Record<string, AuditEvent[]>;
   quoteCounter: number;
+  quoteTemplate: QuoteTemplate;
 };
 
 const globalForDemo = globalThis as typeof globalThis & {
@@ -84,7 +92,7 @@ function seedDemoState(): DemoState {
     quoteNumber: "Q-2026-0001",
     title: "Website Redesign Quotation",
     status: "draft",
-    currency: "USD",
+    currency: APP_CURRENCY,
     client: {
       companyName: "Acme Corp",
       contactName: "Jane Client",
@@ -139,17 +147,20 @@ function seedDemoState(): DemoState {
       ],
     },
     quoteCounter: 2,
+    quoteTemplate: structuredClone(defaultQuoteTemplate),
   };
 }
 
 export function listDemoQuotes() {
-  return demoState.quotes.toSorted((a, b) =>
+  return demoState.quotes.map(withAppCurrency).toSorted((a, b) =>
     b.updatedAt.localeCompare(a.updatedAt),
   );
 }
 
 export function getDemoQuote(quoteId: string) {
-  return demoState.quotes.find((quote) => quote.id === quoteId) ?? null;
+  const quote = demoState.quotes.find((candidate) => candidate.id === quoteId);
+
+  return quote ? withAppCurrency(quote) : null;
 }
 
 export function getDemoQuoteVersions(quoteId: string) {
@@ -158,6 +169,21 @@ export function getDemoQuoteVersions(quoteId: string) {
 
 export function getDemoAuditEvents(quoteId: string) {
   return demoState.auditEvents[quoteId] ?? [];
+}
+
+export function getDemoQuoteTemplate() {
+  demoState.quoteTemplate = mergeQuoteTemplate(demoState.quoteTemplate);
+  return demoState.quoteTemplate;
+}
+
+export function updateDemoQuoteTemplate(template: QuoteTemplate) {
+  demoState.quoteTemplate = mergeQuoteTemplate(template);
+  return demoState.quoteTemplate;
+}
+
+function withAppCurrency(quote: Quote) {
+  quote.currency = normalizeCurrency(quote.currency);
+  return quote;
 }
 
 export function createDemoQuote(draft: QuoteDraft) {
@@ -172,10 +198,13 @@ export function createDemoQuote(draft: QuoteDraft) {
   const quote: Quote = {
     id: quoteId,
     organizationId: DEMO_ORG_ID,
-    quoteNumber: `Q-2026-${String(demoState.quoteCounter).padStart(4, "0")}`,
+    quoteNumber: formatQuoteNumber(
+      demoState.quoteTemplate.company.quoteNumberFormat,
+      demoState.quoteCounter,
+    ),
     title: draft.title,
     status: "draft",
-    currency: draft.currency,
+    currency: APP_CURRENCY,
     client: draft.client,
     lineItems,
     recipients: [
@@ -235,7 +264,7 @@ export function updateDemoQuote(
     draft.quoteLevelDiscountMinor ?? 0,
   );
   quote.title = draft.title;
-  quote.currency = draft.currency;
+  quote.currency = APP_CURRENCY;
   quote.client = draft.client;
   quote.lineItems = lineItems;
   quote.validUntil = emptyToUndefined(draft.validUntil);
@@ -271,7 +300,7 @@ export function sendDemoQuote(quoteId: string): SendQuoteResult {
     return { ok: false as const, code: "QUOTE_NOT_SENDABLE" };
   }
 
-  const snapshot = createVersionSnapshot(quote);
+  const snapshot = createVersionSnapshot(quote, demoState.quoteTemplate);
   const version: QuoteVersion = {
     id: randomUUID(),
     quoteId: quote.id,

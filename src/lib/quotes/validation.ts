@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { APP_CURRENCY, normalizeCurrency } from "@/lib/currency";
+
 export const clientSchema = z.object({
   companyName: z.string().max(200).optional().or(z.literal("")),
   contactName: z.string().min(1).max(160),
@@ -19,7 +21,11 @@ export const quoteLineItemInputSchema = z.object({
 export const quoteDraftSchema = z.object({
   title: z.string().min(1).max(160),
   client: clientSchema,
-  currency: z.string().length(3).toUpperCase(),
+  currency: z
+    .string()
+    .optional()
+    .default(APP_CURRENCY)
+    .transform((currency) => normalizeCurrency(currency)),
   validUntil: z.string().date().optional().or(z.literal("")),
   terms: z.string().max(10000).optional().or(z.literal("")),
   notes: z.string().max(10000).optional().or(z.literal("")),

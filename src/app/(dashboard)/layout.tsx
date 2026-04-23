@@ -1,4 +1,4 @@
-import { FileSignature, LayoutDashboard, Plus } from "lucide-react";
+import { FileSignature, FileText, LayoutDashboard, Plus } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -30,6 +30,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               <LinkButton href="/dashboard" variant="secondary" size="sm">
                 <LayoutDashboard className="size-4" />
                 Dashboard
+              </LinkButton>
+              <LinkButton href="/quote-template" variant="secondary" size="sm">
+                <FileText className="size-4" />
+                Quote Template
               </LinkButton>
               <LinkButton href="/quotes/new" size="sm">
                 <Plus className="size-4" />

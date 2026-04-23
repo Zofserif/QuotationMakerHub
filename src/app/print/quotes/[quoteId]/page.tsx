@@ -44,11 +44,28 @@ export default async function PrintQuotePage({
             </p>
           </div>
           <div className="text-right text-sm text-stone-600">
-            <p className="font-semibold text-stone-950">
-              {snapshot.business.name}
-            </p>
-            <p>{snapshot.business.email}</p>
+            {snapshot.business.logoDataUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                alt="Company logo"
+                className="mb-3 ml-auto h-16 w-40 object-contain"
+                src={snapshot.business.logoDataUrl}
+              />
+            ) : null}
+            {snapshot.business.name ? (
+              <p className="font-semibold text-stone-950">
+                {snapshot.business.name}
+              </p>
+            ) : null}
+            {snapshot.business.email ? <p>{snapshot.business.email}</p> : null}
             <p>{snapshot.business.address}</p>
+            {snapshot.business.telephone ? (
+              <p>{snapshot.business.telephone}</p>
+            ) : null}
+            {snapshot.business.phone ? <p>{snapshot.business.phone}</p> : null}
+            {snapshot.business.vatRegTin ? (
+              <p>{snapshot.business.vatRegTin}</p>
+            ) : null}
           </div>
         </header>
 
