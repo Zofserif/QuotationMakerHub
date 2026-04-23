@@ -9,26 +9,60 @@ import { MarkdownText } from "@/components/ui/markdown-text";
 import { Textarea } from "@/components/ui/textarea";
 import { getLineItemImageSrc } from "@/lib/line-item-data/images";
 import type { LineItemData } from "@/lib/line-item-data/types";
+import {
+  getTemplateDefaultLineItemTaxRate,
+  getTemplateDefaultLineItemUnit,
+} from "@/lib/quote-templates/defaults";
+import type { QuoteTemplate } from "@/lib/quote-templates/types";
 import type { QuoteDraft } from "@/lib/quotes/types";
-import { formatMoney } from "@/lib/utils";
+import { cn, formatMoney } from "@/lib/utils";
 import { calculateLineTotalMinor } from "@/lib/quotes/calculate-totals";
 
 type LineItemInput = QuoteDraft["lineItems"][number];
+
+const lineItemLayoutClassNames = {
+  "true-true": {
+    header:
+      "grid-cols-[1.5fr_0.45fr_0.55fr_0.75fr_0.75fr_0.55fr_0.8fr_44px]",
+    row: "xl:grid-cols-[1.5fr_0.45fr_0.55fr_0.75fr_0.75fr_0.55fr_0.8fr_44px]",
+  },
+  "true-false": {
+    header: "grid-cols-[1.5fr_0.45fr_0.75fr_0.75fr_0.55fr_0.8fr_44px]",
+    row: "xl:grid-cols-[1.5fr_0.45fr_0.75fr_0.75fr_0.55fr_0.8fr_44px]",
+  },
+  "false-true": {
+    header: "grid-cols-[1.5fr_0.55fr_0.75fr_0.75fr_0.55fr_0.8fr_44px]",
+    row: "xl:grid-cols-[1.5fr_0.55fr_0.75fr_0.75fr_0.55fr_0.8fr_44px]",
+  },
+  "false-false": {
+    header: "grid-cols-[1.5fr_0.75fr_0.75fr_0.55fr_0.8fr_44px]",
+    row: "xl:grid-cols-[1.5fr_0.75fr_0.75fr_0.55fr_0.8fr_44px]",
+  },
+} as const;
 
 export function LineItemsTable({
   lineItems,
   currency,
   lineItemData = [],
-  defaultTaxRate = 0,
+  template,
   onChange,
 }: {
   lineItems: LineItemInput[];
   currency: string;
   lineItemData?: LineItemData[];
-  defaultTaxRate?: number;
+  template: QuoteTemplate;
   onChange: (lineItems: LineItemInput[]) => void;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const quantityEnabled = template.lineItems.showQuantity;
+  const unitEnabled = template.lineItems.unit.enabled;
+  const defaultUnit = getTemplateDefaultLineItemUnit(template);
+  const defaultTaxRate = getTemplateDefaultLineItemTaxRate(template);
+  const descriptionPlaceholder =
+    template.lineItems.detailedDescriptionLabel.trim() ||
+    "Detailed description markdown";
+  const layoutKey = `${quantityEnabled}-${unitEnabled}` as keyof typeof lineItemLayoutClassNames;
+  const layout = lineItemLayoutClassNames[layoutKey];
 
   function updateLineItem(index: number, patch: Partial<LineItemInput>) {
     onChange(
@@ -41,34 +75,29 @@ export function LineItemsTable({
   function addLineItem() {
     onChange([
       ...lineItems,
-      {
-        name: "",
-        description: "",
-        unit: "Unit",
-        quantity: 1,
-        unitPriceMinor: 0,
-        discountMinor: 0,
-        taxRate: defaultTaxRate,
-      },
+      createEmptyLineItem({
+        defaultTaxRate,
+        defaultUnit,
+      }),
     ]);
   }
 
   function addSavedLineItem(item: LineItemData) {
-    onChange([
-      ...lineItems,
-      {
-        name: item.title,
-        description: item.detailedDescription,
-        unit: item.unit,
-        quantity: 1,
-        unitPriceMinor: item.unitPriceMinor,
-        discountMinor: 0,
-        taxRate: defaultTaxRate,
-        descriptionImageStoragePath: item.descriptionImageStoragePath,
-        descriptionImageMimeType: item.descriptionImageMimeType,
-        descriptionImageUrl: item.descriptionImageUrl,
-      },
-    ]);
+    const nextLineItem = createSavedLineItem(item, {
+      defaultTaxRate,
+      defaultUnit,
+      unitEnabled,
+    });
+
+    onChange(
+      lineItems.length > 0 &&
+        isUntouchedStarterLineItem(lineItems[0], {
+          defaultTaxRate,
+          defaultUnit,
+        })
+        ? [nextLineItem, ...lineItems.slice(1)]
+        : [...lineItems, nextLineItem],
+    );
     setPickerOpen(false);
   }
 
@@ -79,10 +108,15 @@ export function LineItemsTable({
   return (
     <div className="space-y-3">
       <div className="overflow-hidden rounded-lg border border-stone-200">
-        <div className="grid grid-cols-[1.5fr_0.45fr_0.55fr_0.75fr_0.75fr_0.55fr_0.8fr_44px] gap-3 border-b border-stone-200 bg-stone-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-stone-500 max-xl:hidden">
+        <div
+          className={cn(
+            "grid gap-3 border-b border-stone-200 bg-stone-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-stone-500 max-xl:hidden",
+            layout.header,
+          )}
+        >
           <span>Item</span>
-          <span>Qty</span>
-          <span>Unit</span>
+          {quantityEnabled ? <span>Qty</span> : null}
+          {unitEnabled ? <span>Unit</span> : null}
           <span>Unit Price</span>
           <span>Discount</span>
           <span>Tax</span>
@@ -95,7 +129,7 @@ export function LineItemsTable({
 
             return (
               <div
-                className="grid gap-3 p-3 xl:grid-cols-[1.5fr_0.45fr_0.55fr_0.75fr_0.75fr_0.55fr_0.8fr_44px] xl:items-start"
+                className={cn("grid gap-3 p-3 xl:items-start", layout.row)}
                 key={index}
               >
                 <div className="space-y-2">
@@ -118,7 +152,7 @@ export function LineItemsTable({
                   <Textarea
                     aria-label="Line item description"
                     className="min-h-20"
-                    placeholder="Detailed description markdown"
+                    placeholder={descriptionPlaceholder}
                     value={lineItem.description}
                     onChange={(event) =>
                       updateLineItem(index, {
@@ -127,27 +161,32 @@ export function LineItemsTable({
                     }
                   />
                 </div>
-                <Input
-                  aria-label="Quantity"
-                  type="number"
-                  min="0"
-                  step="0.001"
-                  value={lineItem.quantity}
-                  onChange={(event) =>
-                    updateLineItem(index, {
-                      quantity: Number(event.target.value),
-                    })
-                  }
-                />
-                <Input
-                  aria-label="Unit"
-                  value={lineItem.unit}
-                  onChange={(event) =>
-                    updateLineItem(index, {
-                      unit: event.target.value,
-                    })
-                  }
-                />
+                {quantityEnabled ? (
+                  <Input
+                    aria-label="Quantity"
+                    type="number"
+                    min="0"
+                    step="0.001"
+                    value={lineItem.quantity}
+                    onChange={(event) =>
+                      updateLineItem(index, {
+                        quantity: Number(event.target.value),
+                      })
+                    }
+                  />
+                ) : null}
+                {unitEnabled ? (
+                  <Input
+                    aria-label="Unit"
+                    list="quote-line-item-unit-options"
+                    value={lineItem.unit}
+                    onChange={(event) =>
+                      updateLineItem(index, {
+                        unit: event.target.value,
+                      })
+                    }
+                  />
+                ) : null}
                 <Input
                   aria-label="Unit price minor"
                   type="number"
@@ -215,6 +254,13 @@ export function LineItemsTable({
           Add from saved data
         </Button>
       ) : null}
+      {unitEnabled ? (
+        <datalist id="quote-line-item-unit-options">
+          {template.lineItems.unit.options.map((option) => (
+            <option key={option} value={option} />
+          ))}
+        </datalist>
+      ) : null}
       {pickerOpen ? (
         <div className="rounded-lg border border-stone-200 bg-white p-3">
           <div className="mb-3 flex items-center justify-between gap-3">
@@ -274,5 +320,63 @@ export function LineItemsTable({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function createEmptyLineItem(input: {
+  defaultTaxRate: number;
+  defaultUnit: string;
+}): LineItemInput {
+  return {
+    name: "",
+    description: "",
+    unit: input.defaultUnit,
+    quantity: 1,
+    unitPriceMinor: 0,
+    discountMinor: 0,
+    taxRate: input.defaultTaxRate,
+  };
+}
+
+function createSavedLineItem(
+  item: LineItemData,
+  input: {
+    defaultTaxRate: number;
+    defaultUnit: string;
+    unitEnabled: boolean;
+  },
+): LineItemInput {
+  return {
+    name: item.title,
+    description: item.detailedDescription,
+    unit: input.unitEnabled ? item.unit : input.defaultUnit,
+    quantity: 1,
+    unitPriceMinor: item.unitPriceMinor,
+    discountMinor: 0,
+    taxRate: input.defaultTaxRate,
+    descriptionImageStoragePath: item.descriptionImageStoragePath,
+    descriptionImageMimeType: item.descriptionImageMimeType,
+    descriptionImageUrl: item.descriptionImageUrl,
+  };
+}
+
+function isUntouchedStarterLineItem(
+  lineItem: LineItemInput,
+  input: {
+    defaultTaxRate: number;
+    defaultUnit: string;
+  },
+) {
+  return (
+    lineItem.name.trim() === "" &&
+    (lineItem.description ?? "").trim() === "" &&
+    lineItem.quantity === 1 &&
+    lineItem.unit === input.defaultUnit &&
+    lineItem.unitPriceMinor === 0 &&
+    lineItem.discountMinor === 0 &&
+    lineItem.taxRate === input.defaultTaxRate &&
+    !lineItem.descriptionImageStoragePath &&
+    !lineItem.descriptionImageMimeType &&
+    !lineItem.descriptionImageUrl
   );
 }

@@ -184,6 +184,14 @@ export function mergeQuoteTemplate(
   };
 }
 
+export function getTemplateDefaultLineItemUnit(template: QuoteTemplate) {
+  return template.lineItems.unit.options[0] ?? "Unit";
+}
+
+export function getTemplateDefaultLineItemTaxRate(template: QuoteTemplate) {
+  return template.lineItems.vat.enabled ? template.lineItems.vat.rate : 0;
+}
+
 export function createDraftFromTemplate(template: QuoteTemplate): QuoteDraft {
   return {
     title: template.offerTitle.enabled
@@ -214,13 +222,11 @@ export function createDraftFromTemplate(template: QuoteTemplate): QuoteDraft {
       {
         name: "",
         description: "",
-        unit: template.lineItems.unit.options[0] ?? "Unit",
+        unit: getTemplateDefaultLineItemUnit(template),
         quantity: 1,
         unitPriceMinor: 0,
         discountMinor: 0,
-        taxRate: template.lineItems.vat.enabled
-          ? template.lineItems.vat.rate
-          : 0,
+        taxRate: getTemplateDefaultLineItemTaxRate(template),
       },
     ],
   };

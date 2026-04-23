@@ -11,25 +11,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { LineItemsTable } from "@/components/quote-editor/line-items-table";
 import { QuoteTotalsView } from "@/components/quote-editor/quote-totals";
 import {
-  APP_CURRENCY,
   APP_CURRENCY_DISPLAY_NAME,
   normalizeCurrency,
 } from "@/lib/currency";
-import { createDraftFromTemplate } from "@/lib/quote-templates/defaults";
+import {
+  createDraftFromTemplate,
+  mergeQuoteTemplate,
+} from "@/lib/quote-templates/defaults";
 import type { QuoteTemplate } from "@/lib/quote-templates/types";
 import type { LineItemData } from "@/lib/line-item-data/types";
 import { calculateQuoteTotals } from "@/lib/quotes/calculate-totals";
 import type { Quote, QuoteDraft } from "@/lib/quotes/types";
-
-const emptyLineItem: QuoteDraft["lineItems"][number] = {
-  name: "Discovery and Planning",
-  description: "Project discovery workshop and implementation plan.",
-  unit: "Unit",
-  quantity: 1,
-  unitPriceMinor: 150000,
-  discountMinor: 0,
-  taxRate: 0.12,
-};
 
 export function QuoteEditor({
   quote,
@@ -43,8 +35,23 @@ export function QuoteEditor({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  const effectiveTemplate = mergeQuoteTemplate(template);
   const [draft, setDraft] = useState<QuoteDraft>(() =>
-    createInitialDraft(quote, template),
+    createInitialDraft(quote, effectiveTemplate),
+  );
+  const clientContactLabel =
+    effectiveTemplate.customer.clientNameLabel.trim() || "Client contact";
+  const clientCompanyPlaceholder = resolvePlaceholder(
+    effectiveTemplate.customer.clientCompany.value,
+    "Client company",
+  );
+  const clientEmailPlaceholder = resolvePlaceholder(
+    effectiveTemplate.customer.email.value,
+    "Client email",
+  );
+  const clientPhonePlaceholder = resolvePlaceholder(
+    effectiveTemplate.customer.contactNumber.value,
+    "Client phone",
   );
 
   const totals = useMemo(
@@ -136,7 +143,7 @@ export function QuoteEditor({
             <Field label="Valid until">
               <Input
                 type="date"
-                value={draft.validUntil}
+                value={draft.validUntil ?? ""}
                 onChange={(event) =>
                   updateDraft({ validUntil: event.target.value })
                 }
@@ -144,7 +151,8 @@ export function QuoteEditor({
             </Field>
             <Field label="Client company">
               <Input
-                value={draft.client.companyName}
+                placeholder={clientCompanyPlaceholder}
+                value={draft.client.companyName ?? ""}
                 onChange={(event) =>
                   updateDraft({
                     client: { ...draft.client, companyName: event.target.value },
@@ -152,8 +160,9 @@ export function QuoteEditor({
                 }
               />
             </Field>
-            <Field label="Client contact">
+            <Field label={clientContactLabel}>
               <Input
+                placeholder={clientContactLabel}
                 value={draft.client.contactName}
                 onChange={(event) =>
                   updateDraft({
@@ -165,10 +174,22 @@ export function QuoteEditor({
             <Field label="Client email">
               <Input
                 type="email"
+                placeholder={clientEmailPlaceholder}
                 value={draft.client.email}
                 onChange={(event) =>
                   updateDraft({
                     client: { ...draft.client, email: event.target.value },
+                  })
+                }
+              />
+            </Field>
+            <Field label="Client phone">
+              <Input
+                placeholder={clientPhonePlaceholder}
+                value={draft.client.phone ?? ""}
+                onChange={(event) =>
+                  updateDraft({
+                    client: { ...draft.client, phone: event.target.value },
                   })
                 }
               />
@@ -182,9 +203,7 @@ export function QuoteEditor({
             currency={draft.currency}
             lineItems={draft.lineItems}
             lineItemData={lineItemData}
-            defaultTaxRate={
-              template?.lineItems.vat.enabled ? template.lineItems.vat.rate : 0
-            }
+            template={effectiveTemplate}
             onChange={(lineItems) => updateDraft({ lineItems })}
           />
         </section>
@@ -258,36 +277,25 @@ export function QuoteEditor({
   );
 }
 
-function createInitialDraft(quote?: Quote, template?: QuoteTemplate): QuoteDraft {
+function createInitialDraft(quote: Quote | undefined, template: QuoteTemplate): QuoteDraft {
   if (!quote) {
-    return template
-      ? createDraftFromTemplate(template)
-      : {
-          title: "Website Redesign Quotation",
-          client: {
-            companyName: "Acme Corp",
-            contactName: "Jane Client",
-            email: "jane@example.com",
-            phone: "",
-          },
-          currency: APP_CURRENCY,
-          validUntil: "2026-05-31",
-          terms: "50% down payment, 50% on completion.",
-          notes: "Timeline starts after written acceptance.",
-          lineItems: [emptyLineItem],
-        };
+    return createDraftFromTemplate(template);
   }
 
   return {
     title: quote.title,
-    client: quote.client,
+    client: {
+      ...quote.client,
+      companyName: quote.client.companyName ?? "",
+      phone: quote.client.phone ?? "",
+    },
     currency: normalizeCurrency(quote.currency),
     validUntil: quote.validUntil ?? "",
     terms: quote.terms ?? "",
     notes: quote.notes ?? "",
     lineItems: quote.lineItems.map((lineItem) => ({
       name: lineItem.name,
-      description: lineItem.description,
+      description: lineItem.description ?? "",
       unit: lineItem.unit || "Unit",
       quantity: lineItem.quantity,
       unitPriceMinor: lineItem.unitPriceMinor,
@@ -313,4 +321,8 @@ function Field({
       {children}
     </label>
   );
+}
+
+function resolvePlaceholder(value: string, fallback: string) {
+  return value.trim() || fallback;
 }
