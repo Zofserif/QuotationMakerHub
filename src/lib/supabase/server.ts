@@ -2,13 +2,17 @@ import { createClient } from "@supabase/supabase-js";
 
 export function createSupabaseServerClient(accessToken?: string) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const publishableKey =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!url || !anonKey) {
-    throw new Error("Supabase server environment variables are not configured");
+  if (!url || !publishableKey) {
+    throw new Error(
+      "Supabase server environment variables are not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY, or fallback NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+    );
   }
 
-  return createClient(url, anonKey, {
+  return createClient(url, publishableKey, {
     global: accessToken
       ? {
           headers: {
