@@ -12,13 +12,15 @@ import { formatDate, formatMoney } from "@/lib/utils";
 export function ClientQuoteViewComponent({
   token,
   initialView,
+  initialSignatureFieldId,
 }: {
   token: string;
   initialView: ClientQuoteView;
+  initialSignatureFieldId: string | null;
 }) {
   const [view, setView] = useState(initialView);
-  const [selectedFieldId, setSelectedFieldId] = useState<string | null>(() =>
-    getInitialSignatureFieldId(initialView),
+  const [selectedFieldId, setSelectedFieldId] = useState<string | null>(
+    initialSignatureFieldId,
   );
   const [typedName, setTypedName] = useState(initialView.recipient.name);
   const [confirmed, setConfirmed] = useState(false);
@@ -301,23 +303,4 @@ function TotalRow({
       <span className={strong ? "text-xl font-bold" : "text-sm"}>{value}</span>
     </div>
   );
-}
-
-function getInitialSignatureFieldId(view: ClientQuoteView) {
-  if (typeof window === "undefined" || view.recipient.lockedAt) {
-    return null;
-  }
-
-  const signatureFieldId = new URLSearchParams(window.location.search).get(
-    "signature",
-  );
-
-  if (
-    signatureFieldId &&
-    view.requiredSignatureFields.some((field) => field.id === signatureFieldId)
-  ) {
-    return signatureFieldId;
-  }
-
-  return null;
 }

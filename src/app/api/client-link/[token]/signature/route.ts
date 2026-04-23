@@ -1,6 +1,6 @@
 import { captureServerEvent } from "@/lib/analytics/posthog-server";
 import { errorResponse, readJson } from "@/lib/api/responses";
-import { placeDemoSignature } from "@/lib/demo/store";
+import { placeSignature } from "@/lib/quotes/persistence";
 import { parseJsonBody, signatureUploadSchema } from "@/lib/quotes/validation";
 
 export async function POST(
@@ -20,7 +20,7 @@ export async function POST(
     );
   }
 
-  const result = placeDemoSignature({
+  const result = await placeSignature({
     token,
     ...parsed.data,
     ipAddress: request.headers.get("x-forwarded-for") ?? undefined,

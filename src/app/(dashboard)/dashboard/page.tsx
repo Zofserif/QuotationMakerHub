@@ -2,13 +2,15 @@ import { FileSignature, Send, ShieldCheck, TrendingUp } from "lucide-react";
 import { redirect } from "next/navigation";
 
 import { QuoteList } from "@/components/dashboard/quote-list";
-import { listDemoQuotes } from "@/lib/demo/store";
+import { requireQuoter } from "@/lib/auth/require-quoter";
+import { listQuotes } from "@/lib/quotes/persistence";
 import { formatMoney } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default function DashboardPage() {
-  const quotes = listDemoQuotes();
+export default async function DashboardPage() {
+  const quoter = await requireQuoter();
+  const quotes = await listQuotes(quoter);
   const sentCount = quotes.filter((quote) => quote.status !== "draft").length;
   const acceptedCount = quotes.filter((quote) =>
     ["accepted", "locked"].includes(quote.status),

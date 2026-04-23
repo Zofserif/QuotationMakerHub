@@ -1,12 +1,12 @@
 import { captureServerEvent } from "@/lib/analytics/posthog-server";
 import { errorResponse, readJson } from "@/lib/api/responses";
 import { requireQuoter } from "@/lib/auth/require-quoter";
-import { createDemoQuote, listDemoQuotes } from "@/lib/demo/store";
+import { createQuote, listQuotes } from "@/lib/quotes/persistence";
 import { parseJsonBody, quoteDraftSchema } from "@/lib/quotes/validation";
 
 export async function GET() {
-  await requireQuoter();
-  return Response.json({ quotes: listDemoQuotes() });
+  const quoter = await requireQuoter();
+  return Response.json({ quotes: await listQuotes(quoter) });
 }
 
 export async function POST(request: Request) {
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const quote = createDemoQuote(parsed.data);
+  const quote = await createQuote(quoter, parsed.data);
   await captureServerEvent({
     distinctId: quoter.clerkUserId,
     event: "quote_created",

@@ -1,6 +1,7 @@
 export const dashboardRoutes = [
   "/dashboard(.*)",
   "/quotes(.*)",
+  "/print/quotes(.*)",
   "/api/quotes(.*)",
   "/api/storage(.*)",
 ];

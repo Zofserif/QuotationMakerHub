@@ -1,7 +1,7 @@
 import { captureServerEvent } from "@/lib/analytics/posthog-server";
 import { errorResponse } from "@/lib/api/responses";
 import { requireQuoter } from "@/lib/auth/require-quoter";
-import { sendDemoQuote } from "@/lib/demo/store";
+import { sendQuote } from "@/lib/quotes/persistence";
 
 export async function POST(
   _request: Request,
@@ -9,7 +9,7 @@ export async function POST(
 ) {
   const quoter = await requireQuoter();
   const { quoteId } = await params;
-  const result = sendDemoQuote(quoteId);
+  const result = await sendQuote(quoter, quoteId);
 
   if (!result.ok) {
     return errorResponse(

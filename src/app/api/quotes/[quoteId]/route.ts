@@ -1,16 +1,16 @@
 import { captureServerEvent } from "@/lib/analytics/posthog-server";
 import { errorResponse, readJson } from "@/lib/api/responses";
 import { requireQuoter } from "@/lib/auth/require-quoter";
-import { getDemoQuote, updateDemoQuote } from "@/lib/demo/store";
+import { getQuote, updateQuote } from "@/lib/quotes/persistence";
 import { parseJsonBody, quoteDraftSchema } from "@/lib/quotes/validation";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ quoteId: string }> },
 ) {
-  await requireQuoter();
+  const quoter = await requireQuoter();
   const { quoteId } = await params;
-  const quote = getDemoQuote(quoteId);
+  const quote = await getQuote(quoter, quoteId);
 
   if (!quote) {
     return errorResponse("QUOTE_NOT_FOUND", "Quote was not found.", 404);
@@ -37,7 +37,7 @@ export async function PATCH(
     );
   }
 
-  const quote = updateDemoQuote(quoteId, parsed.data);
+  const quote = await updateQuote(quoter, quoteId, parsed.data);
 
   if (!quote) {
     return errorResponse("QUOTE_NOT_FOUND", "Quote was not found.", 404);

@@ -14,6 +14,6 @@ export async function requireQuoter() {
 
   return {
     clerkUserId: session.userId,
-    organizationId: session.orgId ?? "personal",
+    organizationId: session.orgId ?? `personal:${session.userId}`,
   };
 }

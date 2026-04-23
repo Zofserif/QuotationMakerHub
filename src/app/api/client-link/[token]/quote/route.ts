@@ -1,13 +1,13 @@
 import { captureServerEvent } from "@/lib/analytics/posthog-server";
 import { errorResponse } from "@/lib/api/responses";
-import { getDemoClientQuoteView } from "@/lib/demo/store";
+import { getClientQuoteView } from "@/lib/quotes/persistence";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params;
-  const view = getDemoClientQuoteView(token);
+  const view = await getClientQuoteView(token);
 
   if (!view) {
     return errorResponse("TOKEN_INVALID", "The signing link is invalid.", 404);

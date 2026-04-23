@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 
 import { QuoteStatusBadge } from "@/components/dashboard/quote-status-badge";
-import { getDemoAuditEvents, getDemoQuote } from "@/lib/demo/store";
+import { requireQuoter } from "@/lib/auth/require-quoter";
+import { getQuote, listAuditEvents } from "@/lib/quotes/persistence";
 import { formatDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -12,13 +13,14 @@ export default async function QuoteActivityPage({
   params: Promise<{ quoteId: string }>;
 }) {
   const { quoteId } = await params;
-  const quote = getDemoQuote(quoteId);
+  const quoter = await requireQuoter();
+  const quote = await getQuote(quoter, quoteId);
 
   if (!quote) {
     notFound();
   }
 
-  const events = getDemoAuditEvents(quote.id).toReversed();
+  const events = (await listAuditEvents(quoter, quote.id)).toReversed();
 
   return (
     <div className="space-y-6">

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
-import { getDemoQuote, getDemoQuoteVersions } from "@/lib/demo/store";
+import { requireQuoter } from "@/lib/auth/require-quoter";
+import { getQuote, listQuoteVersions } from "@/lib/quotes/persistence";
 import { formatDate, formatMoney } from "@/lib/utils";
 
 export default async function PrintQuotePage({
@@ -12,13 +13,14 @@ export default async function PrintQuotePage({
 }) {
   const { quoteId } = await params;
   const { version } = await searchParams;
-  const quote = getDemoQuote(quoteId);
+  const quoter = await requireQuoter();
+  const quote = await getQuote(quoter, quoteId);
 
   if (!quote) {
     notFound();
   }
 
-  const versions = getDemoQuoteVersions(quote.id);
+  const versions = await listQuoteVersions(quoter, quote.id);
   const selectedVersion =
     versions.find((candidate) => String(candidate.versionNumber) === version) ??
     versions.at(-1);

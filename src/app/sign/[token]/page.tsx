@@ -1,19 +1,36 @@
 import { notFound } from "next/navigation";
 
 import { ClientQuoteViewComponent } from "@/components/signature/client-quote-view";
-import { getDemoClientQuoteView } from "@/lib/demo/store";
+import { getClientQuoteView } from "@/lib/quotes/persistence";
 
 export default async function SignQuotePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ token: string }>;
+  searchParams: Promise<{ signature?: string | string[] }>;
 }) {
   const { token } = await params;
-  const view = getDemoClientQuoteView(token);
+  const { signature } = await searchParams;
+  const view = await getClientQuoteView(token);
 
   if (!view) {
     notFound();
   }
 
-  return <ClientQuoteViewComponent token={token} initialView={view} />;
+  const signatureParam =
+    typeof signature === "string" ? signature : signature?.[0];
+  const initialSignatureFieldId =
+    signatureParam &&
+    view.requiredSignatureFields.some((field) => field.id === signatureParam)
+      ? signatureParam
+      : null;
+
+  return (
+    <ClientQuoteViewComponent
+      token={token}
+      initialView={view}
+      initialSignatureFieldId={initialSignatureFieldId}
+    />
+  );
 }

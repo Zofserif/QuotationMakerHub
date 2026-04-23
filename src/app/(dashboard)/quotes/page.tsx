@@ -1,5 +1,6 @@
 import { QuoteList } from "@/components/dashboard/quote-list";
-import { listDemoQuotes } from "@/lib/demo/store";
+import { requireQuoter } from "@/lib/auth/require-quoter";
+import { listQuotes } from "@/lib/quotes/persistence";
 import type { QuoteStatus } from "@/lib/quotes/types";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,8 @@ export default async function QuotesPage({
   searchParams: Promise<{ status?: QuoteStatus }>;
 }) {
   const { status } = await searchParams;
-  const quotes = listDemoQuotes().filter((quote) =>
+  const quoter = await requireQuoter();
+  const quotes = (await listQuotes(quoter)).filter((quote) =>
     status ? quote.status === status : true,
   );
 

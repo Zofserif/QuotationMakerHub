@@ -1,6 +1,6 @@
 import { captureServerEvent } from "@/lib/analytics/posthog-server";
 import { errorResponse, readJson } from "@/lib/api/responses";
-import { acceptDemoQuote } from "@/lib/demo/store";
+import { acceptQuote } from "@/lib/quotes/persistence";
 import { acceptQuoteSchema, parseJsonBody } from "@/lib/quotes/validation";
 
 export async function POST(
@@ -20,7 +20,7 @@ export async function POST(
     );
   }
 
-  const result = acceptDemoQuote({
+  const result = await acceptQuote({
     token,
     typedName: parsed.data.typedName,
     ipAddress: request.headers.get("x-forwarded-for") ?? undefined,
