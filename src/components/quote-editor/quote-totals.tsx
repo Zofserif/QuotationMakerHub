@@ -1,13 +1,16 @@
 import { Separator } from "@/components/ui/separator";
+import type { TaxMode } from "@/lib/quotes/calculate-totals";
 import type { QuoteTotals } from "@/lib/quotes/types";
 import { formatMoney } from "@/lib/utils";
 
 export function QuoteTotalsView({
   totals,
   currency,
+  taxMode = "exclusive",
 }: {
   totals: QuoteTotals;
   currency: string;
+  taxMode?: TaxMode;
 }) {
   return (
     <div className="space-y-3 rounded-lg border border-stone-200 bg-stone-50 p-4">
@@ -19,7 +22,10 @@ export function QuoteTotalsView({
         label="Discount"
         value={`-${formatMoney(totals.discountMinor, currency)}`}
       />
-      <TotalRow label="Tax" value={formatMoney(totals.taxMinor, currency)} />
+      <TotalRow
+        label={taxMode === "inclusive" ? "Tax Included" : "Tax"}
+        value={formatMoney(totals.taxMinor, currency)}
+      />
       <Separator />
       <TotalRow
         label="Total"

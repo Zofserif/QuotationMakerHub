@@ -30,7 +30,8 @@ export type SourceMethod = "camera" | "upload" | "draw";
 export type ClientInput = {
   companyName?: string;
   contactName: string;
-  email: string;
+  address?: string;
+  email?: string;
   phone?: string;
 };
 
@@ -138,9 +139,15 @@ export type QuoteVersionSnapshot = {
   recipients: Pick<QuoteRecipient, "id" | "name" | "email" | "role">[];
   lineItems: QuoteLineItem[];
   signatureFields: SignatureField[];
+  requestSummary?: string;
   validUntil?: string;
+  issuedAt?: string;
   terms?: string;
   notes?: string;
+  quoterSignature?: {
+    printedName: string;
+    asset?: SignatureAsset;
+  };
 } & QuoteTotals;
 
 export type QuoteVersion = {
@@ -160,8 +167,12 @@ export type QuoteDraft = {
   lineItems: Omit<QuoteLineItem, "id" | "sortOrder" | "lineTotalMinor">[];
   quoteLevelDiscountMinor?: number;
   validUntil?: string;
+  requestSummary?: string;
   terms?: string;
   notes?: string;
+  templateSnapshot?: QuoteTemplate;
+  quoterPrintedName?: string;
+  quoterSignatureAsset?: SignatureAsset | null;
 };
 
 export type Quote = {
@@ -178,8 +189,12 @@ export type Quote = {
   currentVersion: number;
   createdByClerkUserId: string;
   validUntil?: string;
+  requestSummary?: string;
   terms?: string;
   notes?: string;
+  templateSnapshot?: QuoteTemplate;
+  quoterPrintedName?: string;
+  quoterSignatureAsset?: SignatureAsset | null;
   sentAt?: string;
   lockedAt?: string;
   createdAt: string;

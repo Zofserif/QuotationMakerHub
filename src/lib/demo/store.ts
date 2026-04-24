@@ -10,6 +10,7 @@ import { APP_CURRENCY, normalizeCurrency } from "@/lib/currency";
 import { createAuditEvent } from "@/lib/audit/write-audit-event";
 import {
   calculateQuoteTotals,
+  type TaxMode,
   withCalculatedLineTotals,
 } from "@/lib/quotes/calculate-totals";
 import type {
@@ -74,6 +75,7 @@ function seedDemoState(): DemoState {
   const recipientId = randomUUID();
   const signatureFieldId = randomUUID();
   const now = new Date().toISOString();
+  const templateSnapshot = structuredClone(defaultQuoteTemplate);
   const lineItems = normalizeLineItems([
     {
       name: "Discovery and Planning",
@@ -93,8 +95,12 @@ function seedDemoState(): DemoState {
       discountMinor: 25000,
       taxRate: 0.12,
     },
-  ]);
-  const totals = calculateQuoteTotals(lineItems);
+  ], getTemplateTaxMode(templateSnapshot));
+  const totals = calculateQuoteTotals(
+    lineItems,
+    0,
+    getTemplateTaxMode(templateSnapshot),
+  );
   const quote: Quote = {
     id: quoteId,
     organizationId: DEMO_ORG_ID,
@@ -105,6 +111,7 @@ function seedDemoState(): DemoState {
     client: {
       companyName: "Acme Corp",
       contactName: "Jane Client",
+      address: "123 Example Street, Makati City",
       email: "jane@example.com",
       phone: "",
     },
@@ -133,8 +140,12 @@ function seedDemoState(): DemoState {
     currentVersion: 1,
     createdByClerkUserId: DEMO_USER_ID,
     validUntil: "2026-05-31",
+    requestSummary: "- Corporate website redesign\n- CMS-ready build\n- Delivery in milestone phases",
     terms: "50% down payment, 50% on completion.",
     notes: "Timeline starts after written acceptance.",
+    templateSnapshot,
+    quoterPrintedName: "",
+    quoterSignatureAsset: null,
     createdAt: now,
     updatedAt: now,
     ...totals,
@@ -199,7 +210,9 @@ export function getDemoQuote(quoteId: string) {
 }
 
 export function getDemoQuoteVersions(quoteId: string) {
-  return demoState.versions.filter((version) => version.quoteId === quoteId);
+  return demoState.versions
+    .filter((version) => version.quoteId === quoteId)
+    .map(withDemoSnapshotAssets);
 }
 
 export function getDemoAuditEvents(quoteId: string) {
@@ -293,8 +306,75 @@ export async function uploadDemoLineItemDataImage(
   };
 }
 
+export function updateDemoQuoteQuoterSignature(input: {
+  quoteId: string;
+  imageBase64: string;
+  sourceMethod: "camera" | "upload" | "draw";
+}): UpdateQuoteResult {
+  const quote = getDemoQuote(input.quoteId);
+
+  if (!quote) {
+    return { ok: false, code: "QUOTE_NOT_FOUND" };
+  }
+
+  if (quote.status === "locked") {
+    return { ok: false, code: "QUOTE_LOCKED" };
+  }
+
+  const bytes = dataUrlToBuffer(input.imageBase64);
+  const signatureAssetId = randomUUID();
+  const asset: SignatureAsset = {
+    id: signatureAssetId,
+    ownerType: "quoter",
+    ownerRef: quote.id,
+    storagePath: signatureStoragePath({
+      organizationId: quote.organizationId,
+      ownerType: "quoter",
+      ownerRef: quote.id,
+      signatureAssetId,
+    }),
+    mimeType: "image/png",
+    imageSha256: hashImageBytes(bytes),
+    sourceMethod: input.sourceMethod,
+    dataUrl: input.imageBase64,
+    createdAt: new Date().toISOString(),
+  };
+
+  demoState.assets.push(asset);
+  quote.quoterSignatureAsset = asset;
+  quote.updatedAt = new Date().toISOString();
+  appendAudit(quote.id, "quote.quoter_signature.updated", "quoter", DEMO_USER_ID, {
+    sourceMethod: input.sourceMethod,
+  });
+
+  return { ok: true, quote };
+}
+
+export function deleteDemoQuoteQuoterSignature(
+  quoteId: string,
+): UpdateQuoteResult {
+  const quote = getDemoQuote(quoteId);
+
+  if (!quote) {
+    return { ok: false, code: "QUOTE_NOT_FOUND" };
+  }
+
+  if (quote.status === "locked") {
+    return { ok: false, code: "QUOTE_LOCKED" };
+  }
+
+  quote.quoterSignatureAsset = null;
+  quote.updatedAt = new Date().toISOString();
+  appendAudit(quote.id, "quote.quoter_signature.deleted", "quoter", DEMO_USER_ID);
+
+  return { ok: true, quote };
+}
+
 function withAppCurrency(quote: Quote) {
   quote.currency = normalizeCurrency(quote.currency);
+  quote.templateSnapshot = quote.templateSnapshot
+    ? mergeQuoteTemplate(quote.templateSnapshot)
+    : quote.templateSnapshot;
   quote.lineItems = quote.lineItems.map((lineItem) => ({
     ...lineItem,
     unit: lineItem.unit || "Unit",
@@ -306,16 +386,21 @@ export function createDemoQuote(draft: QuoteDraft) {
   const quoteId = randomUUID();
   const recipientId = randomUUID();
   const now = new Date().toISOString();
-  const lineItems = normalizeLineItems(draft.lineItems);
+  const templateSnapshot = mergeQuoteTemplate(
+    draft.templateSnapshot ?? demoState.quoteTemplate,
+  );
+  const taxMode = getTemplateTaxMode(templateSnapshot);
+  const lineItems = normalizeLineItems(draft.lineItems, taxMode);
   const totals = calculateQuoteTotals(
     lineItems,
     draft.quoteLevelDiscountMinor ?? 0,
+    taxMode,
   );
   const quote: Quote = {
     id: quoteId,
     organizationId: DEMO_ORG_ID,
     quoteNumber: formatQuoteNumber(
-      demoState.quoteTemplate.company.quoteNumberFormat,
+      templateSnapshot.company.quoteNumberFormat,
       demoState.quoteCounter,
     ),
     title: draft.title,
@@ -327,7 +412,7 @@ export function createDemoQuote(draft: QuoteDraft) {
       {
         id: recipientId,
         name: draft.client.contactName,
-        email: draft.client.email,
+        email: draft.client.email ?? "",
         role: "client",
         status: "pending",
       },
@@ -347,8 +432,12 @@ export function createDemoQuote(draft: QuoteDraft) {
     currentVersion: 1,
     createdByClerkUserId: DEMO_USER_ID,
     validUntil: emptyToUndefined(draft.validUntil),
+    requestSummary: emptyToUndefined(draft.requestSummary),
     terms: emptyToUndefined(draft.terms),
     notes: emptyToUndefined(draft.notes),
+    templateSnapshot,
+    quoterPrintedName: emptyToUndefined(draft.quoterPrintedName),
+    quoterSignatureAsset: draft.quoterSignatureAsset ?? null,
     createdAt: now,
     updatedAt: now,
     ...totals,
@@ -374,18 +463,26 @@ export function updateDemoQuote(
     return { ok: false, code: "QUOTE_LOCKED" };
   }
 
-  const lineItems = normalizeLineItems(draft.lineItems);
+  const templateSnapshot = mergeQuoteTemplate(
+    quote.templateSnapshot ?? draft.templateSnapshot ?? demoState.quoteTemplate,
+  );
+  const taxMode = getTemplateTaxMode(templateSnapshot);
+  const lineItems = normalizeLineItems(draft.lineItems, taxMode);
   const totals = calculateQuoteTotals(
     lineItems,
     draft.quoteLevelDiscountMinor ?? 0,
+    taxMode,
   );
   quote.title = draft.title;
   quote.currency = APP_CURRENCY;
   quote.client = draft.client;
   quote.lineItems = lineItems;
   quote.validUntil = emptyToUndefined(draft.validUntil);
+  quote.requestSummary = emptyToUndefined(draft.requestSummary);
   quote.terms = emptyToUndefined(draft.terms);
   quote.notes = emptyToUndefined(draft.notes);
+  quote.templateSnapshot = templateSnapshot;
+  quote.quoterPrintedName = emptyToUndefined(draft.quoterPrintedName);
   quote.subtotalMinor = totals.subtotalMinor;
   quote.discountMinor = totals.discountMinor;
   quote.taxMinor = totals.taxMinor;
@@ -394,7 +491,7 @@ export function updateDemoQuote(
   quote.recipients = quote.recipients.map((recipient) => ({
     ...recipient,
     name: draft.client.contactName,
-    email: draft.client.email,
+    email: draft.client.email ?? "",
   }));
   appendAudit(quote.id, "quote.updated", "quoter", DEMO_USER_ID);
 
@@ -412,10 +509,19 @@ export function sendDemoQuote(quoteId: string): SendQuoteResult {
     return { ok: false as const, code: "QUOTE_LOCKED" };
   }
 
-  if (quote.lineItems.length === 0 || quote.signatureFields.length === 0) {
+  if (
+    quote.lineItems.length === 0 ||
+    quote.signatureFields.length === 0 ||
+    !quote.quoterPrintedName?.trim() ||
+    !quote.quoterSignatureAsset
+  ) {
     return { ok: false as const, code: "QUOTE_NOT_SENDABLE" };
   }
 
+  if (!quote.templateSnapshot) {
+    quote.templateSnapshot = mergeQuoteTemplate(demoState.quoteTemplate);
+  }
+  quote.sentAt = new Date().toISOString();
   const snapshot = createVersionSnapshot(quote, demoState.quoteTemplate);
   const version: QuoteVersion = {
     id: randomUUID(),
@@ -440,7 +546,6 @@ export function sendDemoQuote(quoteId: string): SendQuoteResult {
     };
   });
   quote.status = "sent";
-  quote.sentAt = new Date().toISOString();
   quote.updatedAt = quote.sentAt;
   appendAudit(quote.id, "quote.sent", "quoter", DEMO_USER_ID, {
     versionNumber: version.versionNumber,
@@ -649,6 +754,7 @@ export function createDemoPdfExport(quoteId: string) {
 
 function normalizeLineItems(
   lineItems: QuoteDraft["lineItems"],
+  taxMode: TaxMode = "exclusive",
 ): QuoteLineItem[] {
   return withCalculatedLineTotals(
     lineItems.map((lineItem, index) => ({
@@ -667,6 +773,7 @@ function normalizeLineItems(
       descriptionImageMimeType: lineItem.descriptionImageMimeType,
       descriptionImageUrl: emptyToUndefined(lineItem.descriptionImageStoragePath),
     })),
+    taxMode,
   );
 }
 
@@ -716,6 +823,26 @@ function getLatestVersion(quoteId: string) {
   )[0];
 }
 
+function withDemoSnapshotAssets(version: QuoteVersion): QuoteVersion {
+  const snapshotAssetId = version.snapshot.quoterSignature?.asset?.id;
+  const quoterSignatureAsset = snapshotAssetId
+    ? demoState.assets.find((asset) => asset.id === snapshotAssetId)
+    : undefined;
+
+  return {
+    ...version,
+    snapshot: {
+      ...version.snapshot,
+      quoterSignature: version.snapshot.quoterSignature
+        ? {
+            ...version.snapshot.quoterSignature,
+            asset: quoterSignatureAsset ?? version.snapshot.quoterSignature.asset,
+          }
+        : undefined,
+    },
+  };
+}
+
 function buildClientView(
   quote: Quote,
   version: QuoteVersion,
@@ -763,6 +890,10 @@ function buildClientView(
 
 function emptyToUndefined<T extends string | undefined>(value: T) {
   return value?.trim() ? value : undefined;
+}
+
+function getTemplateTaxMode(template?: QuoteTemplate): TaxMode {
+  return template?.lineItems.vat.mode ?? "exclusive";
 }
 
 async function fileToDataUrl(file: File) {

@@ -200,11 +200,15 @@ export function createDraftFromTemplate(template: QuoteTemplate): QuoteDraft {
     client: {
       companyName: "",
       contactName: "",
+      address: "",
       email: "",
       phone: "",
     },
     currency: normalizeCurrency(template.lineItems.unitPrice.currency),
     validUntil: "",
+    requestSummary: template.requestSummary.enabled
+      ? template.requestSummary.value
+      : "",
     terms: [
       "Payment Terms",
       template.paymentTerms,
@@ -218,6 +222,9 @@ export function createDraftFromTemplate(template: QuoteTemplate): QuoteDraft {
     ]
       .filter(Boolean)
       .join("\n\n"),
+    templateSnapshot: structuredClone(template),
+    quoterPrintedName: "",
+    quoterSignatureAsset: null,
     lineItems: [
       {
         name: "",

@@ -3,13 +3,12 @@
 import { useState, useTransition } from "react";
 import { CheckCircle2, FileSignature, Lock, RefreshCw } from "lucide-react";
 
+import { QuoteDocument } from "@/components/quote-editor/quote-document";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MarkdownText } from "@/components/ui/markdown-text";
 import { SignatureModal } from "@/components/signature/signature-modal";
-import { getLineItemImageSrc } from "@/lib/line-item-data/images";
 import type { ClientQuoteView } from "@/lib/quotes/types";
-import { formatDate, formatMoney } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 
 export function ClientQuoteViewComponent({
   token,
@@ -95,7 +94,7 @@ export function ClientQuoteViewComponent({
               {view.quote.quoteNumber} · version {view.versionNumber}
             </p>
             <h1 className="mt-1 text-2xl font-bold text-stone-950">
-              {view.quote.title}
+              Client review
             </h1>
           </div>
           <div className="flex items-center gap-2 rounded-md bg-stone-950 px-3 py-2 text-sm font-medium text-white">
@@ -104,94 +103,13 @@ export function ClientQuoteViewComponent({
           </div>
         </div>
 
-        <div className="bg-white p-5 shadow-sm ring-1 ring-stone-200 sm:p-8">
-          <section className="grid gap-6 border-b border-stone-200 pb-6 sm:grid-cols-2">
-            <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
-                Prepared for
-              </h2>
-              <p className="mt-2 font-semibold text-stone-950">
-                {view.quote.client.companyName || view.quote.client.contactName}
-              </p>
-              <p className="text-sm text-stone-600">
-                {view.quote.client.contactName}
-              </p>
-              <p className="text-sm text-stone-600">{view.quote.client.email}</p>
-            </div>
-            <div className="space-y-2 rounded-lg bg-stone-50 p-4">
-              <TotalRow
-                label="Subtotal"
-                value={formatMoney(view.quote.subtotalMinor, view.quote.currency)}
-              />
-              <TotalRow
-                label="Tax"
-                value={formatMoney(view.quote.taxMinor, view.quote.currency)}
-              />
-              <TotalRow
-                label="Total"
-                value={formatMoney(view.quote.totalMinor, view.quote.currency)}
-                strong
-              />
-            </div>
-          </section>
+        <QuoteDocument
+          snapshot={view.quote}
+          headerSuffix={`version ${view.versionNumber}`}
+        />
 
-          <section className="py-6">
-            <div className="overflow-hidden rounded-lg border border-stone-200">
-              {view.quote.lineItems.map((lineItem) => {
-                const imageSrc = getLineItemImageSrc(lineItem);
-
-                return (
-                  <div
-                    className="grid gap-3 border-b border-stone-200 px-4 py-4 text-sm last:border-b-0 sm:grid-cols-[1fr_160px] sm:items-start"
-                    key={lineItem.id}
-                  >
-                    <div>
-                      {view.quote.template?.lineItems.showDescriptionPicture &&
-                      imageSrc ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          alt=""
-                          className="mb-3 h-32 w-full rounded-md border border-stone-200 object-cover"
-                          src={imageSrc}
-                        />
-                      ) : null}
-                      <p className="font-medium text-stone-950">
-                        {lineItem.name}
-                      </p>
-                      <MarkdownText
-                        className="mt-1 text-stone-500"
-                        value={lineItem.description}
-                      />
-                    </div>
-                    <div className="space-y-1 font-semibold text-stone-950 sm:text-right">
-                      <p>{formatMoney(lineItem.lineTotalMinor, view.quote.currency)}</p>
-                      <p className="text-xs font-medium text-stone-500">
-                        {lineItem.quantity} {lineItem.unit || "Unit"} ·{" "}
-                        {formatMoney(lineItem.unitPriceMinor, view.quote.currency)}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-
-          <section className="grid gap-5 border-t border-stone-200 py-6 md:grid-cols-2">
-            <div>
-              <h2 className="font-semibold text-stone-950">Terms</h2>
-              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-stone-600">
-                {view.quote.terms}
-              </p>
-            </div>
-            <div>
-              <h2 className="font-semibold text-stone-950">Notes</h2>
-              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-stone-600">
-                {view.quote.notes}
-              </p>
-            </div>
-          </section>
-
-          <section className="border-t border-stone-200 pt-6">
+        <div className="mt-6 rounded-lg border border-stone-200 bg-white p-5 shadow-sm ring-1 ring-stone-200">
+          <section>
             <h2 className="font-semibold text-stone-950">Required signatures</h2>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               {view.requiredSignatureFields.map((field) => (
@@ -305,24 +223,5 @@ export function ClientQuoteViewComponent({
         />
       ) : null}
     </main>
-  );
-}
-
-function TotalRow({
-  label,
-  value,
-  strong,
-}: {
-  label: string;
-  value: string;
-  strong?: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <span className={strong ? "font-semibold" : "text-sm text-stone-600"}>
-        {label}
-      </span>
-      <span className={strong ? "text-xl font-bold" : "text-sm"}>{value}</span>
-    </div>
   );
 }

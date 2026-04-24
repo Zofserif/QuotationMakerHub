@@ -20,7 +20,7 @@ export async function POST(
         ? "Quote was not found."
         : quoteLocked
           ? "Locked quotes cannot be edited."
-          : "The quote must have line items, recipients, and signature fields.",
+          : "The quote must have line items, client signing fields, and a quoter signature before sending.",
       result.code === "QUOTE_NOT_FOUND" ? 404 : quoteLocked ? 409 : 422,
     );
   }

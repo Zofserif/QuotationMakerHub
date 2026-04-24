@@ -9,34 +9,46 @@ export function createVersionSnapshot(
   quote: Quote,
   template: QuoteTemplate = defaultQuoteTemplate,
 ): QuoteVersionSnapshot {
+  const templateSnapshot = quote.templateSnapshot ?? template;
+  const quoterSignatureAsset = quote.quoterSignatureAsset
+    ? {
+        ...quote.quoterSignatureAsset,
+        dataUrl: undefined,
+      }
+    : undefined;
+
   return {
     quoteNumber: quote.quoteNumber,
     title: quote.title,
     currency: normalizeCurrency(quote.currency),
     business: {
-      name: template.company.name.enabled ? template.company.name.value : "",
-      email: template.company.email.enabled ? template.company.email.value : "",
-      address: template.company.address,
+      name: templateSnapshot.company.name.enabled
+        ? templateSnapshot.company.name.value
+        : "",
+      email: templateSnapshot.company.email.enabled
+        ? templateSnapshot.company.email.value
+        : "",
+      address: templateSnapshot.company.address,
       logoDataUrl:
-        template.logo.enabled && template.logo.dataUrl
-          ? template.logo.dataUrl
+        templateSnapshot.logo.enabled && templateSnapshot.logo.dataUrl
+          ? templateSnapshot.logo.dataUrl
           : undefined,
-      telephone: template.company.telephone.enabled
-        ? template.company.telephone.value
+      telephone: templateSnapshot.company.telephone.enabled
+        ? templateSnapshot.company.telephone.value
         : undefined,
-      phone: template.company.phone.enabled
-        ? template.company.phone.value
+      phone: templateSnapshot.company.phone.enabled
+        ? templateSnapshot.company.phone.value
         : undefined,
-      vatRegTin: template.company.vatRegTin.enabled
-        ? template.company.vatRegTin.value
+      vatRegTin: templateSnapshot.company.vatRegTin.enabled
+        ? templateSnapshot.company.vatRegTin.value
         : undefined,
     },
-    template,
+    template: templateSnapshot,
     client: quote.client,
     recipients: quote.recipients.map(({ id, name, email, role }) => ({
       id,
       name,
-      email,
+      email: email ?? "",
       role,
     })),
     lineItems: quote.lineItems.map(({ descriptionImageUrl, ...lineItem }) => {
@@ -48,9 +60,17 @@ export function createVersionSnapshot(
     discountMinor: quote.discountMinor,
     taxMinor: quote.taxMinor,
     totalMinor: quote.totalMinor,
+    requestSummary: quote.requestSummary,
     validUntil: quote.validUntil,
+    issuedAt: quote.sentAt,
     terms: quote.terms,
     notes: quote.notes,
+    quoterSignature: quote.quoterPrintedName
+      ? {
+          printedName: quote.quoterPrintedName,
+          asset: quoterSignatureAsset,
+        }
+      : undefined,
   };
 }
 

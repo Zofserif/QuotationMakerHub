@@ -2,6 +2,7 @@ import {
   acceptDemoQuote,
   createDemoPdfExport,
   createDemoQuote,
+  deleteDemoQuoteQuoterSignature,
   getDemoAuditEvents,
   getDemoClientQuoteView,
   getDemoQuote,
@@ -16,6 +17,7 @@ import {
   updateDemoLineItemData,
   updateDemoQuoteTemplate,
   updateDemoQuote,
+  updateDemoQuoteQuoterSignature,
   uploadDemoLineItemDataImage,
 } from "@/lib/demo/store";
 import { hasSupabaseAdminConfig } from "@/lib/supabase/admin";
@@ -27,6 +29,7 @@ import {
   acceptSupabaseQuote,
   createSupabasePdfExport,
   createSupabaseQuote,
+  deleteSupabaseQuoteQuoterSignature,
   getSupabaseClientQuoteView,
   getSupabaseQuote,
   getSupabaseQuoteTemplate,
@@ -41,6 +44,7 @@ import {
   updateSupabaseLineItemData,
   updateSupabaseQuoteTemplate,
   updateSupabaseQuote,
+  updateSupabaseQuoteQuoterSignature,
   uploadSupabaseLineItemDataImage,
   type QuoterContext,
 } from "@/lib/quotes/supabase-store";
@@ -160,6 +164,32 @@ export async function updateQuote(
   }
 
   return updateSupabaseQuote(quoter, quoteId, draft);
+}
+
+export async function updateQuoteQuoterSignature(
+  quoter: QuoterContext,
+  input: {
+    quoteId: string;
+    imageBase64: string;
+    sourceMethod: SourceMethod;
+  },
+) {
+  if (shouldUseDemoPersistence()) {
+    return updateDemoQuoteQuoterSignature(input);
+  }
+
+  return updateSupabaseQuoteQuoterSignature(quoter, input);
+}
+
+export async function deleteQuoteQuoterSignature(
+  quoter: QuoterContext,
+  quoteId: string,
+) {
+  if (shouldUseDemoPersistence()) {
+    return deleteDemoQuoteQuoterSignature(quoteId);
+  }
+
+  return deleteSupabaseQuoteQuoterSignature(quoter, quoteId);
 }
 
 export async function sendQuote(quoter: QuoterContext, quoteId: string) {

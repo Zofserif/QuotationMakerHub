@@ -1,7 +1,7 @@
 "use client";
 
-import { Database, Plus, Trash2, X } from "lucide-react";
-import { useState } from "react";
+import { Database, ImagePlus, Plus, Trash2, X } from "lucide-react";
+import { useState, type ChangeEvent, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,30 +15,10 @@ import {
 } from "@/lib/quote-templates/defaults";
 import type { QuoteTemplate } from "@/lib/quote-templates/types";
 import type { QuoteDraft } from "@/lib/quotes/types";
-import { cn, formatMoney } from "@/lib/utils";
 import { calculateLineTotalMinor } from "@/lib/quotes/calculate-totals";
+import { cn, formatMoney, majorToMinor, minorToMajorString } from "@/lib/utils";
 
 type LineItemInput = QuoteDraft["lineItems"][number];
-
-const lineItemLayoutClassNames = {
-  "true-true": {
-    header:
-      "grid-cols-[1.5fr_0.45fr_0.55fr_0.75fr_0.75fr_0.55fr_0.8fr_44px]",
-    row: "xl:grid-cols-[1.5fr_0.45fr_0.55fr_0.75fr_0.75fr_0.55fr_0.8fr_44px]",
-  },
-  "true-false": {
-    header: "grid-cols-[1.5fr_0.45fr_0.75fr_0.75fr_0.55fr_0.8fr_44px]",
-    row: "xl:grid-cols-[1.5fr_0.45fr_0.75fr_0.75fr_0.55fr_0.8fr_44px]",
-  },
-  "false-true": {
-    header: "grid-cols-[1.5fr_0.55fr_0.75fr_0.75fr_0.55fr_0.8fr_44px]",
-    row: "xl:grid-cols-[1.5fr_0.55fr_0.75fr_0.75fr_0.55fr_0.8fr_44px]",
-  },
-  "false-false": {
-    header: "grid-cols-[1.5fr_0.75fr_0.75fr_0.55fr_0.8fr_44px]",
-    row: "xl:grid-cols-[1.5fr_0.75fr_0.75fr_0.55fr_0.8fr_44px]",
-  },
-} as const;
 
 export function LineItemsTable({
   lineItems,
@@ -54,15 +34,16 @@ export function LineItemsTable({
   onChange: (lineItems: LineItemInput[]) => void;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   const quantityEnabled = template.lineItems.showQuantity;
   const unitEnabled = template.lineItems.unit.enabled;
+  const vatEnabled = template.lineItems.vat.enabled;
   const defaultUnit = getTemplateDefaultLineItemUnit(template);
   const defaultTaxRate = getTemplateDefaultLineItemTaxRate(template);
+  const taxMode = template.lineItems.vat.mode;
   const descriptionPlaceholder =
     template.lineItems.detailedDescriptionLabel.trim() ||
     "Detailed description markdown";
-  const layoutKey = `${quantityEnabled}-${unitEnabled}` as keyof typeof lineItemLayoutClassNames;
-  const layout = lineItemLayoutClassNames[layoutKey];
 
   function updateLineItem(index: number, patch: Partial<LineItemInput>) {
     onChange(
@@ -105,126 +86,63 @@ export function LineItemsTable({
     onChange(lineItems.filter((_, candidateIndex) => candidateIndex !== index));
   }
 
-  return (
-    <div className="space-y-3">
-      <div className="overflow-hidden rounded-lg border border-stone-200">
-        <div
-          className={cn(
-            "grid gap-3 border-b border-stone-200 bg-stone-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-stone-500 max-xl:hidden",
-            layout.header,
-          )}
-        >
-          <span>Item</span>
-          {quantityEnabled ? <span>Qty</span> : null}
-          {unitEnabled ? <span>Unit</span> : null}
-          <span>Unit Price</span>
-          <span>Discount</span>
-          <span>Tax</span>
-          <span>Total</span>
-          <span />
-        </div>
-        <div className="divide-y divide-stone-200">
-          {lineItems.map((lineItem, index) => {
-            const total = calculateLineTotalMinor(lineItem).lineTotalMinor;
+  async function uploadImage(index: number, event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
 
-            return (
-              <div
-                className={cn("grid gap-3 p-3 xl:items-start", layout.row)}
-                key={index}
-              >
-                <div className="space-y-2">
-                  {getLineItemImageSrc(lineItem) ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      alt=""
-                      className="h-24 w-full rounded-md border border-stone-200 object-cover"
-                      src={getLineItemImageSrc(lineItem)}
-                    />
-                  ) : null}
-                  <Input
-                    aria-label="Line item name"
-                    placeholder="Service or product"
-                    value={lineItem.name}
-                    onChange={(event) =>
-                      updateLineItem(index, { name: event.target.value })
-                    }
-                  />
-                  <Textarea
-                    aria-label="Line item description"
-                    className="min-h-20"
-                    placeholder={descriptionPlaceholder}
-                    value={lineItem.description}
-                    onChange={(event) =>
-                      updateLineItem(index, {
-                        description: event.target.value,
-                      })
-                    }
-                  />
+    if (!file) {
+      return;
+    }
+
+    setUploadingIndex(index);
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await fetch("/api/line-item-data/image", {
+      method: "POST",
+      body: formData,
+    });
+    const payload = await response.json();
+    setUploadingIndex(null);
+
+    if (!response.ok) {
+      return;
+    }
+
+    updateLineItem(index, {
+      descriptionImageStoragePath: payload.upload.storagePath,
+      descriptionImageMimeType: payload.upload.mimeType,
+      descriptionImageUrl: payload.upload.url ?? "",
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-4">
+        {lineItems.map((lineItem, index) => {
+          const total = calculateLineTotalMinor({
+            ...lineItem,
+            taxMode,
+          }).lineTotalMinor;
+          const imageSrc = getLineItemImageSrc(lineItem);
+
+          return (
+            <article
+              className="rounded-lg border border-stone-200 bg-stone-50 p-4"
+              key={index}
+            >
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-wide text-stone-500">
+                    {template.lineItems.showItemNumber
+                      ? `Item ${index + 1}`
+                      : `Line item ${index + 1}`}
+                  </p>
+                  <p className="mt-1 text-sm text-stone-600">
+                    VAT {vatEnabled
+                      ? `${Math.round(lineItem.taxRate * 10000) / 100}% ${taxMode === "inclusive" ? "included" : "added"}`
+                      : "off"}
+                  </p>
                 </div>
-                {quantityEnabled ? (
-                  <Input
-                    aria-label="Quantity"
-                    type="number"
-                    min="0"
-                    step="0.001"
-                    value={lineItem.quantity}
-                    onChange={(event) =>
-                      updateLineItem(index, {
-                        quantity: Number(event.target.value),
-                      })
-                    }
-                  />
-                ) : null}
-                {unitEnabled ? (
-                  <Input
-                    aria-label="Unit"
-                    list="quote-line-item-unit-options"
-                    value={lineItem.unit}
-                    onChange={(event) =>
-                      updateLineItem(index, {
-                        unit: event.target.value,
-                      })
-                    }
-                  />
-                ) : null}
-                <Input
-                  aria-label="Unit price minor"
-                  type="number"
-                  min="0"
-                  value={lineItem.unitPriceMinor}
-                  onChange={(event) =>
-                    updateLineItem(index, {
-                      unitPriceMinor: Number(event.target.value),
-                    })
-                  }
-                />
-                <Input
-                  aria-label="Discount minor"
-                  type="number"
-                  min="0"
-                  value={lineItem.discountMinor}
-                  onChange={(event) =>
-                    updateLineItem(index, {
-                      discountMinor: Number(event.target.value),
-                    })
-                  }
-                />
-                <Input
-                  aria-label="Tax rate"
-                  type="number"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value={lineItem.taxRate}
-                  onChange={(event) =>
-                    updateLineItem(index, {
-                      taxRate: Number(event.target.value),
-                    })
-                  }
-                />
-                <p className="flex h-10 items-center text-sm font-semibold text-stone-950">
-                  {formatMoney(total, currency)}
-                </p>
                 <Button
                   aria-label="Remove line item"
                   type="button"
@@ -236,31 +154,168 @@ export function LineItemsTable({
                   <Trash2 className="size-4" />
                 </Button>
               </div>
-            );
-          })}
-        </div>
+
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_120px_140px_140px_140px]">
+                <div className="space-y-3">
+                  {imageSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      alt=""
+                      className="h-36 w-full rounded-md border border-stone-200 object-cover"
+                      src={imageSrc}
+                    />
+                  ) : (
+                    <div className="flex h-36 items-center justify-center rounded-md border border-dashed border-stone-300 bg-white text-sm text-stone-500">
+                      No picture
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-2">
+                    <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-stone-200 bg-white px-3 text-sm font-medium text-stone-900 transition hover:bg-stone-100">
+                      <ImagePlus className="size-4" />
+                      {uploadingIndex === index ? "Uploading..." : "Upload picture"}
+                      <input
+                        accept="image/png,image/jpeg,image/webp"
+                        className="sr-only"
+                        type="file"
+                        onChange={(event) => uploadImage(index, event)}
+                      />
+                    </label>
+                    {imageSrc ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() =>
+                          updateLineItem(index, {
+                            descriptionImageStoragePath: "",
+                            descriptionImageMimeType: undefined,
+                            descriptionImageUrl: "",
+                          })
+                        }
+                      >
+                        <Trash2 className="size-4" />
+                        Remove picture
+                      </Button>
+                    ) : null}
+                  </div>
+
+                  <Input
+                    aria-label="Line item name"
+                    placeholder="Service or product"
+                    value={lineItem.name}
+                    onChange={(event) =>
+                      updateLineItem(index, { name: event.target.value })
+                    }
+                  />
+                  <Textarea
+                    aria-label="Line item description"
+                    className="min-h-32 bg-white"
+                    placeholder={descriptionPlaceholder}
+                    value={lineItem.description}
+                    onChange={(event) =>
+                      updateLineItem(index, {
+                        description: event.target.value,
+                      })
+                    }
+                  />
+                </div>
+
+                {quantityEnabled ? (
+                  <Field label="Quantity">
+                    <Input
+                      aria-label="Quantity"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={String(lineItem.quantity)}
+                      onChange={(event) =>
+                        updateLineItem(index, {
+                          quantity: Math.max(1, Number(event.target.value || 1)),
+                        })
+                      }
+                    />
+                  </Field>
+                ) : (
+                  <div />
+                )}
+
+                {unitEnabled ? (
+                  <Field label="Unit">
+                    <select
+                      aria-label="Unit"
+                      className="h-10 w-full rounded-md border border-stone-200 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-400 focus:ring-4 focus:ring-stone-100"
+                      value={lineItem.unit}
+                      onChange={(event) =>
+                        updateLineItem(index, { unit: event.target.value })
+                      }
+                    >
+                      {template.lineItems.unit.options.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                ) : (
+                  <div />
+                )}
+
+                <Field label="Unit Price">
+                  <Input
+                    aria-label="Unit price"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={minorToMajorString(lineItem.unitPriceMinor)}
+                    onChange={(event) =>
+                      updateLineItem(index, {
+                        unitPriceMinor: majorToMinor(event.target.value),
+                      })
+                    }
+                  />
+                </Field>
+
+                <div className="space-y-3">
+                  <Field label={vatEnabled ? "VAT" : "VAT"}>
+                    <div className="flex h-10 items-center rounded-md border border-stone-200 bg-white px-3 text-sm text-stone-600">
+                      {vatEnabled
+                        ? `${Math.round(lineItem.taxRate * 10000) / 100}% ${taxMode === "inclusive" ? "incl." : "excl."}`
+                        : "Off"}
+                    </div>
+                  </Field>
+                  <div className="rounded-md border border-stone-200 bg-white p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                      Line Total
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-stone-950">
+                      {formatMoney(total, currency)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </article>
+          );
+        })}
       </div>
-      <Button type="button" variant="secondary" onClick={addLineItem}>
-        <Plus className="size-4" />
-        Add line item
-      </Button>
-      {lineItemData.length > 0 ? (
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => setPickerOpen((open) => !open)}
-        >
-          {pickerOpen ? <X className="size-4" /> : <Database className="size-4" />}
-          Add from saved data
+
+      <div className="flex flex-wrap gap-3">
+        <Button type="button" variant="secondary" onClick={addLineItem}>
+          <Plus className="size-4" />
+          Add line item
         </Button>
-      ) : null}
-      {unitEnabled ? (
-        <datalist id="quote-line-item-unit-options">
-          {template.lineItems.unit.options.map((option) => (
-            <option key={option} value={option} />
-          ))}
-        </datalist>
-      ) : null}
+        {lineItemData.length > 0 ? (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setPickerOpen((open) => !open)}
+          >
+            {pickerOpen ? <X className="size-4" /> : <Database className="size-4" />}
+            Add from saved data
+          </Button>
+        ) : null}
+      </div>
+
       {pickerOpen ? (
         <div className="rounded-lg border border-stone-200 bg-white p-3">
           <div className="mb-3 flex items-center justify-between gap-3">
@@ -281,7 +336,10 @@ export function LineItemsTable({
 
               return (
                 <article
-                  className="grid gap-3 rounded-md border border-stone-200 p-3 md:grid-cols-[96px_1fr_auto]"
+                  className={cn(
+                    "grid gap-3 rounded-md border border-stone-200 p-3",
+                    "md:grid-cols-[96px_minmax(0,1fr)_auto]",
+                  )}
                   key={item.id}
                 >
                   {imageSrc ? (
@@ -378,5 +436,20 @@ function isUntouchedStarterLineItem(
     !lineItem.descriptionImageStoragePath &&
     !lineItem.descriptionImageMimeType &&
     !lineItem.descriptionImageUrl
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="space-y-2">
+      <span className="text-sm font-medium text-stone-800">{label}</span>
+      {children}
+    </label>
   );
 }

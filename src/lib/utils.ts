@@ -1,4 +1,5 @@
 import { clsx, type ClassValue } from "clsx";
+import { format } from "date-fns";
 import { twMerge } from "tailwind-merge";
 
 import { APP_CURRENCY, APP_CURRENCY_LOCALE } from "@/lib/currency";
@@ -25,4 +26,26 @@ export function formatDate(value?: string | Date | null) {
     month: "short",
     day: "numeric",
   }).format(typeof value === "string" ? new Date(value) : value);
+}
+
+export function formatQuoteIssuedDate(value?: string | Date | null) {
+  if (!value) {
+    return "Pending";
+  }
+
+  return format(typeof value === "string" ? new Date(value) : value, "MMM-dd-yyyy");
+}
+
+export function minorToMajorString(minor: number) {
+  return (minor / 100).toFixed(2);
+}
+
+export function majorToMinor(value: string) {
+  const normalized = value.trim();
+
+  if (!normalized) {
+    return 0;
+  }
+
+  return Math.max(0, Math.round(Number(normalized) * 100));
 }

@@ -2,11 +2,13 @@ import { z } from "zod";
 
 import { APP_CURRENCY, normalizeCurrency } from "@/lib/currency";
 import { lineItemImageMimeTypes } from "@/lib/line-item-data/types";
+import { quoteTemplateSchema } from "@/lib/quote-templates/validation";
 
 export const clientSchema = z.object({
   companyName: z.string().max(200).optional().or(z.literal("")),
+  address: z.string().max(1000).optional().or(z.literal("")),
   contactName: z.string().min(1).max(160),
-  email: z.string().email().max(320),
+  email: z.string().email().max(320).optional().or(z.literal("")),
   phone: z.string().max(40).optional().or(z.literal("")),
 });
 
@@ -31,14 +33,22 @@ export const quoteDraftSchema = z.object({
     .default(APP_CURRENCY)
     .transform((currency) => normalizeCurrency(currency)),
   validUntil: z.string().date().optional().or(z.literal("")),
+  requestSummary: z.string().max(10000).optional().or(z.literal("")),
   terms: z.string().max(10000).optional().or(z.literal("")),
   notes: z.string().max(10000).optional().or(z.literal("")),
+  templateSnapshot: quoteTemplateSchema.optional(),
   quoteLevelDiscountMinor: z.coerce.number().int().min(0).optional(),
   lineItems: z.array(quoteLineItemInputSchema).min(1),
+  quoterPrintedName: z.string().max(160).optional().or(z.literal("")),
 });
 
 export const signatureUploadSchema = z.object({
   signatureFieldId: z.string().uuid(),
+  imageBase64: z.string().startsWith("data:image/png;base64,"),
+  sourceMethod: z.enum(["camera", "upload", "draw"]),
+});
+
+export const quoterSignatureUploadSchema = z.object({
   imageBase64: z.string().startsWith("data:image/png;base64,"),
   sourceMethod: z.enum(["camera", "upload", "draw"]),
 });

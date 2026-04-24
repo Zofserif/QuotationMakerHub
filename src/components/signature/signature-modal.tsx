@@ -18,17 +18,22 @@ function hasCameraApi() {
 }
 
 export function SignatureModal({
-  token,
-  signatureFieldId,
   open,
   onClose,
   onUploaded,
+  token,
+  signatureFieldId,
+  onApproveSignature,
 }: {
-  token: string;
-  signatureFieldId: string;
   open: boolean;
   onClose: () => void;
   onUploaded: () => void;
+  token?: string;
+  signatureFieldId?: string;
+  onApproveSignature?: (input: {
+    imageBase64: string;
+    sourceMethod: SourceMethod;
+  }) => Promise<void>;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -139,22 +144,36 @@ export function SignatureModal({
       return;
     }
 
-    const response = await fetch(`/api/client-link/${token}/signature`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        signatureFieldId,
-        imageBase64: dataUrl,
-        sourceMethod: mode,
-      }),
-    });
+    if (onApproveSignature) {
+      try {
+        await onApproveSignature({
+          imageBase64: dataUrl,
+          sourceMethod: mode,
+        });
+      } catch (error) {
+        setError(
+          error instanceof Error ? error.message : "Could not place signature.",
+        );
+        return;
+      }
+    } else {
+      const response = await fetch(`/api/client-link/${token}/signature`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          signatureFieldId,
+          imageBase64: dataUrl,
+          sourceMethod: mode,
+        }),
+      });
 
-    if (!response.ok) {
-      const payload = await response.json();
-      setError(payload.error?.message ?? "Could not place signature.");
-      return;
+      if (!response.ok) {
+        const payload = await response.json();
+        setError(payload.error?.message ?? "Could not place signature.");
+        return;
+      }
     }
 
     onUploaded();

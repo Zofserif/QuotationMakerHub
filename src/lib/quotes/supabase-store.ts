@@ -10,6 +10,7 @@ import {
 import { APP_CURRENCY, normalizeCurrency } from "@/lib/currency";
 import {
   calculateQuoteTotals,
+  type TaxMode,
   withCalculatedLineTotals,
 } from "@/lib/quotes/calculate-totals";
 import type {
@@ -69,6 +70,13 @@ export type PlaceSignatureResult =
       code: "TOKEN_INVALID" | "RECIPIENT_LOCKED" | "SIGNATURE_REQUIRED";
     };
 
+export type UpdateQuoterSignatureResult =
+  | { ok: true; quote: Quote }
+  | {
+      ok: false;
+      code: "QUOTE_NOT_FOUND" | "QUOTE_LOCKED";
+    };
+
 export type AcceptQuoteResult =
   | {
       ok: true;
@@ -103,8 +111,9 @@ type ClientRow = {
   organization_id: string;
   company_name: string | null;
   contact_name: string;
-  email: string;
+  email: string | null;
   phone: string | null;
+  billing_address: { value?: string } | null;
 };
 
 type QuoteRow = {
@@ -119,8 +128,12 @@ type QuoteRow = {
   tax_minor: number | string;
   total_minor: number | string;
   valid_until: string | null;
+  request_summary: string | null;
   terms: string | null;
   notes: string | null;
+  template_snapshot: QuoteTemplate | null;
+  quoter_printed_name: string | null;
+  quoter_signature_asset_id: string | null;
   current_version: number;
   created_by_clerk_user_id: string;
   sent_at: string | null;
@@ -440,21 +453,26 @@ export async function createSupabaseQuote(
 ) {
   const db = createSupabaseAdminClient();
   const organization = await ensureWorkspace(db, quoter);
+  const liveTemplate = await getQuoteTemplateContent(db, organization.id);
+  const templateSnapshot = mergeQuoteTemplate(
+    draft.templateSnapshot ?? liveTemplate,
+  );
+  const taxMode = getTemplateTaxMode(templateSnapshot);
   const client = await upsertClient(db, organization.id, draft.client);
-  const lineItems = normalizeLineItems(draft.lineItems);
+  const lineItems = normalizeLineItems(draft.lineItems, taxMode);
   const totals = calculateQuoteTotals(
     lineItems,
     draft.quoteLevelDiscountMinor ?? 0,
+    taxMode,
   );
   const quoteId = randomUUID();
   const recipientId = randomUUID();
   const signatureFieldId = randomUUID();
   const now = new Date().toISOString();
-  const template = await getQuoteTemplateContent(db, organization.id);
   const quoteNumber = await nextQuoteNumber(
     db,
     organization.id,
-    template.company.quoteNumberFormat,
+    templateSnapshot.company.quoteNumberFormat,
   );
   const dormantToken = createClientAccessToken();
 
@@ -470,8 +488,12 @@ export async function createSupabaseQuote(
     tax_minor: totals.taxMinor,
     total_minor: totals.totalMinor,
     valid_until: emptyToNull(draft.validUntil),
+    request_summary: emptyToNull(draft.requestSummary),
     terms: emptyToNull(draft.terms),
     notes: emptyToNull(draft.notes),
+    template_snapshot: templateSnapshot,
+    quoter_printed_name: emptyToNull(draft.quoterPrintedName),
+    quoter_signature_asset_id: null,
     current_version: 1,
     created_by_clerk_user_id: quoter.clerkUserId,
     created_at: now,
@@ -544,11 +566,25 @@ export async function updateSupabaseQuote(
     return { ok: false, code: "QUOTE_LOCKED" };
   }
 
-  const client = await upsertClient(db, organization.id, draft.client);
-  const lineItems = normalizeLineItems(draft.lineItems);
+  const liveTemplate = await getQuoteTemplateContent(db, organization.id);
+  const templateSnapshot = mergeQuoteTemplate(
+    existing.templateSnapshot ?? draft.templateSnapshot ?? liveTemplate,
+  );
+  const taxMode = getTemplateTaxMode(templateSnapshot);
+  const existingRecipient = existing.recipients.find(
+    (recipient) => recipient.role === "client",
+  );
+  const client = await upsertClient(
+    db,
+    organization.id,
+    draft.client,
+    existingRecipient?.clientId,
+  );
+  const lineItems = normalizeLineItems(draft.lineItems, taxMode);
   const totals = calculateQuoteTotals(
     lineItems,
     draft.quoteLevelDiscountMinor ?? 0,
+    taxMode,
   );
   const now = new Date().toISOString();
 
@@ -562,8 +598,11 @@ export async function updateSupabaseQuote(
       tax_minor: totals.taxMinor,
       total_minor: totals.totalMinor,
       valid_until: emptyToNull(draft.validUntil),
+      request_summary: emptyToNull(draft.requestSummary),
       terms: emptyToNull(draft.terms),
       notes: emptyToNull(draft.notes),
+      template_snapshot: templateSnapshot,
+      quoter_printed_name: emptyToNull(draft.quoterPrintedName),
       updated_at: now,
     })
     .eq("id", quoteId)
@@ -578,10 +617,6 @@ export async function updateSupabaseQuote(
 
   throwIfError(deleteLineItemsError, "Replace line items");
   await insertLineItems(db, quoteId, lineItems);
-
-  const existingRecipient = existing.recipients.find(
-    (recipient) => recipient.role === "client",
-  );
 
   if (existingRecipient) {
     const { error: recipientError } = await db
@@ -632,12 +667,29 @@ export async function sendSupabaseQuote(
     return { ok: false, code: "QUOTE_LOCKED" };
   }
 
-  if (quote.lineItems.length === 0 || quote.signatureFields.length === 0) {
+  if (
+    quote.lineItems.length === 0 ||
+    quote.signatureFields.length === 0 ||
+    !quote.quoterPrintedName?.trim() ||
+    !quote.quoterSignatureAsset
+  ) {
     return { ok: false, code: "QUOTE_NOT_SENDABLE" };
   }
 
   const versionNumber = await nextVersionNumber(db, quote.id);
+  const sentAt = new Date().toISOString();
   const template = await getQuoteTemplateContent(db, organization.id);
+  const templateSnapshot = quote.templateSnapshot ?? template;
+  if (!quote.templateSnapshot) {
+    const { error: templateSnapshotError } = await db
+      .from("quotes")
+      .update({ template_snapshot: templateSnapshot })
+      .eq("id", quote.id)
+      .eq("organization_id", organization.id);
+    throwIfError(templateSnapshotError, "Freeze quote template snapshot");
+    quote.templateSnapshot = templateSnapshot;
+  }
+  quote.sentAt = sentAt;
   const snapshot = createVersionSnapshot(quote, template);
   const versionId = randomUUID();
   const version: QuoteVersion = {
@@ -673,9 +725,9 @@ export async function sendSupabaseQuote(
         .from("quote_recipients")
         .update({
           quote_version_id: version.id,
-          status: "pending",
-          access_token_hash: hashClientAccessToken(token),
-          access_token_expires_at: expiresAt,
+      status: "pending",
+      access_token_hash: hashClientAccessToken(token),
+      access_token_expires_at: expiresAt,
           viewed_at: null,
           signed_at: null,
           accepted_at: null,
@@ -696,7 +748,6 @@ export async function sendSupabaseQuote(
 
   throwIfError(fieldsError, "Attach signature fields to version");
 
-  const sentAt = new Date().toISOString();
   const { error: quoteError } = await db
     .from("quotes")
     .update({
@@ -950,6 +1001,150 @@ export async function placeSupabaseSignature(input: {
     asset: await mapSignatureAssetRow(db, assetRow),
     placement: mapSignaturePlacementRow(placementRow),
   };
+}
+
+export async function updateSupabaseQuoteQuoterSignature(
+  quoter: QuoterContext,
+  input: {
+    quoteId: string;
+    imageBase64: string;
+    sourceMethod: SourceMethod;
+  },
+): Promise<UpdateQuoterSignatureResult> {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  const quote = await loadQuote(db, input.quoteId, organization.id);
+
+  if (!quote) {
+    return { ok: false, code: "QUOTE_NOT_FOUND" };
+  }
+
+  if (quote.status === "locked") {
+    return { ok: false, code: "QUOTE_LOCKED" };
+  }
+
+  const bytes = dataUrlToBuffer(input.imageBase64);
+  const signatureAssetId = randomUUID();
+  const storagePath = signatureStoragePath({
+    organizationId: organization.id,
+    ownerType: "quoter",
+    ownerRef: quote.id,
+    signatureAssetId,
+  });
+  const objectPath = stripBucketPrefix(storagePath, SIGNATURE_BUCKET);
+  const { error: uploadError } = await db.storage
+    .from(SIGNATURE_BUCKET)
+    .upload(objectPath, bytes, {
+      contentType: "image/png",
+      upsert: false,
+    });
+
+  throwIfError(uploadError, "Upload quoter signature asset");
+
+  const assetRow: SignatureAssetRow = {
+    id: signatureAssetId,
+    organization_id: organization.id,
+    owner_type: "quoter",
+    owner_ref: quote.id,
+    storage_path: storagePath,
+    mime_type: "image/png",
+    width_px: null,
+    height_px: null,
+    image_sha256: hashImageBytes(bytes),
+    source_method: input.sourceMethod,
+    created_at: new Date().toISOString(),
+  };
+
+  const { error: assetError } = await db.from("signature_assets").insert({
+    id: assetRow.id,
+    organization_id: assetRow.organization_id,
+    owner_type: assetRow.owner_type,
+    owner_ref: assetRow.owner_ref,
+    storage_path: assetRow.storage_path,
+    mime_type: assetRow.mime_type,
+    width_px: assetRow.width_px,
+    height_px: assetRow.height_px,
+    image_sha256: assetRow.image_sha256,
+    source_method: assetRow.source_method,
+    created_at: assetRow.created_at,
+  });
+
+  throwIfError(assetError, "Create quoter signature asset");
+
+  const { error: quoteError } = await db
+    .from("quotes")
+    .update({
+      quoter_signature_asset_id: assetRow.id,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", quote.id)
+    .eq("organization_id", organization.id);
+
+  throwIfError(quoteError, "Attach quoter signature");
+
+  await appendAuditEvent(db, {
+    organizationId: organization.id,
+    quoteId: quote.id,
+    actorType: "quoter",
+    actorRef: quoter.clerkUserId,
+    eventType: "quote.quoter_signature.updated",
+    metadata: {
+      sourceMethod: input.sourceMethod,
+      signatureAssetId: assetRow.id,
+    },
+  });
+
+  const updatedQuote = await loadQuote(db, quote.id, organization.id);
+
+  if (!updatedQuote) {
+    return { ok: false, code: "QUOTE_NOT_FOUND" };
+  }
+
+  return { ok: true, quote: updatedQuote };
+}
+
+export async function deleteSupabaseQuoteQuoterSignature(
+  quoter: QuoterContext,
+  quoteId: string,
+): Promise<UpdateQuoterSignatureResult> {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  const quote = await loadQuote(db, quoteId, organization.id);
+
+  if (!quote) {
+    return { ok: false, code: "QUOTE_NOT_FOUND" };
+  }
+
+  if (quote.status === "locked") {
+    return { ok: false, code: "QUOTE_LOCKED" };
+  }
+
+  const { error } = await db
+    .from("quotes")
+    .update({
+      quoter_signature_asset_id: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", quote.id)
+    .eq("organization_id", organization.id);
+
+  throwIfError(error, "Remove quoter signature");
+
+  await appendAuditEvent(db, {
+    organizationId: organization.id,
+    quoteId: quote.id,
+    actorType: "quoter",
+    actorRef: quoter.clerkUserId,
+    eventType: "quote.quoter_signature.deleted",
+  });
+
+  const updatedQuote = await loadQuote(db, quote.id, organization.id);
+
+  if (!updatedQuote) {
+    return { ok: false, code: "QUOTE_NOT_FOUND" };
+  }
+
+  return { ok: true, quote: updatedQuote };
 }
 
 export async function acceptSupabaseQuote(input: {
@@ -1240,24 +1435,72 @@ async function upsertClient(
   db: SupabaseClient,
   organizationId: string,
   client: ClientInput,
+  existingClientId?: string,
 ) {
+  const now = new Date().toISOString();
+  const normalizedEmail = normalizeEmail(client.email);
+  const payload = {
+    organization_id: organizationId,
+    company_name: emptyToNull(client.companyName),
+    contact_name: client.contactName,
+    email: emptyToNull(normalizedEmail),
+    phone: emptyToNull(client.phone),
+    billing_address: emptyToNull(client.address)
+      ? { value: client.address?.trim() }
+      : null,
+    updated_at: now,
+  };
+
+  if (normalizedEmail) {
+    const { data: existingByEmail, error: existingByEmailError } = await db
+      .from("clients")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .eq("email", normalizedEmail)
+      .maybeSingle();
+
+    throwIfError(existingByEmailError, "Find client by email");
+
+    if (existingByEmail) {
+      const { data, error } = await db
+        .from("clients")
+        .update(payload)
+        .eq("id", (existingByEmail as ClientRow).id)
+        .eq("organization_id", organizationId)
+        .select("*")
+        .single();
+
+      throwIfError(error, "Update client by email");
+      return data as ClientRow;
+    }
+  }
+
+  if (existingClientId) {
+    const { data, error } = await db
+      .from("clients")
+      .update(payload)
+      .eq("id", existingClientId)
+      .eq("organization_id", organizationId)
+      .select("*")
+      .maybeSingle();
+
+    throwIfError(error, "Update existing client");
+
+    if (data) {
+      return data as ClientRow;
+    }
+  }
+
   const { data, error } = await db
     .from("clients")
-    .upsert(
-      {
-        organization_id: organizationId,
-        company_name: emptyToNull(client.companyName),
-        contact_name: client.contactName,
-        email: normalizeEmail(client.email),
-        phone: emptyToNull(client.phone),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "organization_id,email" },
-    )
+    .insert({
+      ...payload,
+      created_at: now,
+    })
     .select("*")
     .single();
 
-  throwIfError(error, "Upsert client");
+  throwIfError(error, "Create client");
 
   return data as ClientRow;
 }
@@ -1283,6 +1526,9 @@ async function loadQuote(
   const mappedLineItems = await Promise.all(
     lineItems.map((lineItem) => mapLineItemRow(db, lineItem)),
   );
+  const quoterSignatureAsset = quoteRow.quoter_signature_asset_id
+    ? await getSignatureAssetById(db, quoteRow.quoter_signature_asset_id)
+    : null;
 
   return {
     id: quoteRow.id,
@@ -1302,8 +1548,14 @@ async function loadQuote(
     currentVersion: quoteRow.current_version,
     createdByClerkUserId: quoteRow.created_by_clerk_user_id,
     validUntil: quoteRow.valid_until ?? undefined,
+    requestSummary: quoteRow.request_summary ?? undefined,
     terms: quoteRow.terms ?? undefined,
     notes: quoteRow.notes ?? undefined,
+    templateSnapshot: quoteRow.template_snapshot
+      ? mergeQuoteTemplate(quoteRow.template_snapshot)
+      : undefined,
+    quoterPrintedName: quoteRow.quoter_printed_name ?? undefined,
+    quoterSignatureAsset,
     sentAt: quoteRow.sent_at ?? undefined,
     lockedAt: quoteRow.locked_at ?? undefined,
     createdAt: quoteRow.created_at,
@@ -1376,6 +1628,7 @@ async function getQuoteClient(
     return {
       contactName: fallback?.name ?? "",
       email: fallback?.email ?? "",
+      address: "",
       phone: "",
     };
   }
@@ -1396,6 +1649,7 @@ async function getQuoteClient(
     return {
       contactName: fallback?.name ?? "",
       email: fallback?.email ?? "",
+      address: "",
       phone: "",
     };
   }
@@ -1403,7 +1657,8 @@ async function getQuoteClient(
   return {
     companyName: row.company_name ?? "",
     contactName: row.contact_name,
-    email: row.email,
+    address: row.billing_address?.value ?? "",
+    email: row.email ?? "",
     phone: row.phone ?? "",
   };
 }
@@ -1691,6 +1946,19 @@ async function getSignatureAssets(db: SupabaseClient, assetIds: string[]) {
   return (data ?? []) as SignatureAssetRow[];
 }
 
+async function getSignatureAssetById(
+  db: SupabaseClient,
+  assetId: string,
+): Promise<SignatureAsset | null> {
+  const asset = (await getSignatureAssets(db, [assetId]))[0];
+
+  if (!asset) {
+    return null;
+  }
+
+  return mapSignatureAssetRow(db, asset);
+}
+
 async function mapSignatureAssetRow(
   db: SupabaseClient,
   row: SignatureAssetRow,
@@ -1751,6 +2019,7 @@ async function appendAuditEvent(
 
 function normalizeLineItems(
   lineItems: QuoteDraft["lineItems"],
+  taxMode: TaxMode = "exclusive",
 ): QuoteLineItem[] {
   return withCalculatedLineTotals(
     lineItems.map((lineItem, index) => ({
@@ -1768,6 +2037,7 @@ function normalizeLineItems(
       ),
       descriptionImageMimeType: lineItem.descriptionImageMimeType,
     })),
+    taxMode,
   );
 }
 
@@ -1847,6 +2117,23 @@ async function withSignedSnapshotLineItemUrls(
   db: SupabaseClient,
   version: QuoteVersion,
 ): Promise<QuoteVersion> {
+  const quoterSignatureAsset =
+    version.snapshot.quoterSignature?.asset?.storagePath
+      ? await mapSignatureAssetRow(db, {
+          id: version.snapshot.quoterSignature.asset.id,
+          organization_id: null,
+          owner_type: version.snapshot.quoterSignature.asset.ownerType,
+          owner_ref: version.snapshot.quoterSignature.asset.ownerRef,
+          storage_path: version.snapshot.quoterSignature.asset.storagePath,
+          mime_type: version.snapshot.quoterSignature.asset.mimeType,
+          width_px: version.snapshot.quoterSignature.asset.widthPx ?? null,
+          height_px: version.snapshot.quoterSignature.asset.heightPx ?? null,
+          image_sha256: version.snapshot.quoterSignature.asset.imageSha256,
+          source_method: version.snapshot.quoterSignature.asset.sourceMethod,
+          created_at: version.snapshot.quoterSignature.asset.createdAt,
+        })
+      : version.snapshot.quoterSignature?.asset;
+
   return {
     ...version,
     snapshot: {
@@ -1864,6 +2151,12 @@ async function withSignedSnapshotLineItemUrls(
             : undefined,
         })),
       ),
+      quoterSignature: version.snapshot.quoterSignature
+        ? {
+            ...version.snapshot.quoterSignature,
+            asset: quoterSignatureAsset,
+          }
+        : undefined,
     },
   };
 }
@@ -1924,8 +2217,8 @@ function mapAuditEventRow(row: AuditEventRow): AuditEvent {
   };
 }
 
-function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
+function normalizeEmail(email?: string) {
+  return email?.trim().toLowerCase() ?? "";
 }
 
 function emptyToUndefined<T extends string | undefined>(value: T) {
@@ -1934,6 +2227,10 @@ function emptyToUndefined<T extends string | undefined>(value: T) {
 
 function emptyToNull(value: string | undefined) {
   return value?.trim() ? value : null;
+}
+
+function getTemplateTaxMode(template?: QuoteTemplate): TaxMode {
+  return template?.lineItems.vat.mode ?? "exclusive";
 }
 
 function stripBucketPrefix(path: string, bucket: string) {
