@@ -1,6 +1,6 @@
 "use client";
 
-import { Database, ImagePlus, Plus, Trash2, X } from "lucide-react";
+import { Database, ImagePlus, LoaderCircle, Plus, Trash2, X } from "lucide-react";
 import { useState, type ChangeEvent, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -98,24 +98,28 @@ export function LineItemsTable({
     }
 
     setUploadingIndex(index);
-    const formData = new FormData();
-    formData.append("file", file);
-    const response = await fetch("/api/line-item-data/image", {
-      method: "POST",
-      body: formData,
-    });
-    const payload = await response.json();
-    setUploadingIndex(null);
 
-    if (!response.ok) {
-      return;
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/line-item-data/image", {
+        method: "POST",
+        body: formData,
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        return;
+      }
+
+      updateLineItem(index, {
+        descriptionImageStoragePath: payload.upload.storagePath,
+        descriptionImageMimeType: payload.upload.mimeType,
+        descriptionImageUrl: payload.upload.url ?? "",
+      });
+    } finally {
+      setUploadingIndex(null);
     }
-
-    updateLineItem(index, {
-      descriptionImageStoragePath: payload.upload.storagePath,
-      descriptionImageMimeType: payload.upload.mimeType,
-      descriptionImageUrl: payload.upload.url ?? "",
-    });
   }
 
   return (
@@ -128,6 +132,7 @@ export function LineItemsTable({
             taxMode,
           }).lineTotalMinor;
           const imageSrc = getLineItemImageSrc(lineItem);
+          const isUploadingImage = uploadingIndex === index;
           const currentUnit = lineItem.unit || defaultUnit;
           const unitOptions = includeCurrentOption(
             template.lineItems.unit.options,
@@ -180,14 +185,28 @@ export function LineItemsTable({
                   )}
 
                   <div className="flex flex-wrap gap-2">
-                    <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-stone-200 bg-white px-3 text-sm font-medium text-stone-900 transition hover:bg-stone-100">
-                      <ImagePlus className="size-4" />
-                      {uploadingIndex === index ? "Uploading..." : "Upload picture"}
+                    <label
+                      aria-busy={isUploadingImage || undefined}
+                      className={cn(
+                        "inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-stone-200 bg-white px-3 text-sm font-medium text-stone-900 transition hover:bg-stone-100",
+                        uploadingIndex !== null && "pointer-events-none opacity-50",
+                      )}
+                    >
+                      {isUploadingImage ? (
+                        <LoaderCircle
+                          aria-hidden="true"
+                          className="size-4 animate-spin"
+                        />
+                      ) : (
+                        <ImagePlus className="size-4" />
+                      )}
+                      {isUploadingImage ? "Uploading..." : "Upload picture"}
                       <input
                         accept="image/png,image/jpeg,image/webp"
                         className="sr-only"
+                        disabled={uploadingIndex !== null}
                         type="file"
-                        onChange={(event) => uploadImage(index, event)}
+                        onChange={(event) => void uploadImage(index, event)}
                       />
                     </label>
                     {imageSrc ? (

@@ -15,7 +15,6 @@ import {
 import { useRouter } from "next/navigation";
 import {
   useState,
-  useTransition,
   type ChangeEvent,
   type ReactNode,
 } from "react";
@@ -41,7 +40,7 @@ export function QuoteTemplateDesigner({
   template: QuoteTemplate;
 }) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [isSaving, setIsSaving] = useState(false);
   const [template, setTemplate] = useState(initialTemplate);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -153,6 +152,10 @@ export function QuoteTemplateDesigner({
             ...template.lineItems.unitPrice,
             currency: normalizeCurrency(template.lineItems.unitPrice.currency),
           },
+          vat: {
+            ...template.lineItems.vat,
+            enabled: true,
+          },
         },
       }),
     });
@@ -168,12 +171,24 @@ export function QuoteTemplateDesigner({
     router.refresh();
   }
 
+  async function handleSaveTemplate() {
+    setIsSaving(true);
+
+    try {
+      await saveTemplate();
+    } catch {
+      setMessage("Could not save quote template.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   return (
     <form
       className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]"
       onSubmit={(event) => {
         event.preventDefault();
-        startTransition(saveTemplate);
+        void handleSaveTemplate();
       }}
     >
       <div className="space-y-6">
@@ -472,41 +487,25 @@ export function QuoteTemplateDesigner({
               <div className="grid gap-2">
                 <label className="flex h-10 items-center gap-3 rounded-md border border-stone-200 bg-white px-3 text-sm font-medium text-stone-800">
                   <input
-                    checked={template.lineItems.vat.enabled}
+                    checked={template.lineItems.vat.mode === "exclusive"}
                     className="size-4"
                     type="checkbox"
                     onChange={(event) =>
                       updateLineItems({
                         vat: {
                           ...template.lineItems.vat,
-                          enabled: event.target.checked,
-                        },
-                      })
-                    }
-                  />
-                  VAT
-                </label>
-                <label className="flex h-10 items-center gap-3 rounded-md border border-stone-200 bg-white px-3 text-sm font-medium text-stone-800">
-                  <input
-                    checked={template.lineItems.vat.mode === "inclusive"}
-                    className="size-4"
-                    disabled={!template.lineItems.vat.enabled}
-                    type="checkbox"
-                    onChange={(event) =>
-                      updateLineItems({
-                        vat: {
-                          ...template.lineItems.vat,
+                          enabled: true,
                           mode: event.target.checked
-                            ? "inclusive"
-                            : "exclusive",
+                            ? "exclusive"
+                            : "inclusive",
                         },
                       })
                     }
                   />
-                  VAT inclusive
+                  VAT exclusive
                 </label>
                 <Input
-                  disabled={!template.lineItems.vat.enabled}
+                  aria-label="VAT rate percentage"
                   min="0"
                   max="100"
                   step="0.01"
@@ -516,6 +515,7 @@ export function QuoteTemplateDesigner({
                     updateLineItems({
                       vat: {
                         ...template.lineItems.vat,
+                        enabled: true,
                         rate: Number(event.target.value || 0) / 100,
                       },
                     })
@@ -615,13 +615,9 @@ export function QuoteTemplateDesigner({
             />
             <SummaryRow
               label="VAT"
-              value={
-                template.lineItems.vat.enabled
-                  ? `${Math.round(template.lineItems.vat.rate * 10000) / 100}% ${
-                      template.lineItems.vat.mode
-                    }`
-                  : "Off"
-              }
+              value={`${Math.round(template.lineItems.vat.rate * 10000) / 100}% ${
+                template.lineItems.vat.mode
+              }`}
             />
             <SummaryRow
               label="Logo"
@@ -631,7 +627,13 @@ export function QuoteTemplateDesigner({
         </div>
 
         <div className="sticky top-6 rounded-lg border border-stone-200 bg-white p-4">
-          <Button className="w-full" type="submit" disabled={isPending}>
+          <Button
+            className="w-full"
+            type="submit"
+            disabled={isSaving}
+            loading={isSaving}
+            loadingText="Saving..."
+          >
             <Save className="size-4" />
             Save template
           </Button>

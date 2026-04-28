@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { CheckCircle2, FileSignature, Lock, RefreshCw } from "lucide-react";
 
 import { QuoteDocument } from "@/components/quote-editor/quote-document";
@@ -26,7 +26,10 @@ export function ClientQuoteViewComponent({
   const [typedName, setTypedName] = useState(initialView.recipient.name);
   const [confirmed, setConfirmed] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [pendingAction, setPendingAction] = useState<
+    "accept" | "refresh" | null
+  >(null);
+  const isPending = pendingAction !== null;
   const allSigned = view.requiredSignatureFields.every(
     (field) => field.status === "signed",
   );
@@ -83,6 +86,24 @@ export function ClientQuoteViewComponent({
 
     setMessage(`Accepted at ${formatDate(payload.acceptedAt)}.`);
     await refreshView();
+  }
+
+  async function runPendingAction(
+    action: "accept" | "refresh",
+    task: () => Promise<void>,
+    fallbackMessage?: string,
+  ) {
+    setPendingAction(action);
+
+    try {
+      await task();
+    } catch {
+      if (fallbackMessage) {
+        setMessage(fallbackMessage);
+      }
+    } finally {
+      setPendingAction(null);
+    }
   }
 
   return (
@@ -179,7 +200,15 @@ export function ClientQuoteViewComponent({
               <Button
                 type="button"
                 disabled={!allSigned || !confirmed || locked || isPending}
-                onClick={() => startTransition(acceptQuote)}
+                loading={pendingAction === "accept"}
+                loadingText="Accepting..."
+                onClick={() =>
+                  void runPendingAction(
+                    "accept",
+                    acceptQuote,
+                    "Could not accept quote.",
+                  )
+                }
               >
                 <Lock className="size-4" />
                 Confirm acceptance
@@ -202,7 +231,16 @@ export function ClientQuoteViewComponent({
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => startTransition(refreshView)}
+                disabled={isPending}
+                loading={pendingAction === "refresh"}
+                loadingText="Refreshing..."
+                onClick={() =>
+                  void runPendingAction(
+                    "refresh",
+                    refreshView,
+                    "Could not refresh quote.",
+                  )
+                }
               >
                 <RefreshCw className="size-4" />
                 Refresh
@@ -219,7 +257,13 @@ export function ClientQuoteViewComponent({
           token={token}
           signatureFieldId={selectedFieldId}
           onClose={closeSignatureField}
-          onUploaded={() => startTransition(refreshView)}
+          onUploaded={() =>
+            void runPendingAction(
+              "refresh",
+              refreshView,
+              "Could not refresh quote.",
+            )
+          }
         />
       ) : null}
     </main>

@@ -14,6 +14,10 @@ export const quoteStatuses = [
 
 export type QuoteStatus = (typeof quoteStatuses)[number];
 
+export const quoteVisibilities = ["active", "archived", "deleted"] as const;
+
+export type QuoteVisibility = (typeof quoteVisibilities)[number];
+
 export const recipientStatuses = [
   "pending",
   "viewed",
@@ -179,6 +183,7 @@ export type QuoteDraft = {
 export type Quote = {
   id: string;
   organizationId: string;
+  visibility: QuoteVisibility;
   quoteNumber: string;
   quotationName: string;
   title: string;
@@ -199,6 +204,10 @@ export type Quote = {
   quoterSignatureAsset?: SignatureAsset | null;
   sentAt?: string;
   lockedAt?: string;
+  archivedAt?: string;
+  archivedByClerkUserId?: string;
+  deletedAt?: string;
+  deletedByClerkUserId?: string;
   createdAt: string;
   updatedAt: string;
 } & QuoteTotals;
@@ -216,6 +225,10 @@ export type QuoteShareLink = {
 export type UpdateQuoteResult =
   | { ok: true; quote: Quote }
   | { ok: false; code: "QUOTE_NOT_FOUND" | "QUOTE_LOCKED" };
+
+export type UpdateQuoteVisibilityResult =
+  | { ok: true; quote: Quote }
+  | { ok: false; code: "QUOTE_NOT_FOUND" };
 
 export type SendQuoteResult =
   | {

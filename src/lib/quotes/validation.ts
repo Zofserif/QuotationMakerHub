@@ -7,6 +7,7 @@ import {
 } from "@/lib/currency";
 import { lineItemImageMimeTypes } from "@/lib/line-item-data/types";
 import { quoteTemplateSchema } from "@/lib/quote-templates/validation";
+import { quoteVisibilities } from "@/lib/quotes/types";
 
 export type ValidationIssue = {
   code: string;
@@ -72,6 +73,10 @@ export const signatureUploadSchema = z.object({
 export const quoterSignatureUploadSchema = z.object({
   imageBase64: z.string().startsWith("data:image/png;base64,"),
   sourceMethod: z.enum(["camera", "upload", "draw"]),
+});
+
+export const quoteVisibilityUpdateSchema = z.object({
+  visibility: z.enum(quoteVisibilities),
 });
 
 export const acceptQuoteSchema = z.object({

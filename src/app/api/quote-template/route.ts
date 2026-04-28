@@ -18,7 +18,17 @@ export async function GET() {
 export async function PUT(request: Request) {
   const quoter = await requireQuoter();
   const body = await readJson(request);
-  const parsed = parseJsonBody(quoteTemplateSchema, mergeQuoteTemplate(body));
+  const mergedTemplate = mergeQuoteTemplate(body);
+  const parsed = parseJsonBody(quoteTemplateSchema, {
+    ...mergedTemplate,
+    lineItems: {
+      ...mergedTemplate.lineItems,
+      vat: {
+        ...mergedTemplate.lineItems.vat,
+        enabled: true,
+      },
+    },
+  });
 
   if (!parsed.ok) {
     return errorResponse(

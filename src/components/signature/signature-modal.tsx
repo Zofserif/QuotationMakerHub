@@ -4,17 +4,27 @@ import {
   useEffect,
   useRef,
   useState,
-  useTransition,
   type PointerEvent,
 } from "react";
-import { Camera, Check, PenLine, RefreshCw, Upload, X } from "lucide-react";
+import {
+  Camera,
+  Check,
+  LoaderCircle,
+  PenLine,
+  RefreshCw,
+  Upload,
+  X,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cleanSignatureFromCanvas } from "@/lib/signatures/clean-signature";
 import type { SourceMethod } from "@/lib/quotes/types";
+import { cn } from "@/lib/utils";
 
 const DRAW_LINE_WIDTH = 4;
 const DRAW_STROKE_STYLE = "#111827";
+
+type PendingSignatureAction = "approve" | "capture" | "preview" | "upload";
 
 function hasCameraApi() {
   return Boolean(navigator.mediaDevices?.getUserMedia);
@@ -45,9 +55,11 @@ export function SignatureModal({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [pendingAction, setPendingAction] =
+    useState<PendingSignatureAction | null>(null);
   const isDrawing = useRef(false);
   const hasDrawnInk = useRef(false);
+  const isProcessing = pendingAction !== null;
 
   useEffect(() => {
     if (!open || mode !== "camera") {
@@ -155,7 +167,13 @@ export function SignatureModal({
     canvas.height = video.videoHeight || 540;
     const context = canvas.getContext("2d");
     context?.drawImage(video, 0, 0, canvas.width, canvas.height);
-    await cleanAndPreview(canvas, "camera");
+    setPendingAction("capture");
+
+    try {
+      await cleanAndPreview(canvas, "camera");
+    } finally {
+      setPendingAction(null);
+    }
   }
 
   async function handleUpload(file?: File) {
@@ -163,17 +181,28 @@ export function SignatureModal({
       return;
     }
 
-    const image = new Image();
-    image.onload = async () => {
-      const canvas = canvasRef.current!;
+    const objectUrl = URL.createObjectURL(file);
+    setPendingAction("upload");
+
+    try {
+      const image = await loadImage(objectUrl);
+      const canvas = canvasRef.current;
+
+      if (!canvas) {
+        return;
+      }
+
       canvas.width = image.naturalWidth;
       canvas.height = image.naturalHeight;
       const context = canvas.getContext("2d");
       context?.drawImage(image, 0, 0);
-      URL.revokeObjectURL(image.src);
       await cleanAndPreview(canvas, "upload");
-    };
-    image.src = URL.createObjectURL(file);
+    } catch {
+      setError("Could not process signature image.");
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+      setPendingAction(null);
+    }
   }
 
   async function cleanAndPreview(canvas: HTMLCanvasElement, source: SourceMethod) {
@@ -310,7 +339,23 @@ export function SignatureModal({
     context.fillStyle = "#ffffff";
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.drawImage(source, 0, 0);
-    await cleanAndPreview(canvas, "draw");
+    setPendingAction("preview");
+
+    try {
+      await cleanAndPreview(canvas, "draw");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function handleApproveSignature() {
+    setPendingAction("approve");
+
+    try {
+      await approveSignature();
+    } finally {
+      setPendingAction(null);
+    }
   }
 
   return (
@@ -323,7 +368,13 @@ export function SignatureModal({
               Capture, upload, or draw a clean signature.
             </p>
           </div>
-          <Button aria-label="Close" variant="ghost" size="icon" onClick={onClose}>
+          <Button
+            aria-label="Close"
+            variant="ghost"
+            size="icon"
+            disabled={isProcessing}
+            onClick={onClose}
+          >
             <X className="size-5" />
           </Button>
         </header>
@@ -348,16 +399,32 @@ export function SignatureModal({
                 className="h-[320px] w-full rounded-md bg-stone-950 object-cover"
               />
             ) : mode === "upload" ? (
-              <label className="grid h-[320px] cursor-pointer place-items-center rounded-md border border-dashed border-stone-300 bg-white text-center text-sm text-stone-600">
+              <label
+                aria-busy={pendingAction === "upload" || undefined}
+                className={cn(
+                  "grid h-[320px] cursor-pointer place-items-center rounded-md border border-dashed border-stone-300 bg-white text-center text-sm text-stone-600",
+                  isProcessing && "pointer-events-none opacity-70",
+                )}
+              >
                 <span>
-                  <Upload className="mx-auto mb-3 size-8 text-stone-400" />
-                  Select PNG or JPEG signature image
+                  {pendingAction === "upload" ? (
+                    <LoaderCircle
+                      aria-hidden="true"
+                      className="mx-auto mb-3 size-8 animate-spin text-stone-400"
+                    />
+                  ) : (
+                    <Upload className="mx-auto mb-3 size-8 text-stone-400" />
+                  )}
+                  {pendingAction === "upload"
+                    ? "Processing signature image..."
+                    : "Select PNG or JPEG signature image"}
                 </span>
                 <input
                   accept="image/png,image/jpeg,image/webp"
                   className="sr-only"
+                  disabled={isProcessing}
                   type="file"
-                  onChange={(event) => handleUpload(event.target.files?.[0])}
+                  onChange={(event) => void handleUpload(event.target.files?.[0])}
                 />
               </label>
             ) : (
@@ -380,6 +447,7 @@ export function SignatureModal({
                 variant={mode === "camera" ? "primary" : "secondary"}
                 size="sm"
                 title="Camera"
+                disabled={isProcessing}
                 onClick={() => {
                   resetPreview();
                   setMode("camera");
@@ -392,6 +460,7 @@ export function SignatureModal({
                 variant={mode === "upload" ? "primary" : "secondary"}
                 size="sm"
                 title="Upload"
+                disabled={isProcessing}
                 onClick={() => {
                   resetPreview();
                   setMode("upload");
@@ -404,6 +473,7 @@ export function SignatureModal({
                 variant={mode === "draw" ? "primary" : "secondary"}
                 size="sm"
                 title="Draw"
+                disabled={isProcessing}
                 onClick={() => {
                   resetPreview();
                   setMode("draw");
@@ -414,13 +484,27 @@ export function SignatureModal({
             </div>
 
             {mode === "camera" && !previewUrl ? (
-              <Button className="w-full" type="button" onClick={captureCameraFrame}>
+              <Button
+                className="w-full"
+                type="button"
+                disabled={isProcessing}
+                loading={pendingAction === "capture"}
+                loadingText="Processing..."
+                onClick={() => void captureCameraFrame()}
+              >
                 <Camera className="size-4" />
                 Capture
               </Button>
             ) : null}
             {mode === "draw" && !previewUrl ? (
-              <Button className="w-full" type="button" onClick={previewDrawing}>
+              <Button
+                className="w-full"
+                type="button"
+                disabled={isProcessing}
+                loading={pendingAction === "preview"}
+                loadingText="Processing..."
+                onClick={() => void previewDrawing()}
+              >
                 <Check className="size-4" />
                 Preview
               </Button>
@@ -430,8 +514,10 @@ export function SignatureModal({
                 <Button
                   className="w-full"
                   type="button"
-                  disabled={isPending}
-                  onClick={() => startTransition(approveSignature)}
+                  disabled={isProcessing}
+                  loading={pendingAction === "approve"}
+                  loadingText="Approving..."
+                  onClick={() => void handleApproveSignature()}
                 >
                   <Check className="size-4" />
                   Approve
@@ -440,6 +526,7 @@ export function SignatureModal({
                   className="w-full"
                   type="button"
                   variant="secondary"
+                  disabled={isProcessing}
                   onClick={resetPreview}
                 >
                   <RefreshCw className="size-4" />
@@ -495,5 +582,14 @@ function blobToDataUrl(blob: Blob) {
     reader.onerror = () => reject(reader.error);
     reader.onload = () => resolve(String(reader.result));
     reader.readAsDataURL(blob);
+  });
+}
+
+function loadImage(src: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onerror = () => reject(new Error("Could not load image."));
+    image.onload = () => resolve(image);
+    image.src = src;
   });
 }

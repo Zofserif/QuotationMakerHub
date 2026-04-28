@@ -37,9 +37,11 @@ import type {
   QuoteDraft,
   QuoteLineItem,
   QuoteRecipient,
+  QuoteVisibility,
   RotateQuoteShareLinksResult,
   SendQuoteResult,
   UpdateQuoteResult,
+  UpdateQuoteVisibilityResult,
   QuoteVersion,
   SignatureAsset,
   SignaturePlacement,
@@ -109,6 +111,7 @@ function seedDemoState(): DemoState {
   const quote: Quote = {
     id: quoteId,
     organizationId: DEMO_ORG_ID,
+    visibility: "active",
     quoteNumber: "Q-2026-0001",
     quotationName: "Website Redesign Quotation",
     title: "Website Redesign Quotation",
@@ -203,10 +206,15 @@ function seedDemoState(): DemoState {
   };
 }
 
-export function listDemoQuotes() {
-  return demoState.quotes.map(withAppCurrency).toSorted((a, b) =>
-    b.updatedAt.localeCompare(a.updatedAt),
-  );
+export function listDemoQuotes(
+  options: { visibility?: QuoteVisibility } = {},
+) {
+  const visibility = options.visibility ?? "active";
+
+  return demoState.quotes
+    .filter((quote) => quoteMatchesVisibility(quote, visibility))
+    .map(withAppCurrency)
+    .toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
 export function getDemoQuote(quoteId: string) {
@@ -377,6 +385,7 @@ export function deleteDemoQuoteQuoterSignature(
 }
 
 function withAppCurrency(quote: Quote) {
+  quote.visibility = resolveDemoQuoteVisibility(quote);
   quote.currency = normalizeCurrency(quote.currency);
   quote.quotationName = quote.quotationName || quote.title;
   quote.templateSnapshot = quote.templateSnapshot
@@ -409,6 +418,7 @@ export function createDemoQuote(draft: QuoteDraft) {
   const quote: Quote = {
     id: quoteId,
     organizationId: DEMO_ORG_ID,
+    visibility: "active",
     quoteNumber: formatQuoteNumber(
       templateSnapshot.company.quoteNumberFormat,
       demoState.quoteCounter,
@@ -509,6 +519,52 @@ export function updateDemoQuote(
     email: draft.client.email ?? "",
   }));
   appendAudit(quote.id, "quote.updated", "quoter", DEMO_USER_ID);
+
+  return { ok: true, quote };
+}
+
+export function updateDemoQuoteVisibility(
+  quoteId: string,
+  visibility: QuoteVisibility,
+): UpdateQuoteVisibilityResult {
+  const quote = getDemoQuote(quoteId);
+
+  if (!quote) {
+    return { ok: false, code: "QUOTE_NOT_FOUND" };
+  }
+
+  const previousVisibility = resolveDemoQuoteVisibility(quote);
+  const now = new Date().toISOString();
+
+  if (visibility === "active") {
+    quote.archivedAt = undefined;
+    quote.archivedByClerkUserId = undefined;
+    quote.deletedAt = undefined;
+    quote.deletedByClerkUserId = undefined;
+  } else if (visibility === "archived") {
+    quote.archivedAt = now;
+    quote.archivedByClerkUserId = DEMO_USER_ID;
+    quote.deletedAt = undefined;
+    quote.deletedByClerkUserId = undefined;
+  } else {
+    quote.archivedAt = undefined;
+    quote.archivedByClerkUserId = undefined;
+    quote.deletedAt = now;
+    quote.deletedByClerkUserId = DEMO_USER_ID;
+  }
+
+  quote.visibility = visibility;
+  quote.updatedAt = now;
+  appendAudit(
+    quote.id,
+    quoteVisibilityAuditEvent(visibility),
+    "quoter",
+    DEMO_USER_ID,
+    {
+      previousVisibility,
+      visibility,
+    },
+  );
 
   return { ok: true, quote };
 }
@@ -865,6 +921,30 @@ function appendAudit(
       metadata,
     }),
   );
+}
+
+function quoteMatchesVisibility(quote: Quote, visibility: QuoteVisibility) {
+  return resolveDemoQuoteVisibility(quote) === visibility;
+}
+
+function resolveDemoQuoteVisibility(quote: Quote): QuoteVisibility {
+  if (quote.deletedAt) {
+    return "deleted";
+  }
+
+  if (quote.archivedAt) {
+    return "archived";
+  }
+
+  return "active";
+}
+
+function quoteVisibilityAuditEvent(visibility: QuoteVisibility) {
+  if (visibility === "active") {
+    return "quote.restored";
+  }
+
+  return visibility === "archived" ? "quote.archived" : "quote.deleted";
 }
 
 function findRecipientByToken(token: string) {

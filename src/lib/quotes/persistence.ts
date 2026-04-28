@@ -18,6 +18,7 @@ import {
   updateDemoLineItemData,
   updateDemoQuoteTemplate,
   updateDemoQuote,
+  updateDemoQuoteVisibility,
   updateDemoQuoteQuoterSignature,
   uploadDemoLineItemDataImage,
 } from "@/lib/demo/store";
@@ -25,7 +26,11 @@ import { hasSupabaseAdminConfig } from "@/lib/supabase/admin";
 import { renderQuotePdf } from "@/lib/pdf/render-pdf";
 import type { QuoteTemplate } from "@/lib/quote-templates/types";
 import type { LineItemDataDraft } from "@/lib/line-item-data/types";
-import type { QuoteDraft, SourceMethod } from "@/lib/quotes/types";
+import type {
+  QuoteDraft,
+  QuoteVisibility,
+  SourceMethod,
+} from "@/lib/quotes/types";
 import {
   acceptSupabaseQuote,
   createSupabasePdfExport,
@@ -46,6 +51,7 @@ import {
   updateSupabaseLineItemData,
   updateSupabaseQuoteTemplate,
   updateSupabaseQuote,
+  updateSupabaseQuoteVisibility,
   updateSupabaseQuoteQuoterSignature,
   uploadSupabaseLineItemDataImage,
   type QuoterContext,
@@ -57,12 +63,15 @@ function shouldUseDemoPersistence() {
   return process.env.NODE_ENV !== "production" && !hasSupabaseAdminConfig();
 }
 
-export async function listQuotes(quoter: QuoterContext) {
+export async function listQuotes(
+  quoter: QuoterContext,
+  options: { visibility?: QuoteVisibility } = {},
+) {
   if (shouldUseDemoPersistence()) {
-    return listDemoQuotes();
+    return listDemoQuotes(options);
   }
 
-  return listSupabaseQuotes(quoter);
+  return listSupabaseQuotes(quoter, options);
 }
 
 export async function getQuote(quoter: QuoterContext, quoteId: string) {
@@ -166,6 +175,18 @@ export async function updateQuote(
   }
 
   return updateSupabaseQuote(quoter, quoteId, draft);
+}
+
+export async function updateQuoteVisibility(
+  quoter: QuoterContext,
+  quoteId: string,
+  visibility: QuoteVisibility,
+) {
+  if (shouldUseDemoPersistence()) {
+    return updateDemoQuoteVisibility(quoteId, visibility);
+  }
+
+  return updateSupabaseQuoteVisibility(quoter, quoteId, visibility);
 }
 
 export async function updateQuoteQuoterSignature(

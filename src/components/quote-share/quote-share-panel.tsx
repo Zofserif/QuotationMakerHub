@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore, useTransition } from "react";
+import { useState, useSyncExternalStore } from "react";
 import {
   Check,
   Copy,
@@ -51,7 +51,7 @@ export function QuoteSharePanel({
   >(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const status = rotatedStatus ?? quoteStatus;
   const shareLinks = generatedShareLinks ?? initialShareLinks;
   const hasLinks = shareLinks.length > 0;
@@ -67,20 +67,28 @@ export function QuoteSharePanel({
       return;
     }
 
-    setMessage(null);
-    const response = await fetch(`/api/quotes/${quoteId}/share-links`, {
-      method: "POST",
-    });
-    const payload = (await response.json()) as ShareLinksPayload;
+    setIsRefreshing(true);
 
-    if (!response.ok) {
-      setMessage(payload.error?.message ?? "Could not generate share links.");
-      return;
+    try {
+      setMessage(null);
+      const response = await fetch(`/api/quotes/${quoteId}/share-links`, {
+        method: "POST",
+      });
+      const payload = (await response.json()) as ShareLinksPayload;
+
+      if (!response.ok) {
+        setMessage(payload.error?.message ?? "Could not generate share links.");
+        return;
+      }
+
+      setRotatedStatus(payload.status ?? status);
+      setGeneratedShareLinks(payload.shareLinks ?? []);
+      setMessage("Fresh signing link generated. Previous links no longer work.");
+    } catch {
+      setMessage("Could not generate share links.");
+    } finally {
+      setIsRefreshing(false);
     }
-
-    setRotatedStatus(payload.status ?? status);
-    setGeneratedShareLinks(payload.shareLinks ?? []);
-    setMessage("Fresh signing link generated. Previous links no longer work.");
   }
 
   async function copyToClipboard(url: string, key: string) {
@@ -108,13 +116,11 @@ export function QuoteSharePanel({
             type="button"
             variant={hasLinks ? "secondary" : "primary"}
             size="sm"
-            disabled={isPending}
+            disabled={isRefreshing}
+            loading={isRefreshing}
+            loadingText={hasLinks ? "Refreshing..." : "Generating..."}
             className="shrink-0"
-            onClick={() =>
-              startTransition(() => {
-                void refreshShareLinks();
-              })
-            }
+            onClick={() => void refreshShareLinks()}
           >
             <RefreshCw className="size-4" />
             {hasLinks ? "Refresh link" : "Generate link"}

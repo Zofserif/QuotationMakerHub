@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   FileSignature,
   Save,
@@ -53,6 +53,8 @@ type QuoteDraftErrorPayload = {
   };
 };
 
+type PendingQuoteAction = "save" | "send" | "remove-signature";
+
 export function QuoteEditor({
   quote,
   template,
@@ -63,7 +65,8 @@ export function QuoteEditor({
   lineItemData?: LineItemData[];
 }) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [pendingAction, setPendingAction] =
+    useState<PendingQuoteAction | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [signatureOpen, setSignatureOpen] = useState(false);
   const [shareLinks, setShareLinks] = useState<QuoteShareLink[]>(() =>
@@ -101,6 +104,7 @@ export function QuoteEditor({
   const lineItemsForTotals = vatEnabled
     ? draft.lineItems
     : draft.lineItems.map((lineItem) => ({ ...lineItem, taxRate: 0 }));
+  const isPending = pendingAction !== null;
 
   const totals = calculateQuoteTotals(
     lineItemsForTotals,
@@ -253,15 +257,29 @@ export function QuoteEditor({
     router.refresh();
   }
 
+  async function runPendingAction(
+    action: PendingQuoteAction,
+    task: () => Promise<unknown>,
+    fallbackMessage: string,
+  ) {
+    setPendingAction(action);
+
+    try {
+      await task();
+    } catch {
+      setMessage(fallbackMessage);
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
       <form
         className="space-y-6"
         onSubmit={(event) => {
           event.preventDefault();
-          startTransition(() => {
-            void saveDraft();
-          });
+          void runPendingAction("save", saveDraft, "Could not save draft.");
         }}
       >
         <section className="rounded-lg border border-stone-200 bg-white p-5">
@@ -516,7 +534,7 @@ export function QuoteEditor({
                 <Button
                   type="button"
                   variant="secondary"
-                  disabled={!quote}
+                  disabled={!quote || isPending}
                   onClick={() => setSignatureOpen(true)}
                 >
                   <FileSignature className="size-4" />
@@ -526,8 +544,16 @@ export function QuoteEditor({
                   <Button
                     type="button"
                     variant="secondary"
-                    disabled={!quote}
-                    onClick={() => startTransition(removeQuoterSignature)}
+                    disabled={!quote || isPending}
+                    loading={pendingAction === "remove-signature"}
+                    loadingText="Removing..."
+                    onClick={() =>
+                      void runPendingAction(
+                        "remove-signature",
+                        removeQuoterSignature,
+                        "Could not remove signature.",
+                      )
+                    }
                   >
                     <Trash2 className="size-4" />
                     Remove
@@ -546,7 +572,12 @@ export function QuoteEditor({
         </section>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" disabled={isPending}>
+          <Button
+            type="submit"
+            disabled={isPending}
+            loading={pendingAction === "save"}
+            loadingText="Saving..."
+          >
             <Save className="size-4" />
             Save draft
           </Button>
@@ -554,7 +585,11 @@ export function QuoteEditor({
             type="button"
             variant="secondary"
             disabled={isPending}
-            onClick={() => startTransition(sendQuote)}
+            loading={pendingAction === "send"}
+            loadingText="Sending..."
+            onClick={() =>
+              void runPendingAction("send", sendQuote, "Could not send quote.")
+            }
           >
             <Send className="size-4" />
             Send quote

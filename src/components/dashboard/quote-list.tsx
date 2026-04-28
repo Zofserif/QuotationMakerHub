@@ -3,6 +3,7 @@ import { Activity, Edit3, Eye, FileText } from "lucide-react";
 import { QuoteSharePanel } from "@/components/quote-share/quote-share-panel";
 import { LinkButton } from "@/components/ui/button";
 import { QuoteStatusBadge } from "@/components/dashboard/quote-status-badge";
+import { QuoteVisibilityActions } from "@/components/dashboard/quote-visibility-actions";
 import { buildQuoteShareLinks } from "@/lib/quotes/share-links";
 import type { Quote } from "@/lib/quotes/types";
 import { formatDate, formatMoney } from "@/lib/utils";
@@ -79,14 +80,20 @@ export function QuoteList({ quotes }: { quotes: Quote[] }) {
                   PDF
                 </LinkButton>
               ) : null}
+              <QuoteVisibilityActions
+                quoteId={quote.id}
+                visibility={quote.visibility}
+              />
             </div>
-            <QuoteSharePanel
-              quoteId={quote.id}
-              quoteStatus={quote.status}
-              initialShareLinks={buildQuoteShareLinks(quote)}
-              variant="compact"
-              className="lg:col-span-5"
-            />
+            {quote.visibility === "active" ? (
+              <QuoteSharePanel
+                quoteId={quote.id}
+                quoteStatus={quote.status}
+                initialShareLinks={buildQuoteShareLinks(quote)}
+                variant="compact"
+                className="lg:col-span-5"
+              />
+            ) : null}
           </article>
         ))}
       </div>

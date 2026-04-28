@@ -2,13 +2,14 @@
 
 import {
   ImagePlus,
+  LoaderCircle,
   Pencil,
   Plus,
   Save,
   Trash2,
   X,
 } from "lucide-react";
-import { useState, useTransition, type ChangeEvent, type ReactNode } from "react";
+import { useState, type ChangeEvent, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +23,7 @@ import type {
   LineItemDataDraft,
   LineItemImageMimeType,
 } from "@/lib/line-item-data/types";
-import { formatMoney, majorToMinor, minorToMajorString } from "@/lib/utils";
+import { cn, formatMoney, majorToMinor, minorToMajorString } from "@/lib/utils";
 
 type FormState = {
   title: string;
@@ -52,9 +53,11 @@ export function LineItemDataManager({
   );
   const [editingId, setEditingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-  const [isUploading, startUploadTransition] = useTransition();
+  const [isSaving, setIsSaving] = useState(false);
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const unitSelectOptions = includeCurrentOption(unitOptions, form.unit);
+  const isPending = isSaving || deletingItemId !== null || isUploading;
 
   function updateForm(patch: Partial<FormState>) {
     setForm((current) => ({ ...current, ...patch }));
@@ -88,25 +91,35 @@ export function LineItemDataManager({
       return;
     }
 
-    const formData = new FormData();
-    formData.append("file", file);
-    const response = await fetch("/api/line-item-data/image", {
-      method: "POST",
-      body: formData,
-    });
-    const payload = await response.json();
+    setIsUploading(true);
 
-    if (!response.ok) {
-      setMessage(payload.error?.message ?? "Could not upload description picture.");
-      return;
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/line-item-data/image", {
+        method: "POST",
+        body: formData,
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        setMessage(
+          payload.error?.message ?? "Could not upload description picture.",
+        );
+        return;
+      }
+
+      updateForm({
+        descriptionImageStoragePath: payload.upload.storagePath,
+        descriptionImageMimeType: payload.upload.mimeType,
+        descriptionImageUrl: payload.upload.url ?? "",
+      });
+      setMessage(null);
+    } catch {
+      setMessage("Could not upload description picture.");
+    } finally {
+      setIsUploading(false);
     }
-
-    updateForm({
-      descriptionImageStoragePath: payload.upload.storagePath,
-      descriptionImageMimeType: payload.upload.mimeType,
-      descriptionImageUrl: payload.upload.url ?? "",
-    });
-    setMessage(null);
   }
 
   async function saveItem() {
@@ -162,6 +175,30 @@ export function LineItemDataManager({
     setMessage("Line item data deleted.");
   }
 
+  async function handleSaveItem() {
+    setIsSaving(true);
+
+    try {
+      await saveItem();
+    } catch {
+      setMessage("Could not save line item data.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleDeleteItem(item: LineItemData) {
+    setDeletingItemId(item.id);
+
+    try {
+      await deleteItem(item);
+    } catch {
+      setMessage("Could not delete line item data.");
+    } finally {
+      setDeletingItemId(null);
+    }
+  }
+
   const previewImage = getLineItemImageSrc({
     descriptionImageStoragePath: form.descriptionImageStoragePath,
     descriptionImageUrl: form.descriptionImageUrl,
@@ -210,7 +247,10 @@ export function LineItemDataManager({
                         type="button"
                         variant="danger"
                         size="sm"
-                        onClick={() => startTransition(() => deleteItem(item))}
+                        disabled={isPending}
+                        loading={deletingItemId === item.id}
+                        loadingText="Deleting..."
+                        onClick={() => void handleDeleteItem(item)}
                       >
                         <Trash2 className="size-4" />
                         Delete
@@ -247,7 +287,7 @@ export function LineItemDataManager({
           className="sticky top-6 rounded-lg border border-stone-200 bg-white p-4"
           onSubmit={(event) => {
             event.preventDefault();
-            startTransition(saveItem);
+            void handleSaveItem();
           }}
         >
           <div className="mb-4 flex items-center justify-between gap-3">
@@ -290,16 +330,28 @@ export function LineItemDataManager({
                   </div>
                 )}
                 <div className="flex flex-wrap gap-2">
-                  <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-stone-200 bg-white px-3 text-sm font-medium text-stone-900 transition hover:bg-stone-100">
-                    <ImagePlus className="size-4" />
-                    Upload
+                  <label
+                    aria-busy={isUploading || undefined}
+                    className={cn(
+                      "inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-stone-200 bg-white px-3 text-sm font-medium text-stone-900 transition hover:bg-stone-100",
+                      isUploading && "pointer-events-none opacity-50",
+                    )}
+                  >
+                    {isUploading ? (
+                      <LoaderCircle
+                        aria-hidden="true"
+                        className="size-4 animate-spin"
+                      />
+                    ) : (
+                      <ImagePlus className="size-4" />
+                    )}
+                    {isUploading ? "Uploading..." : "Upload"}
                     <input
                       accept="image/png,image/jpeg,image/webp"
                       className="sr-only"
+                      disabled={isUploading}
                       type="file"
-                      onChange={(event) =>
-                        startUploadTransition(() => uploadImage(event))
-                      }
+                      onChange={(event) => void uploadImage(event)}
                     />
                   </label>
                   {previewImage ? (
@@ -363,7 +415,12 @@ export function LineItemDataManager({
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-2">
-            <Button type="submit" disabled={isPending || isUploading}>
+            <Button
+              type="submit"
+              disabled={isPending}
+              loading={isSaving}
+              loadingText={editingId ? "Saving..." : "Creating..."}
+            >
               {editingId ? <Save className="size-4" /> : <Plus className="size-4" />}
               {editingId ? "Save changes" : "Create item"}
             </Button>
