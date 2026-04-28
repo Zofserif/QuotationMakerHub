@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition, type ReactNode } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import {
   ExternalLink,
   FileSignature,
@@ -28,6 +28,16 @@ import type { LineItemData } from "@/lib/line-item-data/types";
 import { calculateQuoteTotals } from "@/lib/quotes/calculate-totals";
 import type { Quote, QuoteDraft } from "@/lib/quotes/types";
 import { formatQuoteIssuedDate } from "@/lib/utils";
+
+const customerFieldVisibilityOptions = [
+  { key: "clientCompany", label: "Client Company" },
+  { key: "address", label: "Address" },
+  { key: "email", label: "Email" },
+  { key: "contactNumber", label: "Contact #" },
+] as const;
+
+type CustomerFieldVisibilityKey =
+  (typeof customerFieldVisibilityOptions)[number]["key"];
 
 export function QuoteEditor({
   quote,
@@ -68,18 +78,46 @@ export function QuoteEditor({
   );
   const taxMode = effectiveTemplate.lineItems.vat.mode;
 
-  const totals = useMemo(
-    () =>
-      calculateQuoteTotals(
-        draft.lineItems,
-        draft.quoteLevelDiscountMinor,
-        taxMode,
-      ),
-    [draft.lineItems, draft.quoteLevelDiscountMinor, taxMode],
+  const totals = calculateQuoteTotals(
+    draft.lineItems,
+    draft.quoteLevelDiscountMinor,
+    taxMode,
   );
 
   function updateDraft(patch: Partial<QuoteDraft>) {
     setDraft((current) => ({ ...current, ...patch }));
+  }
+
+  function updateClient(patch: Partial<QuoteDraft["client"]>) {
+    setDraft((current) => ({
+      ...current,
+      client: { ...current.client, ...patch },
+    }));
+  }
+
+  function updateCustomerFieldVisibility(
+    field: CustomerFieldVisibilityKey,
+    enabled: boolean,
+  ) {
+    setDraft((current) => {
+      const templateSnapshot = mergeQuoteTemplate(
+        current.templateSnapshot ?? quote?.templateSnapshot ?? template,
+      );
+
+      return {
+        ...current,
+        templateSnapshot: {
+          ...templateSnapshot,
+          customer: {
+            ...templateSnapshot.customer,
+            [field]: {
+              ...templateSnapshot.customer[field],
+              enabled,
+            },
+          },
+        },
+      };
+    });
   }
 
   async function saveDraft() {
@@ -294,15 +332,31 @@ export function QuoteEditor({
             Customer information
           </h2>
           <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2 md:col-span-2">
+              <Label>Visible fields</Label>
+              <div className="flex flex-wrap gap-2">
+                {customerFieldVisibilityOptions.map(({ key, label }) => (
+                  <CustomerFieldToggle
+                    checked={effectiveTemplate.customer[key].enabled ?? true}
+                    key={key}
+                    label={resolvePlaceholder(
+                      effectiveTemplate.customer[key].value,
+                      label,
+                    )}
+                    onChange={(checked) =>
+                      updateCustomerFieldVisibility(key, checked)
+                    }
+                  />
+                ))}
+              </div>
+            </div>
             <Field label={clientNameLabel}>
               <Input
                 required
                 placeholder={clientNameLabel}
                 value={draft.client.contactName}
                 onChange={(event) =>
-                  updateDraft({
-                    client: { ...draft.client, contactName: event.target.value },
-                  })
+                  updateClient({ contactName: event.target.value })
                 }
               />
             </Field>
@@ -312,9 +366,7 @@ export function QuoteEditor({
                   placeholder={clientCompanyPlaceholder}
                   value={draft.client.companyName ?? ""}
                   onChange={(event) =>
-                    updateDraft({
-                      client: { ...draft.client, companyName: event.target.value },
-                    })
+                    updateClient({ companyName: event.target.value })
                   }
                 />
               </Field>
@@ -325,9 +377,7 @@ export function QuoteEditor({
                   placeholder={clientAddressPlaceholder}
                   value={draft.client.address ?? ""}
                   onChange={(event) =>
-                    updateDraft({
-                      client: { ...draft.client, address: event.target.value },
-                    })
+                    updateClient({ address: event.target.value })
                   }
                 />
               </Field>
@@ -339,9 +389,7 @@ export function QuoteEditor({
                   placeholder={clientEmailPlaceholder}
                   value={draft.client.email ?? ""}
                   onChange={(event) =>
-                    updateDraft({
-                      client: { ...draft.client, email: event.target.value },
-                    })
+                    updateClient({ email: event.target.value })
                   }
                 />
               </Field>
@@ -352,9 +400,7 @@ export function QuoteEditor({
                   placeholder={clientPhonePlaceholder}
                   value={draft.client.phone ?? ""}
                   onChange={(event) =>
-                    updateDraft({
-                      client: { ...draft.client, phone: event.target.value },
-                    })
+                    updateClient({ phone: event.target.value })
                   }
                 />
               </Field>
@@ -604,6 +650,28 @@ function StaticToggleField({
     <StaticField label={`${label}${enabled ? "" : " (Hidden)"}`}>
       {enabled ? children : <ReadOnlyBox value="Hidden" />}
     </StaticField>
+  );
+}
+
+function CustomerFieldToggle({
+  checked,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  label: string;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex h-10 items-center gap-3 rounded-md border border-stone-200 bg-white px-3 text-sm font-medium text-stone-800">
+      <input
+        checked={checked}
+        className="size-4"
+        type="checkbox"
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      {label}
+    </label>
   );
 }
 
