@@ -30,6 +30,19 @@ const logoSizeLimitBytes = 1_200_000;
 const selectClassName =
   "h-10 w-full rounded-md border border-stone-200 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-400 focus:ring-4 focus:ring-stone-100";
 
+function ensureVatEnabled(template: QuoteTemplate): QuoteTemplate {
+  return {
+    ...template,
+    lineItems: {
+      ...template.lineItems,
+      vat: {
+        ...template.lineItems.vat,
+        enabled: true,
+      },
+    },
+  };
+}
+
 export function QuoteTemplateDesigner({
   template: initialTemplate,
 }: {
@@ -37,7 +50,9 @@ export function QuoteTemplateDesigner({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [template, setTemplate] = useState(initialTemplate);
+  const [template, setTemplate] = useState(() =>
+    ensureVatEnabled(initialTemplate),
+  );
   const [message, setMessage] = useState<string | null>(null);
 
   function updateCompany(patch: Partial<QuoteTemplate["company"]>) {
@@ -98,12 +113,13 @@ export function QuoteTemplateDesigner({
 
   async function saveTemplate() {
     setMessage(null);
+    const templateToSave = ensureVatEnabled(template);
     const response = await fetch("/api/quote-template", {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(template),
+      body: JSON.stringify(templateToSave),
     });
     const payload = await response.json();
 
@@ -112,7 +128,7 @@ export function QuoteTemplateDesigner({
       return;
     }
 
-    setTemplate(payload.template);
+    setTemplate(ensureVatEnabled(payload.template));
     setMessage("Quote template saved.");
     router.refresh();
   }
@@ -382,35 +398,26 @@ export function QuoteTemplateDesigner({
               </select>
             </Field>
             <Field label="VAT">
-              <div className="grid gap-2 sm:grid-cols-[auto_1fr_110px]">
-                <input
-                  checked={template.lineItems.vat.enabled}
-                  className="mt-3 size-4"
-                  type="checkbox"
-                  onChange={(event) =>
-                    updateLineItems({
-                      vat: {
-                        ...template.lineItems.vat,
-                        enabled: event.target.checked,
-                      },
-                    })
-                  }
-                />
-                <select
-                  className={selectClassName}
-                  value={template.lineItems.vat.mode}
-                  onChange={(event) =>
-                    updateLineItems({
-                      vat: {
-                        ...template.lineItems.vat,
-                        mode: event.target.value as "inclusive" | "exclusive",
-                      },
-                    })
-                  }
-                >
-                  <option value="exclusive">Exclusive</option>
-                  <option value="inclusive">Inclusive</option>
-                </select>
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_110px]">
+                <label className="flex h-10 items-center gap-3 rounded-md border border-stone-200 bg-white px-3 text-sm font-medium text-stone-800">
+                  <input
+                    checked={template.lineItems.vat.mode === "inclusive"}
+                    className="size-4"
+                    type="checkbox"
+                    onChange={(event) =>
+                      updateLineItems({
+                        vat: {
+                          ...template.lineItems.vat,
+                          enabled: true,
+                          mode: event.target.checked
+                            ? "inclusive"
+                            : "exclusive",
+                        },
+                      })
+                    }
+                  />
+                  VAT inclusive
+                </label>
                 <Input
                   min="0"
                   max="100"
@@ -520,13 +527,9 @@ export function QuoteTemplateDesigner({
             />
             <SummaryRow
               label="VAT"
-              value={
-                template.lineItems.vat.enabled
-                  ? `${Math.round(template.lineItems.vat.rate * 10000) / 100}% ${
-                      template.lineItems.vat.mode
-                    }`
-                  : "Off"
-              }
+              value={`${Math.round(template.lineItems.vat.rate * 10000) / 100}% ${
+                template.lineItems.vat.mode
+              }`}
             />
             <SummaryRow
               label="Logo"
