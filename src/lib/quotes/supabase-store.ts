@@ -36,6 +36,7 @@ import type {
   QuoteLineItem,
   QuoteRecipient,
   QuoteStatus,
+  RotateQuoteShareLinksResult,
   SendQuoteResult,
   QuoteVersion,
   QuoteVersionSnapshot,
@@ -46,6 +47,10 @@ import type {
   SourceMethod,
   UpdateQuoteResult,
 } from "@/lib/quotes/types";
+import {
+  buildQuoteShareLinks,
+  isQuoteShareable,
+} from "@/lib/quotes/share-links";
 import { renderQuotePdf } from "@/lib/pdf/render-pdf";
 import { dataUrlToBuffer, hashImageBytes } from "@/lib/signatures/hash-image";
 import {
@@ -725,9 +730,9 @@ export async function sendSupabaseQuote(
         .from("quote_recipients")
         .update({
           quote_version_id: version.id,
-      status: "pending",
-      access_token_hash: hashClientAccessToken(token),
-      access_token_expires_at: expiresAt,
+          status: "pending",
+          access_token_hash: hashClientAccessToken(token),
+          access_token_expires_at: expiresAt,
           viewed_at: null,
           signed_at: null,
           accepted_at: null,
@@ -786,7 +791,98 @@ export async function sendSupabaseQuote(
     accessToken: tokenByRecipientId.get(recipient.id),
   }));
 
-  return { ok: true, quote: sentQuote, version };
+  return {
+    ok: true,
+    quote: sentQuote,
+    version,
+    shareLinks: buildQuoteShareLinks(sentQuote),
+  };
+}
+
+export async function rotateSupabaseQuoteShareLinks(
+  quoter: QuoterContext,
+  quoteId: string,
+): Promise<RotateQuoteShareLinksResult> {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  const quote = await loadQuote(db, quoteId, organization.id);
+
+  if (!quote) {
+    return { ok: false, code: "QUOTE_NOT_FOUND" };
+  }
+
+  if (quote.status === "locked") {
+    return { ok: false, code: "QUOTE_LOCKED" };
+  }
+
+  const version = await getLatestVersion(db, quote.id);
+
+  if (
+    !isQuoteShareable(quote.status) ||
+    !version ||
+    quote.recipients.length === 0
+  ) {
+    return { ok: false, code: "QUOTE_NOT_SHAREABLE" };
+  }
+
+  const expiresAt = defaultTokenExpiry();
+  const tokenByRecipientId = new Map<string, string>();
+
+  await Promise.all(
+    quote.recipients.map(async (recipient) => {
+      const token = createClientAccessToken();
+      tokenByRecipientId.set(recipient.id, token);
+
+      const { error } = await db
+        .from("quote_recipients")
+        .update({
+          access_token_hash: hashClientAccessToken(token),
+          access_token_expires_at: expiresAt,
+        })
+        .eq("id", recipient.id)
+        .eq("quote_id", quote.id);
+
+      throwIfError(error, "Rotate recipient share token");
+    }),
+  );
+
+  const updatedAt = new Date().toISOString();
+  const { error: quoteError } = await db
+    .from("quotes")
+    .update({ updated_at: updatedAt })
+    .eq("id", quote.id)
+    .eq("organization_id", organization.id);
+
+  throwIfError(quoteError, "Mark quote share links rotated");
+
+  await appendAuditEvent(db, {
+    organizationId: organization.id,
+    quoteId: quote.id,
+    quoteVersionId: version.id,
+    actorType: "quoter",
+    actorRef: quoter.clerkUserId,
+    eventType: "quote.share_links.rotated",
+    metadata: {
+      recipientCount: quote.recipients.length,
+    },
+  });
+
+  const rotatedQuote = await loadQuote(db, quote.id, organization.id);
+
+  if (!rotatedQuote) {
+    return { ok: false, code: "QUOTE_NOT_FOUND" };
+  }
+
+  rotatedQuote.recipients = rotatedQuote.recipients.map((recipient) => ({
+    ...recipient,
+    accessToken: tokenByRecipientId.get(recipient.id),
+  }));
+
+  return {
+    ok: true,
+    quote: rotatedQuote,
+    shareLinks: buildQuoteShareLinks(rotatedQuote),
+  };
 }
 
 export async function getSupabaseClientQuoteView(token: string) {

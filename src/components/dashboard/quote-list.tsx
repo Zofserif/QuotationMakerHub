@@ -1,7 +1,9 @@
-import { Activity, Edit3, Eye, FileText, Send } from "lucide-react";
+import { Activity, Edit3, Eye, FileText } from "lucide-react";
 
+import { QuoteSharePanel } from "@/components/quote-share/quote-share-panel";
 import { LinkButton } from "@/components/ui/button";
 import { QuoteStatusBadge } from "@/components/dashboard/quote-status-badge";
+import { buildQuoteShareLinks } from "@/lib/quotes/share-links";
 import type { Quote } from "@/lib/quotes/types";
 import { formatDate, formatMoney } from "@/lib/utils";
 
@@ -16,83 +18,74 @@ export function QuoteList({ quotes }: { quotes: Quote[] }) {
         <span className="text-right">Actions</span>
       </div>
       <div className="divide-y divide-stone-200">
-        {quotes.map((quote) => {
-          const signingToken = quote.recipients.find(
-            (recipient) => recipient.accessToken,
-          )?.accessToken;
-
-          return (
-            <article
-              className="grid gap-4 px-4 py-4 lg:grid-cols-[1.2fr_1fr_0.7fr_0.7fr_1fr] lg:items-center"
-              key={quote.id}
-            >
-              <div>
-                <p className="font-semibold text-stone-950">{quote.title}</p>
-                <p className="text-sm text-stone-500">
-                  {quote.quoteNumber} · updated {formatDate(quote.updatedAt)}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-stone-900">
-                  {quote.client.contactName}
-                </p>
-                <p className="text-sm text-stone-500">{quote.client.email}</p>
-              </div>
-              <QuoteStatusBadge status={quote.status} />
-              <p className="font-semibold text-stone-950">
-                {formatMoney(quote.totalMinor, quote.currency)}
+        {quotes.map((quote) => (
+          <article
+            className="grid gap-4 px-4 py-4 lg:grid-cols-[1.2fr_1fr_0.7fr_0.7fr_1fr] lg:items-center"
+            key={quote.id}
+          >
+            <div>
+              <p className="font-semibold text-stone-950">{quote.title}</p>
+              <p className="text-sm text-stone-500">
+                {quote.quoteNumber} · updated {formatDate(quote.updatedAt)}
               </p>
-              <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
-                {quote.status !== "locked" ? (
-                  <LinkButton
-                    href={`/quotes/${quote.id}/edit`}
-                    variant="secondary"
-                    size="sm"
-                  >
-                    <Edit3 className="size-4" />
-                    Edit
-                  </LinkButton>
-                ) : null}
+            </div>
+            <div>
+              <p className="text-sm font-medium text-stone-900">
+                {quote.client.contactName}
+              </p>
+              <p className="text-sm text-stone-500">{quote.client.email}</p>
+            </div>
+            <QuoteStatusBadge status={quote.status} />
+            <p className="font-semibold text-stone-950">
+              {formatMoney(quote.totalMinor, quote.currency)}
+            </p>
+            <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
+              {quote.status !== "locked" ? (
                 <LinkButton
-                  href={`/quotes/${quote.id}/preview`}
+                  href={`/quotes/${quote.id}/edit`}
                   variant="secondary"
                   size="sm"
                 >
-                  <Eye className="size-4" />
-                  Preview
+                  <Edit3 className="size-4" />
+                  Edit
                 </LinkButton>
+              ) : null}
+              <LinkButton
+                href={`/quotes/${quote.id}/preview`}
+                variant="secondary"
+                size="sm"
+              >
+                <Eye className="size-4" />
+                Preview
+              </LinkButton>
+              <LinkButton
+                href={`/quotes/${quote.id}/activity`}
+                variant="secondary"
+                size="sm"
+              >
+                <Activity className="size-4" />
+                Activity
+              </LinkButton>
+              {quote.status === "locked" ? (
                 <LinkButton
-                  href={`/quotes/${quote.id}/activity`}
-                  variant="secondary"
+                  href={`/print/quotes/${quote.id}`}
+                  variant="primary"
                   size="sm"
                 >
-                  <Activity className="size-4" />
-                  Activity
+                  <FileText className="size-4" />
+                  PDF
                 </LinkButton>
-                {signingToken && quote.status !== "locked" ? (
-                  <LinkButton
-                    href={`/sign/${signingToken}`}
-                    variant="primary"
-                    size="sm"
-                  >
-                    <Send className="size-4" />
-                    Sign Link
-                  </LinkButton>
-                ) : null}
-                {quote.status === "locked" ? (
-                  <LinkButton
-                    href={`/print/quotes/${quote.id}`}
-                    variant="primary"
-                    size="sm"
-                  >
-                    <FileText className="size-4" />
-                    PDF
-                  </LinkButton>
-                ) : null}
-              </div>
-            </article>
-          );
-        })}
+              ) : null}
+            </div>
+            <QuoteSharePanel
+              quoteId={quote.id}
+              quoteStatus={quote.status}
+              initialShareLinks={buildQuoteShareLinks(quote)}
+              variant="compact"
+              className="lg:col-span-5"
+            />
+          </article>
+        ))}
       </div>
     </div>
   );

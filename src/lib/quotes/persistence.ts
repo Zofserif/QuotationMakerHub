@@ -13,6 +13,7 @@ import {
   listDemoQuotes,
   deleteDemoLineItemData,
   placeDemoSignature,
+  rotateDemoQuoteShareLinks,
   sendDemoQuote,
   updateDemoLineItemData,
   updateDemoQuoteTemplate,
@@ -40,6 +41,7 @@ import {
   listSupabaseQuoteVersions,
   listSupabaseQuotes,
   placeSupabaseSignature,
+  rotateSupabaseQuoteShareLinks,
   sendSupabaseQuote,
   updateSupabaseLineItemData,
   updateSupabaseQuoteTemplate,
@@ -198,6 +200,17 @@ export async function sendQuote(quoter: QuoterContext, quoteId: string) {
   }
 
   return sendSupabaseQuote(quoter, quoteId);
+}
+
+export async function rotateQuoteShareLinks(
+  quoter: QuoterContext,
+  quoteId: string,
+) {
+  if (shouldUseDemoPersistence()) {
+    return rotateDemoQuoteShareLinks(quoteId);
+  }
+
+  return rotateSupabaseQuoteShareLinks(quoter, quoteId);
 }
 
 export async function getClientQuoteView(token: string) {

@@ -2,7 +2,6 @@
 
 import { useState, useTransition, type ReactNode } from "react";
 import {
-  ExternalLink,
   FileSignature,
   Save,
   Send,
@@ -12,6 +11,7 @@ import {
 import { useRouter } from "next/navigation";
 
 import { LineItemsTable } from "@/components/quote-editor/line-items-table";
+import { QuoteSharePanel } from "@/components/quote-share/quote-share-panel";
 import { QuoteTotalsView } from "@/components/quote-editor/quote-totals";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,13 @@ import {
 import type { QuoteTemplate } from "@/lib/quote-templates/types";
 import type { LineItemData } from "@/lib/line-item-data/types";
 import { calculateQuoteTotals } from "@/lib/quotes/calculate-totals";
-import type { Quote, QuoteDraft } from "@/lib/quotes/types";
+import { buildQuoteShareLinks } from "@/lib/quotes/share-links";
+import type {
+  Quote,
+  QuoteDraft,
+  QuoteShareLink,
+  QuoteStatus,
+} from "@/lib/quotes/types";
 import type { ValidationErrorDetails } from "@/lib/quotes/validation";
 import { formatQuoteIssuedDate } from "@/lib/utils";
 
@@ -60,6 +66,12 @@ export function QuoteEditor({
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [signatureOpen, setSignatureOpen] = useState(false);
+  const [shareLinks, setShareLinks] = useState<QuoteShareLink[]>(() =>
+    quote ? buildQuoteShareLinks(quote) : [],
+  );
+  const [shareStatus, setShareStatus] = useState<QuoteStatus>(
+    quote?.status ?? "draft",
+  );
   const [draft, setDraft] = useState<QuoteDraft>(() =>
     createInitialDraft(quote, mergeQuoteTemplate(quote?.templateSnapshot ?? template)),
   );
@@ -181,12 +193,9 @@ export function QuoteEditor({
       return;
     }
 
-    const firstToken = payload.recipients?.[0]?.accessToken;
-    setMessage(
-      firstToken
-        ? `Quote sent. Manual signing link: /sign/${firstToken}`
-        : "Quote sent.",
-    );
+    setShareStatus(payload.status ?? "sent");
+    setShareLinks(parseShareLinksPayload(payload));
+    setMessage("Quote sent. Copy or scan the signing link in the share panel.");
     router.refresh();
   }
 
@@ -543,31 +552,11 @@ export function QuoteEditor({
           currency={draft.currency}
           taxMode={taxMode}
         />
-        <div className="rounded-lg border border-stone-200 bg-white p-4">
-          <h3 className="font-semibold text-stone-950">Client signing links</h3>
-          <p className="mt-2 text-sm leading-6 text-stone-600">
-            Sending a quote always creates a signing link, even when the client
-            email is blank.
-          </p>
-          {quote?.recipients.some((recipient) => recipient.accessToken) ? (
-            <div className="mt-4 space-y-2">
-              {quote.recipients.map((recipient) =>
-                recipient.accessToken ? (
-                  <a
-                    className="flex items-center justify-between gap-3 rounded-md border border-stone-200 px-3 py-2 text-sm font-medium text-stone-900 transition hover:bg-stone-50"
-                    href={`/sign/${recipient.accessToken}`}
-                    key={recipient.id}
-                  >
-                    <span className="truncate">
-                      {recipient.email || "Manual signing link"}
-                    </span>
-                    <ExternalLink className="size-4 shrink-0" />
-                  </a>
-                ) : null,
-              )}
-            </div>
-          ) : null}
-        </div>
+        <QuoteSharePanel
+          quoteId={quote?.id}
+          quoteStatus={quote ? shareStatus : "draft"}
+          initialShareLinks={shareLinks}
+        />
       </aside>
 
       {signatureOpen ? (
@@ -580,6 +569,38 @@ export function QuoteEditor({
       ) : null}
     </div>
   );
+}
+
+function parseShareLinksPayload(payload: {
+  shareLinks?: QuoteShareLink[];
+  recipients?: Array<{
+    recipientId: string;
+    email: string;
+    status: QuoteShareLink["status"];
+    accessToken?: string;
+    accessTokenExpiresAt?: string;
+    signingPath?: string;
+  }>;
+}) {
+  if (payload.shareLinks) {
+    return payload.shareLinks;
+  }
+
+  return (payload.recipients ?? []).flatMap((recipient) => {
+    if (!recipient.accessToken) {
+      return [];
+    }
+
+    return {
+      recipientId: recipient.recipientId,
+      name: recipient.email || "Manual signing link",
+      email: recipient.email,
+      status: recipient.status,
+      accessToken: recipient.accessToken,
+      accessTokenExpiresAt: recipient.accessTokenExpiresAt,
+      signingPath: recipient.signingPath ?? `/sign/${recipient.accessToken}`,
+    };
+  });
 }
 
 function createInitialDraft(quote: Quote | undefined, template: QuoteTemplate): QuoteDraft {

@@ -37,12 +37,17 @@ import type {
   QuoteDraft,
   QuoteLineItem,
   QuoteRecipient,
+  RotateQuoteShareLinksResult,
   SendQuoteResult,
   UpdateQuoteResult,
   QuoteVersion,
   SignatureAsset,
   SignaturePlacement,
 } from "@/lib/quotes/types";
+import {
+  buildQuoteShareLinks,
+  isQuoteShareable,
+} from "@/lib/quotes/share-links";
 import { hashImageBytes, dataUrlToBuffer } from "@/lib/signatures/hash-image";
 import { signatureStoragePath } from "@/lib/signatures/storage-paths";
 
@@ -552,7 +557,61 @@ export function sendDemoQuote(quoteId: string): SendQuoteResult {
     recipientCount: quote.recipients.length,
   });
 
-  return { ok: true as const, quote, version };
+  return {
+    ok: true as const,
+    quote,
+    version,
+    shareLinks: buildQuoteShareLinks(quote),
+  };
+}
+
+export function rotateDemoQuoteShareLinks(
+  quoteId: string,
+): RotateQuoteShareLinksResult {
+  const quote = getDemoQuote(quoteId);
+
+  if (!quote) {
+    return { ok: false as const, code: "QUOTE_NOT_FOUND" };
+  }
+
+  if (quote.status === "locked") {
+    return { ok: false as const, code: "QUOTE_LOCKED" };
+  }
+
+  const version = demoState.versions
+    .filter((candidate) => candidate.quoteId === quote.id)
+    .toSorted((a, b) => b.versionNumber - a.versionNumber)[0];
+
+  if (
+    !isQuoteShareable(quote.status) ||
+    !version ||
+    quote.recipients.length === 0
+  ) {
+    return { ok: false as const, code: "QUOTE_NOT_SHAREABLE" };
+  }
+
+  const expiresAt = defaultTokenExpiry();
+
+  quote.recipients = quote.recipients.map((recipient) => {
+    const token = createClientAccessToken();
+
+    return {
+      ...recipient,
+      accessToken: token,
+      accessTokenHash: hashClientAccessToken(token),
+      accessTokenExpiresAt: expiresAt,
+    };
+  });
+  quote.updatedAt = new Date().toISOString();
+  appendAudit(quote.id, "quote.share_links.rotated", "quoter", DEMO_USER_ID, {
+    recipientCount: quote.recipients.length,
+  });
+
+  return {
+    ok: true as const,
+    quote,
+    shareLinks: buildQuoteShareLinks(quote),
+  };
 }
 
 export function getDemoClientQuoteView(token: string) {

@@ -201,15 +201,37 @@ export type Quote = {
   updatedAt: string;
 } & QuoteTotals;
 
+export type QuoteShareLink = {
+  recipientId: string;
+  name: string;
+  email: string;
+  status: RecipientStatus;
+  accessToken: string;
+  accessTokenExpiresAt?: string;
+  signingPath: string;
+};
+
 export type UpdateQuoteResult =
   | { ok: true; quote: Quote }
   | { ok: false; code: "QUOTE_NOT_FOUND" | "QUOTE_LOCKED" };
 
 export type SendQuoteResult =
-  | { ok: true; quote: Quote; version: QuoteVersion }
+  | {
+      ok: true;
+      quote: Quote;
+      version: QuoteVersion;
+      shareLinks: QuoteShareLink[];
+    }
   | {
       ok: false;
       code: "QUOTE_NOT_FOUND" | "QUOTE_LOCKED" | "QUOTE_NOT_SENDABLE";
+    };
+
+export type RotateQuoteShareLinksResult =
+  | { ok: true; quote: Quote; shareLinks: QuoteShareLink[] }
+  | {
+      ok: false;
+      code: "QUOTE_NOT_FOUND" | "QUOTE_LOCKED" | "QUOTE_NOT_SHAREABLE";
     };
 
 export type ClientQuoteView = {
