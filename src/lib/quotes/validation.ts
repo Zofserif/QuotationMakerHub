@@ -38,6 +38,7 @@ export const quoteLineItemInputSchema = z.object({
 });
 
 export const quoteDraftSchema = z.object({
+  quotationName: z.string().trim().min(1).max(160),
   title: z.string().min(1).max(160),
   client: clientSchema,
   currency: z

@@ -261,6 +261,21 @@ export function QuoteEditor({
         }}
       >
         <section className="rounded-lg border border-stone-200 bg-white p-5">
+          <h2 className="mb-5 font-semibold text-stone-950">Quote details</h2>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field label="Quotation name">
+              <Input
+                required
+                value={draft.quotationName}
+                onChange={(event) =>
+                  updateDraft({ quotationName: event.target.value })
+                }
+              />
+            </Field>
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-stone-200 bg-white p-5">
           <div className="mb-5 flex items-center gap-2">
             <Sparkles className="size-4 text-stone-500" />
             <h2 className="font-semibold text-stone-950">Quotation Designer</h2>
@@ -609,6 +624,7 @@ function createInitialDraft(quote: Quote | undefined, template: QuoteTemplate): 
   }
 
   return {
+    quotationName: quote.quotationName || quote.title,
     title: quote.title,
     client: {
       ...quote.client,
@@ -712,6 +728,12 @@ function formatQuoteDraftIssue(
     issue.code === "invalid_format"
   ) {
     return "Email must be a valid email address.";
+  }
+
+  if (scope === "quotationName") {
+    return issue.code === "too_big"
+      ? "Quotation name must be 160 characters or fewer."
+      : "Quotation name is required.";
   }
 
   if (scope === "title") {

@@ -161,6 +161,7 @@ export type QuoteVersion = {
 };
 
 export type QuoteDraft = {
+  quotationName: string;
   title: string;
   client: ClientInput;
   currency: string;
@@ -179,6 +180,7 @@ export type Quote = {
   id: string;
   organizationId: string;
   quoteNumber: string;
+  quotationName: string;
   title: string;
   status: QuoteStatus;
   currency: string;

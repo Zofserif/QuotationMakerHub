@@ -28,10 +28,10 @@ export default async function PreviewQuotePage({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <section>
           <p className="text-sm font-medium text-stone-500">
-            {quote.quoteNumber}
+            Quote preview · {quote.quoteNumber}
           </p>
           <h1 className="mt-1 text-3xl font-bold text-stone-950">
-            Quote preview
+            {quote.quotationName}
           </h1>
         </section>
         {quote.status !== "locked" ? (

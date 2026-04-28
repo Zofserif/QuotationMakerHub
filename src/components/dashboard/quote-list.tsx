@@ -24,9 +24,12 @@ export function QuoteList({ quotes }: { quotes: Quote[] }) {
             key={quote.id}
           >
             <div>
-              <p className="font-semibold text-stone-950">{quote.title}</p>
+              <p className="font-semibold text-stone-950">
+                {quote.quotationName}
+              </p>
               <p className="text-sm text-stone-500">
-                {quote.quoteNumber} · updated {formatDate(quote.updatedAt)}
+                {quote.quoteNumber} · {quote.title} · updated{" "}
+                {formatDate(quote.updatedAt)}
               </p>
             </div>
             <div>

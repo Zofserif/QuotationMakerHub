@@ -125,6 +125,7 @@ type QuoteRow = {
   id: string;
   organization_id: string;
   quote_number: string;
+  quotation_name: string;
   title: string;
   status: QuoteStatus;
   currency: string;
@@ -485,6 +486,7 @@ export async function createSupabaseQuote(
     id: quoteId,
     organization_id: organization.id,
     quote_number: quoteNumber,
+    quotation_name: draft.quotationName,
     title: draft.title,
     status: "draft",
     currency: APP_CURRENCY,
@@ -596,6 +598,7 @@ export async function updateSupabaseQuote(
   const { error: quoteError } = await db
     .from("quotes")
     .update({
+      quotation_name: draft.quotationName,
       title: draft.title,
       currency: APP_CURRENCY,
       subtotal_minor: totals.subtotalMinor,
@@ -1630,6 +1633,7 @@ async function loadQuote(
     id: quoteRow.id,
     organizationId: quoteRow.organization_id,
     quoteNumber: quoteRow.quote_number,
+    quotationName: quoteRow.quotation_name,
     title: quoteRow.title,
     status: quoteRow.status,
     currency: normalizeCurrency(quoteRow.currency),

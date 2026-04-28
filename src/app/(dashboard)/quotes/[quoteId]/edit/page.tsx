@@ -34,9 +34,11 @@ export default async function EditQuotePage({
   return (
     <div className="space-y-6">
       <section>
-        <p className="text-sm font-medium text-stone-500">{quote.quoteNumber}</p>
+        <p className="text-sm font-medium text-stone-500">
+          Edit quotation · {quote.quoteNumber}
+        </p>
         <h1 className="mt-1 text-3xl font-bold text-stone-950">
-          Edit quotation
+          {quote.quotationName}
         </h1>
       </section>
       <QuoteEditor quote={quote} template={template} lineItemData={lineItemData} />

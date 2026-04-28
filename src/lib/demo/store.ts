@@ -110,6 +110,7 @@ function seedDemoState(): DemoState {
     id: quoteId,
     organizationId: DEMO_ORG_ID,
     quoteNumber: "Q-2026-0001",
+    quotationName: "Website Redesign Quotation",
     title: "Website Redesign Quotation",
     status: "draft",
     currency: APP_CURRENCY,
@@ -377,6 +378,7 @@ export function deleteDemoQuoteQuoterSignature(
 
 function withAppCurrency(quote: Quote) {
   quote.currency = normalizeCurrency(quote.currency);
+  quote.quotationName = quote.quotationName || quote.title;
   quote.templateSnapshot = quote.templateSnapshot
     ? mergeQuoteTemplate(quote.templateSnapshot)
     : quote.templateSnapshot;
@@ -408,6 +410,7 @@ export function createDemoQuote(draft: QuoteDraft) {
       templateSnapshot.company.quoteNumberFormat,
       demoState.quoteCounter,
     ),
+    quotationName: draft.quotationName,
     title: draft.title,
     status: "draft",
     currency: APP_CURRENCY,
@@ -478,6 +481,7 @@ export function updateDemoQuote(
     draft.quoteLevelDiscountMinor ?? 0,
     taxMode,
   );
+  quote.quotationName = draft.quotationName;
   quote.title = draft.title;
   quote.currency = APP_CURRENCY;
   quote.client = draft.client;
