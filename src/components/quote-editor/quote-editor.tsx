@@ -27,6 +27,7 @@ import type { QuoteTemplate } from "@/lib/quote-templates/types";
 import type { LineItemData } from "@/lib/line-item-data/types";
 import { calculateQuoteTotals } from "@/lib/quotes/calculate-totals";
 import type { Quote, QuoteDraft } from "@/lib/quotes/types";
+import type { ValidationErrorDetails } from "@/lib/quotes/validation";
 import { formatQuoteIssuedDate } from "@/lib/utils";
 
 const customerFieldVisibilityOptions = [
@@ -38,6 +39,13 @@ const customerFieldVisibilityOptions = [
 
 type CustomerFieldVisibilityKey =
   (typeof customerFieldVisibilityOptions)[number]["key"];
+
+type QuoteDraftErrorPayload = {
+  error?: {
+    message?: string;
+    details?: ValidationErrorDetails;
+  };
+};
 
 export function QuoteEditor({
   quote,
@@ -132,7 +140,11 @@ export function QuoteEditor({
     const payload = await response.json();
 
     if (!response.ok) {
-      setMessage(payload.error?.message ?? "Could not save quote draft.");
+      setMessage(
+        formatQuoteDraftSaveError(payload as QuoteDraftErrorPayload, {
+          clientNameLabel,
+        }),
+      );
       return null;
     }
 
@@ -605,6 +617,114 @@ function createInitialDraft(quote: Quote | undefined, template: QuoteTemplate): 
       descriptionImageUrl: lineItem.descriptionImageUrl,
     })),
   };
+}
+
+function formatQuoteDraftSaveError(
+  payload: QuoteDraftErrorPayload,
+  input: { clientNameLabel: string },
+) {
+  const issueMessages = Array.from(
+    new Set(
+      (payload.error?.details?.issues ?? [])
+        .map((issue) => formatQuoteDraftIssue(issue, input))
+        .filter((message): message is string => Boolean(message)),
+    ),
+  );
+
+  if (issueMessages.length > 0) {
+    return `Cannot save draft: ${issueMessages.join(" ")}`;
+  }
+
+  return payload.error?.message ?? "Could not save quote draft.";
+}
+
+function formatQuoteDraftIssue(
+  issue: ValidationErrorDetails["issues"][number],
+  input: { clientNameLabel: string },
+) {
+  const [scope, indexOrField, nestedField] = issue.path;
+
+  if (scope === "lineItems") {
+    if (issue.path.length === 1) {
+      return "Add at least one line item.";
+    }
+
+    const rowLabel =
+      typeof indexOrField === "number"
+        ? `Line item ${indexOrField + 1}`
+        : "Line item";
+
+    if (nestedField === "name") {
+      return `${rowLabel}: name is required.`;
+    }
+
+    if (nestedField === "unit") {
+      return `${rowLabel}: unit is required.`;
+    }
+
+    if (nestedField === "quantity") {
+      return `${rowLabel}: quantity must be greater than 0.`;
+    }
+
+    if (nestedField === "unitPriceMinor") {
+      return `${rowLabel}: unit price cannot be negative.`;
+    }
+
+    if (nestedField === "discountMinor") {
+      return `${rowLabel}: discount cannot be negative.`;
+    }
+
+    if (nestedField === "taxRate") {
+      return `${rowLabel}: VAT rate must be between 0% and 100%.`;
+    }
+
+    return `${rowLabel}: ${normalizeValidationMessage(issue.message)}.`;
+  }
+
+  if (scope === "client" && indexOrField === "contactName") {
+    return `${input.clientNameLabel} is required.`;
+  }
+
+  if (
+    scope === "client" &&
+    indexOrField === "email" &&
+    issue.code === "invalid_format"
+  ) {
+    return "Email must be a valid email address.";
+  }
+
+  if (scope === "title") {
+    return "Quote title is required.";
+  }
+
+  if (
+    scope === "validUntil" &&
+    issue.code === "invalid_format" &&
+    issue.format === "date"
+  ) {
+    return "Quotation validity must be a valid date.";
+  }
+
+  if (typeof scope === "string") {
+    return `${startCase(scope)}: ${normalizeValidationMessage(issue.message)}.`;
+  }
+
+  return null;
+}
+
+function normalizeValidationMessage(message: string) {
+  if (message === "Too small: expected string to have >=1 characters") {
+    return "is required";
+  }
+
+  return message.endsWith(".") ? message.slice(0, -1) : message;
+}
+
+function startCase(value: string) {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/^./, (character) => character.toUpperCase());
 }
 
 function Field({

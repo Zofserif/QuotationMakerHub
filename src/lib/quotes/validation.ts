@@ -4,6 +4,19 @@ import { APP_CURRENCY, normalizeCurrency } from "@/lib/currency";
 import { lineItemImageMimeTypes } from "@/lib/line-item-data/types";
 import { quoteTemplateSchema } from "@/lib/quote-templates/validation";
 
+export type ValidationIssue = {
+  code: string;
+  format?: string;
+  message: string;
+  path: Array<string | number>;
+};
+
+export type ValidationErrorDetails = {
+  formErrors: string[];
+  fieldErrors: Record<string, string[] | undefined>;
+  issues: ValidationIssue[];
+};
+
 export const clientSchema = z.object({
   companyName: z.string().max(200).optional().or(z.literal("")),
   address: z.string().max(1000).optional().or(z.literal("")),
@@ -62,9 +75,23 @@ export function parseJsonBody<T extends z.ZodType>(schema: T, data: unknown) {
   const parsed = schema.safeParse(data);
 
   if (!parsed.success) {
+    const flattened = parsed.error.flatten();
+
     return {
       ok: false as const,
-      errors: parsed.error.flatten(),
+      errors: {
+        formErrors: flattened.formErrors,
+        fieldErrors: flattened.fieldErrors as ValidationErrorDetails["fieldErrors"],
+        issues: parsed.error.issues.map((issue) => ({
+          code: issue.code,
+          format: "format" in issue ? issue.format : undefined,
+          message: issue.message,
+          path: issue.path.filter(
+            (segment): segment is string | number =>
+              typeof segment === "string" || typeof segment === "number",
+          ),
+        })),
+      } satisfies ValidationErrorDetails,
     };
   }
 
