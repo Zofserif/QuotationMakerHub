@@ -13,6 +13,9 @@ import { Button } from "@/components/ui/button";
 import { cleanSignatureFromCanvas } from "@/lib/signatures/clean-signature";
 import type { SourceMethod } from "@/lib/quotes/types";
 
+const DRAW_LINE_WIDTH = 4;
+const DRAW_STROKE_STYLE = "#111827";
+
 function hasCameraApi() {
   return Boolean(navigator.mediaDevices?.getUserMedia);
 }
@@ -44,6 +47,7 @@ export function SignatureModal({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const isDrawing = useRef(false);
+  const hasDrawnInk = useRef(false);
 
   useEffect(() => {
     if (!open || mode !== "camera") {
@@ -82,6 +86,58 @@ export function SignatureModal({
       stream?.getTracks().forEach((track) => track.stop());
     };
   }, [open, mode]);
+
+  useEffect(() => {
+    if (!open || mode !== "draw" || previewUrl) {
+      return;
+    }
+
+    const canvas = drawCanvasRef.current;
+
+    if (!canvas) {
+      return;
+    }
+
+    const drawCanvas = canvas;
+
+    function resizeDrawCanvas() {
+      const rect = drawCanvas.getBoundingClientRect();
+      const pixelRatio = window.devicePixelRatio || 1;
+      const nextWidth = Math.max(1, Math.round(rect.width * pixelRatio));
+      const nextHeight = Math.max(1, Math.round(rect.height * pixelRatio));
+
+      if (drawCanvas.width === nextWidth && drawCanvas.height === nextHeight) {
+        return;
+      }
+
+      const snapshot = document.createElement("canvas");
+      snapshot.width = drawCanvas.width;
+      snapshot.height = drawCanvas.height;
+      snapshot.getContext("2d")?.drawImage(drawCanvas, 0, 0);
+
+      drawCanvas.width = nextWidth;
+      drawCanvas.height = nextHeight;
+
+      const context = drawCanvas.getContext("2d");
+
+      if (!context || !hasDrawnInk.current) {
+        return;
+      }
+
+      context.drawImage(snapshot, 0, 0, nextWidth, nextHeight);
+    }
+
+    resizeDrawCanvas();
+
+    const resizeObserver = new ResizeObserver(resizeDrawCanvas);
+    resizeObserver.observe(drawCanvas);
+    window.addEventListener("resize", resizeDrawCanvas);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", resizeDrawCanvas);
+    };
+  }, [open, mode, previewUrl]);
 
   if (!open) {
     return null;
@@ -137,6 +193,7 @@ export function SignatureModal({
     setPreviewUrl(null);
     setDataUrl(null);
     setError(null);
+    hasDrawnInk.current = false;
   }
 
   async function approveSignature() {
@@ -181,8 +238,21 @@ export function SignatureModal({
   }
 
   function startDraw(event: PointerEvent<HTMLCanvasElement>) {
+    const canvas = event.currentTarget;
+    const point = getCanvasPoint(canvas, event);
+    const context = canvas.getContext("2d");
+
+    if (!point || !context) {
+      return;
+    }
+
+    event.preventDefault();
+    canvas.setPointerCapture(event.pointerId);
     isDrawing.current = true;
-    draw(event);
+    setError(null);
+    configureDrawContext(context, point.scale);
+    context.beginPath();
+    context.moveTo(point.x, point.y);
   }
 
   function draw(event: PointerEvent<HTMLCanvasElement>) {
@@ -191,25 +261,29 @@ export function SignatureModal({
     }
 
     const canvas = drawCanvasRef.current;
-    const rect = canvas.getBoundingClientRect();
+    const point = getCanvasPoint(canvas, event);
     const context = canvas.getContext("2d");
 
-    if (!context) {
+    if (!point || !context) {
       return;
     }
 
-    context.lineWidth = 4;
-    context.lineCap = "round";
-    context.strokeStyle = "#111827";
-    context.lineTo(event.clientX - rect.left, event.clientY - rect.top);
+    event.preventDefault();
+    configureDrawContext(context, point.scale);
+    context.lineTo(point.x, point.y);
     context.stroke();
     context.beginPath();
-    context.moveTo(event.clientX - rect.left, event.clientY - rect.top);
+    context.moveTo(point.x, point.y);
+    hasDrawnInk.current = true;
   }
 
-  function endDraw() {
+  function endDraw(event: PointerEvent<HTMLCanvasElement>) {
     isDrawing.current = false;
-    drawCanvasRef.current?.getContext("2d")?.beginPath();
+    event.currentTarget.getContext("2d")?.beginPath();
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
   }
 
   async function previewDrawing() {
@@ -217,11 +291,25 @@ export function SignatureModal({
       return;
     }
 
+    if (!hasDrawnInk.current) {
+      setError("Draw your signature before previewing.");
+      return;
+    }
+
     const source = drawCanvasRef.current;
     const canvas = canvasRef.current;
     canvas.width = source.width;
     canvas.height = source.height;
-    canvas.getContext("2d")?.drawImage(source, 0, 0);
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      setError("Canvas context is unavailable");
+      return;
+    }
+
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(source, 0, 0);
     await cleanAndPreview(canvas, "draw");
   }
 
@@ -275,13 +363,11 @@ export function SignatureModal({
             ) : (
               <canvas
                 ref={drawCanvasRef}
-                width={680}
-                height={320}
                 className="h-[320px] w-full touch-none rounded-md bg-white"
                 onPointerDown={startDraw}
                 onPointerMove={draw}
                 onPointerUp={endDraw}
-                onPointerLeave={endDraw}
+                onPointerCancel={endDraw}
               />
             )}
             <canvas ref={canvasRef} className="hidden" />
@@ -371,6 +457,36 @@ export function SignatureModal({
       </div>
     </div>
   );
+}
+
+function getCanvasPoint(
+  canvas: HTMLCanvasElement,
+  event: PointerEvent<HTMLCanvasElement>,
+) {
+  const rect = canvas.getBoundingClientRect();
+
+  if (rect.width === 0 || rect.height === 0) {
+    return null;
+  }
+
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+
+  return {
+    x: (event.clientX - rect.left) * scaleX,
+    y: (event.clientY - rect.top) * scaleY,
+    scale: Math.max(scaleX, scaleY),
+  };
+}
+
+function configureDrawContext(
+  context: CanvasRenderingContext2D,
+  coordinateScale: number,
+) {
+  context.lineWidth = DRAW_LINE_WIDTH * coordinateScale;
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.strokeStyle = DRAW_STROKE_STYLE;
 }
 
 function blobToDataUrl(blob: Blob) {
