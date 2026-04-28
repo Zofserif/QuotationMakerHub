@@ -66,7 +66,7 @@ export const defaultQuoteTemplate: QuoteTemplate = {
     showQuantity: true,
     unit: {
       enabled: true,
-      options: ["Unit", "Lot", "Month"],
+      options: ["Unit", "Lot", "Month", "Hour", "Days", "Week", "Pcs", "Set"],
     },
     unitPrice: {
       currency: APP_CURRENCY,

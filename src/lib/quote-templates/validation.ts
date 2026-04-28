@@ -1,11 +1,22 @@
 import { z } from "zod";
 
-import { APP_CURRENCY, normalizeCurrency } from "@/lib/currency";
+import {
+  APP_CURRENCY,
+  normalizeCurrency,
+  supportedCurrencyCodes,
+} from "@/lib/currency";
 
 const toggleTextSchema = z.object({
   enabled: z.boolean(),
   value: z.string().max(10000),
 });
+
+const currencySchema = z
+  .string()
+  .optional()
+  .default(APP_CURRENCY)
+  .transform((currency) => normalizeCurrency(currency))
+  .pipe(z.enum(supportedCurrencyCodes));
 
 export const quoteTemplateSchema = z.object({
   logo: z.object({
@@ -48,11 +59,7 @@ export const quoteTemplateSchema = z.object({
       options: z.array(z.string().min(1).max(40)).min(1).max(20),
     }),
     unitPrice: z.object({
-      currency: z
-        .string()
-        .optional()
-        .default(APP_CURRENCY)
-        .transform((currency) => normalizeCurrency(currency)),
+      currency: currencySchema,
       display: z.enum(["symbol", "text"]),
     }),
     vat: z.object({

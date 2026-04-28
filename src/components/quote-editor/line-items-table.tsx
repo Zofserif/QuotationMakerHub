@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MarkdownText } from "@/components/ui/markdown-text";
 import { Textarea } from "@/components/ui/textarea";
+import { getCurrencyInputStep } from "@/lib/currency";
 import { getLineItemImageSrc } from "@/lib/line-item-data/images";
 import type { LineItemData } from "@/lib/line-item-data/types";
 import {
@@ -40,7 +41,9 @@ export function LineItemsTable({
   const vatEnabled = template.lineItems.vat.enabled;
   const defaultUnit = getTemplateDefaultLineItemUnit(template);
   const defaultTaxRate = getTemplateDefaultLineItemTaxRate(template);
-  const taxMode = template.lineItems.vat.mode;
+  const taxMode = vatEnabled ? template.lineItems.vat.mode : "exclusive";
+  const moneyDisplay = template.lineItems.unitPrice.display;
+  const unitPriceStep = getCurrencyInputStep(currency);
   const descriptionPlaceholder =
     template.lineItems.detailedDescriptionLabel.trim() ||
     "Detailed description markdown";
@@ -121,9 +124,15 @@ export function LineItemsTable({
         {lineItems.map((lineItem, index) => {
           const total = calculateLineTotalMinor({
             ...lineItem,
+            taxRate: vatEnabled ? lineItem.taxRate : 0,
             taxMode,
           }).lineTotalMinor;
           const imageSrc = getLineItemImageSrc(lineItem);
+          const currentUnit = lineItem.unit || defaultUnit;
+          const unitOptions = includeCurrentOption(
+            template.lineItems.unit.options,
+            currentUnit,
+          );
 
           return (
             <article
@@ -245,12 +254,12 @@ export function LineItemsTable({
                     <select
                       aria-label="Unit"
                       className="h-10 w-full rounded-md border border-stone-200 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-400 focus:ring-4 focus:ring-stone-100"
-                      value={lineItem.unit}
+                      value={currentUnit}
                       onChange={(event) =>
                         updateLineItem(index, { unit: event.target.value })
                       }
                     >
-                      {template.lineItems.unit.options.map((option) => (
+                      {unitOptions.map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -266,30 +275,30 @@ export function LineItemsTable({
                     aria-label="Unit price"
                     type="number"
                     min="0"
-                    step="0.01"
-                    value={minorToMajorString(lineItem.unitPriceMinor)}
+                    step={unitPriceStep}
+                    value={minorToMajorString(lineItem.unitPriceMinor, currency)}
                     onChange={(event) =>
                       updateLineItem(index, {
-                        unitPriceMinor: majorToMinor(event.target.value),
+                        unitPriceMinor: majorToMinor(event.target.value, currency),
                       })
                     }
                   />
                 </Field>
 
                 <div className="space-y-3">
-                  <Field label={vatEnabled ? "VAT" : "VAT"}>
-                    <div className="flex h-10 items-center rounded-md border border-stone-200 bg-white px-3 text-sm text-stone-600">
-                      {vatEnabled
-                        ? `${Math.round(lineItem.taxRate * 10000) / 100}% ${taxMode === "inclusive" ? "incl." : "excl."}`
-                        : "Off"}
-                    </div>
-                  </Field>
+                  {vatEnabled && taxMode === "exclusive" ? (
+                    <Field label="VAT">
+                      <div className="flex h-10 items-center rounded-md border border-stone-200 bg-white px-3 text-sm text-stone-600">
+                        {Math.round(lineItem.taxRate * 10000) / 100}% excl.
+                      </div>
+                    </Field>
+                  ) : null}
                   <div className="rounded-md border border-stone-200 bg-white p-3">
                     <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
                       Line Total
                     </p>
                     <p className="mt-2 text-lg font-semibold text-stone-950">
-                      {formatMoney(total, currency)}
+                      {formatMoney(total, currency, moneyDisplay)}
                     </p>
                   </div>
                 </div>
@@ -355,7 +364,7 @@ export function LineItemsTable({
                   <div className="min-w-0">
                     <p className="font-semibold text-stone-950">{item.title}</p>
                     <p className="mt-1 text-sm font-medium text-stone-600">
-                      {item.unit} · {formatMoney(item.unitPriceMinor, currency)}
+                      {item.unit} · {formatMoney(item.unitPriceMinor, currency, moneyDisplay)}
                     </p>
                     <MarkdownText
                       className="mt-2 line-clamp-3 text-stone-600"
@@ -437,6 +446,19 @@ function isUntouchedStarterLineItem(
     !lineItem.descriptionImageMimeType &&
     !lineItem.descriptionImageUrl
   );
+}
+
+function includeCurrentOption(options: string[], currentValue: string) {
+  const normalizedCurrentValue = currentValue.trim();
+
+  if (
+    !normalizedCurrentValue ||
+    options.some((option) => option === normalizedCurrentValue)
+  ) {
+    return options;
+  }
+
+  return [normalizedCurrentValue, ...options];
 }
 
 function Field({

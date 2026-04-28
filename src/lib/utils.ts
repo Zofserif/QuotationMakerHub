@@ -2,18 +2,30 @@ import { clsx, type ClassValue } from "clsx";
 import { format } from "date-fns";
 import { twMerge } from "tailwind-merge";
 
-import { APP_CURRENCY, APP_CURRENCY_LOCALE } from "@/lib/currency";
+import {
+  APP_CURRENCY,
+  getCurrencyFractionDigits,
+  getCurrencyMeta,
+  getCurrencyMinorUnitMultiplier,
+  type MoneyDisplay,
+} from "@/lib/currency";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatMoney(minor: number, currency = APP_CURRENCY) {
-  void currency;
-  return new Intl.NumberFormat(APP_CURRENCY_LOCALE, {
+export function formatMoney(
+  minor: number,
+  currency = APP_CURRENCY,
+  display: MoneyDisplay = "symbol",
+) {
+  const meta = getCurrencyMeta(currency);
+
+  return new Intl.NumberFormat(meta.locale, {
     style: "currency",
-    currency: APP_CURRENCY,
-  }).format(minor / 100);
+    currency: meta.code,
+    currencyDisplay: display === "text" ? "code" : "symbol",
+  }).format(minor / getCurrencyMinorUnitMultiplier(meta.code));
 }
 
 export function formatDate(value?: string | Date | null) {
@@ -36,16 +48,29 @@ export function formatQuoteIssuedDate(value?: string | Date | null) {
   return format(typeof value === "string" ? new Date(value) : value, "MMM-dd-yyyy");
 }
 
-export function minorToMajorString(minor: number) {
-  return (minor / 100).toFixed(2);
+export function minorToMajorString(minor: number, currency = APP_CURRENCY) {
+  const fractionDigits = getCurrencyFractionDigits(currency);
+
+  return (minor / getCurrencyMinorUnitMultiplier(currency)).toFixed(
+    fractionDigits,
+  );
 }
 
-export function majorToMinor(value: string) {
+export function majorToMinor(value: string, currency = APP_CURRENCY) {
   const normalized = value.trim();
 
   if (!normalized) {
     return 0;
   }
 
-  return Math.max(0, Math.round(Number(normalized) * 100));
+  const numericValue = Number(normalized);
+
+  if (!Number.isFinite(numericValue)) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.round(numericValue * getCurrencyMinorUnitMultiplier(currency)),
+  );
 }

@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-import { APP_CURRENCY, normalizeCurrency } from "@/lib/currency";
+import {
+  APP_CURRENCY,
+  normalizeCurrency,
+  supportedCurrencyCodes,
+} from "@/lib/currency";
 import { lineItemImageMimeTypes } from "@/lib/line-item-data/types";
 import { quoteTemplateSchema } from "@/lib/quote-templates/validation";
 
@@ -37,15 +41,18 @@ export const quoteLineItemInputSchema = z.object({
   descriptionImageMimeType: z.enum(lineItemImageMimeTypes).optional(),
 });
 
+const currencySchema = z
+  .string()
+  .optional()
+  .default(APP_CURRENCY)
+  .transform((currency) => normalizeCurrency(currency))
+  .pipe(z.enum(supportedCurrencyCodes));
+
 export const quoteDraftSchema = z.object({
   quotationName: z.string().trim().min(1).max(160),
   title: z.string().min(1).max(160),
   client: clientSchema,
-  currency: z
-    .string()
-    .optional()
-    .default(APP_CURRENCY)
-    .transform((currency) => normalizeCurrency(currency)),
+  currency: currencySchema,
   validUntil: z.string().date().optional().or(z.literal("")),
   requestSummary: z.string().max(10000).optional().or(z.literal("")),
   terms: z.string().max(10000).optional().or(z.literal("")),

@@ -15,13 +15,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MarkdownText } from "@/components/ui/markdown-text";
 import { Textarea } from "@/components/ui/textarea";
+import { getCurrencyInputStep } from "@/lib/currency";
 import { getLineItemImageSrc } from "@/lib/line-item-data/images";
 import type {
   LineItemData,
   LineItemDataDraft,
   LineItemImageMimeType,
 } from "@/lib/line-item-data/types";
-import { formatMoney } from "@/lib/utils";
+import { formatMoney, majorToMinor, minorToMajorString } from "@/lib/utils";
 
 type FormState = {
   title: string;
@@ -33,29 +34,27 @@ type FormState = {
   descriptionImageUrl: string;
 };
 
-const emptyForm: FormState = {
-  title: "",
-  detailedDescription: "",
-  unit: "Unit",
-  unitPriceMajor: "0.00",
-  descriptionImageStoragePath: "",
-  descriptionImageMimeType: undefined,
-  descriptionImageUrl: "",
-};
+const selectClassName =
+  "h-10 w-full rounded-md border border-stone-200 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-400 focus:ring-4 focus:ring-stone-100";
 
 export function LineItemDataManager({
   initialItems,
+  currency,
   unitOptions,
 }: {
   initialItems: LineItemData[];
+  currency: string;
   unitOptions: string[];
 }) {
   const [items, setItems] = useState(initialItems);
-  const [form, setForm] = useState<FormState>(emptyForm);
+  const [form, setForm] = useState<FormState>(() =>
+    createEmptyForm(unitOptions),
+  );
   const [editingId, setEditingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isUploading, startUploadTransition] = useTransition();
+  const unitSelectOptions = includeCurrentOption(unitOptions, form.unit);
 
   function updateForm(patch: Partial<FormState>) {
     setForm((current) => ({ ...current, ...patch }));
@@ -63,7 +62,7 @@ export function LineItemDataManager({
 
   function resetForm() {
     setEditingId(null);
-    setForm(emptyForm);
+    setForm(createEmptyForm(unitOptions));
     setMessage(null);
   }
 
@@ -73,7 +72,7 @@ export function LineItemDataManager({
       title: item.title,
       detailedDescription: item.detailedDescription,
       unit: item.unit,
-      unitPriceMajor: (item.unitPriceMinor / 100).toFixed(2),
+      unitPriceMajor: minorToMajorString(item.unitPriceMinor, currency),
       descriptionImageStoragePath: item.descriptionImageStoragePath ?? "",
       descriptionImageMimeType: item.descriptionImageMimeType,
       descriptionImageUrl: getLineItemImageSrc(item) ?? "",
@@ -113,7 +112,7 @@ export function LineItemDataManager({
   async function saveItem() {
     setMessage(null);
 
-    const draft = toDraft(form);
+    const draft = toDraft(form, currency);
     const response = await fetch(
       editingId ? `/api/line-item-data/${editingId}` : "/api/line-item-data",
       {
@@ -139,7 +138,7 @@ export function LineItemDataManager({
       );
     });
     setEditingId(null);
-    setForm(emptyForm);
+    setForm(createEmptyForm(unitOptions));
     setMessage("Line item data saved.");
   }
 
@@ -194,7 +193,7 @@ export function LineItemDataManager({
                         {item.title}
                       </p>
                       <p className="mt-1 text-sm font-medium text-stone-600">
-                        {item.unit} · {formatMoney(item.unitPriceMinor)}
+                        {item.unit} · {formatMoney(item.unitPriceMinor, currency)}
                       </p>
                     </div>
                     <div className="flex shrink-0 flex-wrap gap-2">
@@ -335,25 +334,24 @@ export function LineItemDataManager({
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Unit">
-                <>
-                  <Input
-                    required
-                    list="line-item-unit-options"
-                    value={form.unit}
-                    onChange={(event) => updateForm({ unit: event.target.value })}
-                  />
-                  <datalist id="line-item-unit-options">
-                    {unitOptions.map((option) => (
-                      <option key={option} value={option} />
-                    ))}
-                  </datalist>
-                </>
+                <select
+                  required
+                  className={selectClassName}
+                  value={form.unit}
+                  onChange={(event) => updateForm({ unit: event.target.value })}
+                >
+                  {unitSelectOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
               </Field>
               <Field label="Unit Price">
                 <Input
                   required
                   min="0"
-                  step="0.01"
+                  step={getCurrencyInputStep(currency)}
                   type="number"
                   value={form.unitPriceMajor}
                   onChange={(event) =>
@@ -394,12 +392,42 @@ function Field({
   );
 }
 
-function toDraft(form: FormState): LineItemDataDraft {
+function createEmptyForm(unitOptions: string[]): FormState {
+  return {
+    title: "",
+    detailedDescription: "",
+    unit: getDefaultUnit(unitOptions),
+    unitPriceMajor: "0.00",
+    descriptionImageStoragePath: "",
+    descriptionImageMimeType: undefined,
+    descriptionImageUrl: "",
+  };
+}
+
+function getDefaultUnit(unitOptions: string[]) {
+  return unitOptions.find((option) => option.trim()) ?? "Unit";
+}
+
+function includeCurrentOption(options: string[], currentValue: string) {
+  const normalizedCurrentValue = currentValue.trim();
+  const normalizedOptions = options.filter((option) => option.trim());
+
+  if (
+    !normalizedCurrentValue ||
+    normalizedOptions.some((option) => option === normalizedCurrentValue)
+  ) {
+    return normalizedOptions.length > 0 ? normalizedOptions : ["Unit"];
+  }
+
+  return [normalizedCurrentValue, ...normalizedOptions];
+}
+
+function toDraft(form: FormState, currency: string): LineItemDataDraft {
   return {
     title: form.title,
     detailedDescription: form.detailedDescription,
     unit: form.unit,
-    unitPriceMinor: Math.round(Number(form.unitPriceMajor || 0) * 100),
+    unitPriceMinor: majorToMinor(form.unitPriceMajor, currency),
     descriptionImageStoragePath: form.descriptionImageStoragePath || undefined,
     descriptionImageMimeType: form.descriptionImageMimeType,
   };

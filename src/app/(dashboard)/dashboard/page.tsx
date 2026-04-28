@@ -22,7 +22,7 @@ export default async function DashboardPage() {
   const acceptedCount = quotes.filter((quote) =>
     ["accepted", "locked"].includes(quote.status),
   ).length;
-  const totalPipeline = quotes.reduce((sum, quote) => sum + quote.totalMinor, 0);
+  const pipelineValue = formatPipelineValue(quotes);
 
   return (
     <div className="space-y-6">
@@ -58,13 +58,37 @@ export default async function DashboardPage() {
         <Metric
           icon={TrendingUp}
           label="Pipeline"
-          value={formatMoney(totalPipeline)}
+          value={pipelineValue}
         />
       </section>
 
       <QuoteList quotes={quotes} />
     </div>
   );
+}
+
+function formatPipelineValue(
+  quotes: Array<{ currency: string; totalMinor: number }>,
+) {
+  const totalsByCurrency = new Map<string, number>();
+
+  for (const quote of quotes) {
+    totalsByCurrency.set(
+      quote.currency,
+      (totalsByCurrency.get(quote.currency) ?? 0) + quote.totalMinor,
+    );
+  }
+
+  if (totalsByCurrency.size === 0) {
+    return formatMoney(0);
+  }
+
+  return Array.from(totalsByCurrency.entries())
+    .toSorted(([leftCurrency], [rightCurrency]) =>
+      leftCurrency.localeCompare(rightCurrency),
+    )
+    .map(([currency, totalMinor]) => formatMoney(totalMinor, currency))
+    .join(" / ");
 }
 
 function Metric({

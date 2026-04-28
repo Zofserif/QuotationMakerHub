@@ -21,6 +21,7 @@ export default async function LineItemDataPage() {
       </section>
       <LineItemDataManager
         initialItems={lineItemData}
+        currency={template.lineItems.unitPrice.currency}
         unitOptions={template.lineItems.unit.options}
       />
     </div>

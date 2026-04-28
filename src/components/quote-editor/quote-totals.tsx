@@ -1,4 +1,5 @@
 import { Separator } from "@/components/ui/separator";
+import type { MoneyDisplay } from "@/lib/currency";
 import type { TaxMode } from "@/lib/quotes/calculate-totals";
 import type { QuoteTotals } from "@/lib/quotes/types";
 import { formatMoney } from "@/lib/utils";
@@ -6,30 +7,40 @@ import { formatMoney } from "@/lib/utils";
 export function QuoteTotalsView({
   totals,
   currency,
+  taxEnabled = true,
   taxMode = "exclusive",
+  moneyDisplay = "symbol",
 }: {
   totals: QuoteTotals;
   currency: string;
+  taxEnabled?: boolean;
   taxMode?: TaxMode;
+  moneyDisplay?: MoneyDisplay;
 }) {
+  const taxLabel = !taxEnabled
+    ? "VAT Off"
+    : taxMode === "inclusive"
+      ? "VAT Included"
+      : "VAT";
+
   return (
     <div className="space-y-3 rounded-lg border border-stone-200 bg-stone-50 p-4">
       <TotalRow
         label="Subtotal"
-        value={formatMoney(totals.subtotalMinor, currency)}
+        value={formatMoney(totals.subtotalMinor, currency, moneyDisplay)}
       />
       <TotalRow
         label="Discount"
-        value={`-${formatMoney(totals.discountMinor, currency)}`}
+        value={`-${formatMoney(totals.discountMinor, currency, moneyDisplay)}`}
       />
       <TotalRow
-        label={taxMode === "inclusive" ? "Tax Included" : "Tax"}
-        value={formatMoney(totals.taxMinor, currency)}
+        label={taxLabel}
+        value={formatMoney(totals.taxMinor, currency, moneyDisplay)}
       />
       <Separator />
       <TotalRow
         label="Total"
-        value={formatMoney(totals.totalMinor, currency)}
+        value={formatMoney(totals.totalMinor, currency, moneyDisplay)}
         strong
       />
     </div>

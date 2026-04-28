@@ -18,8 +18,10 @@ export function QuoteDocument({
   const showDescriptionPicture = template?.lineItems.showDescriptionPicture ?? false;
   const showQuantity = template?.lineItems.showQuantity ?? true;
   const showUnit = template?.lineItems.unit.enabled ?? true;
-  const showVat = template?.lineItems.vat.enabled ?? false;
-  const taxMode = template?.lineItems.vat.mode ?? "exclusive";
+  const vatEnabled = template?.lineItems.vat.enabled ?? false;
+  const taxMode = vatEnabled ? (template?.lineItems.vat.mode ?? "exclusive") : "exclusive";
+  const showVat = vatEnabled && taxMode === "exclusive";
+  const moneyDisplay = template?.lineItems.unitPrice.display ?? "symbol";
   const itemNumberLabel = "Item #";
 
   return (
@@ -109,7 +111,9 @@ export function QuoteDocument({
         <QuoteTotalsView
           totals={snapshot}
           currency={snapshot.currency}
+          taxEnabled={vatEnabled}
           taxMode={taxMode}
+          moneyDisplay={moneyDisplay}
         />
       </section>
 
@@ -150,7 +154,7 @@ export function QuoteDocument({
             {snapshot.lineItems.map((lineItem, index) => {
               const imageSrc = getLineItemImageSrc(lineItem);
               const vatLabel = showVat
-                ? `${Math.round(lineItem.taxRate * 10000) / 100}% ${taxMode === "inclusive" ? "incl." : "excl."}`
+                ? `${Math.round(lineItem.taxRate * 10000) / 100}% excl.`
                 : null;
 
               return (
@@ -191,10 +195,12 @@ export function QuoteDocument({
                   </div>
                   {showQuantity ? <span>{lineItem.quantity}</span> : null}
                   {showUnit ? <span>{lineItem.unit || "Unit"}</span> : null}
-                  <span>{formatMoney(lineItem.unitPriceMinor, snapshot.currency)}</span>
+                  <span>
+                    {formatMoney(lineItem.unitPriceMinor, snapshot.currency, moneyDisplay)}
+                  </span>
                   {showVat ? <span>{vatLabel}</span> : null}
                   <span className="text-right font-semibold">
-                    {formatMoney(lineItem.lineTotalMinor, snapshot.currency)}
+                    {formatMoney(lineItem.lineTotalMinor, snapshot.currency, moneyDisplay)}
                   </span>
                 </div>
               );

@@ -96,10 +96,14 @@ export function QuoteEditor({
     effectiveTemplate.customer.contactNumber.value,
     "Contact #",
   );
-  const taxMode = effectiveTemplate.lineItems.vat.mode;
+  const vatEnabled = effectiveTemplate.lineItems.vat.enabled;
+  const taxMode = vatEnabled ? effectiveTemplate.lineItems.vat.mode : "exclusive";
+  const lineItemsForTotals = vatEnabled
+    ? draft.lineItems
+    : draft.lineItems.map((lineItem) => ({ ...lineItem, taxRate: 0 }));
 
   const totals = calculateQuoteTotals(
-    draft.lineItems,
+    lineItemsForTotals,
     draft.quoteLevelDiscountMinor,
     taxMode,
   );
@@ -565,7 +569,9 @@ export function QuoteEditor({
         <QuoteTotalsView
           totals={totals}
           currency={draft.currency}
+          taxEnabled={vatEnabled}
           taxMode={taxMode}
+          moneyDisplay={effectiveTemplate.lineItems.unitPrice.display}
         />
         <QuoteSharePanel
           quoteId={quote?.id}

@@ -7,7 +7,7 @@ import {
   defaultTokenExpiry,
   hashClientAccessToken,
 } from "@/lib/client-links/token";
-import { APP_CURRENCY, normalizeCurrency } from "@/lib/currency";
+import { normalizeCurrency } from "@/lib/currency";
 import {
   calculateQuoteTotals,
   type TaxMode,
@@ -463,9 +463,12 @@ export async function createSupabaseQuote(
   const templateSnapshot = mergeQuoteTemplate(
     draft.templateSnapshot ?? liveTemplate,
   );
+  const quoteCurrency = normalizeCurrency(
+    draft.currency || templateSnapshot.lineItems.unitPrice.currency,
+  );
   const taxMode = getTemplateTaxMode(templateSnapshot);
   const client = await upsertClient(db, organization.id, draft.client);
-  const lineItems = normalizeLineItems(draft.lineItems, taxMode);
+  const lineItems = normalizeLineItems(draft.lineItems, templateSnapshot);
   const totals = calculateQuoteTotals(
     lineItems,
     draft.quoteLevelDiscountMinor ?? 0,
@@ -489,7 +492,7 @@ export async function createSupabaseQuote(
     quotation_name: draft.quotationName,
     title: draft.title,
     status: "draft",
-    currency: APP_CURRENCY,
+    currency: quoteCurrency,
     subtotal_minor: totals.subtotalMinor,
     discount_minor: totals.discountMinor,
     tax_minor: totals.taxMinor,
@@ -577,6 +580,9 @@ export async function updateSupabaseQuote(
   const templateSnapshot = mergeQuoteTemplate(
     existing.templateSnapshot ?? draft.templateSnapshot ?? liveTemplate,
   );
+  const quoteCurrency = normalizeCurrency(
+    draft.currency || templateSnapshot.lineItems.unitPrice.currency,
+  );
   const taxMode = getTemplateTaxMode(templateSnapshot);
   const existingRecipient = existing.recipients.find(
     (recipient) => recipient.role === "client",
@@ -587,7 +593,7 @@ export async function updateSupabaseQuote(
     draft.client,
     existingRecipient?.clientId,
   );
-  const lineItems = normalizeLineItems(draft.lineItems, taxMode);
+  const lineItems = normalizeLineItems(draft.lineItems, templateSnapshot);
   const totals = calculateQuoteTotals(
     lineItems,
     draft.quoteLevelDiscountMinor ?? 0,
@@ -600,7 +606,7 @@ export async function updateSupabaseQuote(
     .update({
       quotation_name: draft.quotationName,
       title: draft.title,
-      currency: APP_CURRENCY,
+      currency: quoteCurrency,
       subtotal_minor: totals.subtotalMinor,
       discount_minor: totals.discountMinor,
       tax_minor: totals.taxMinor,
@@ -2119,8 +2125,11 @@ async function appendAuditEvent(
 
 function normalizeLineItems(
   lineItems: QuoteDraft["lineItems"],
-  taxMode: TaxMode = "exclusive",
+  template: QuoteTemplate,
 ): QuoteLineItem[] {
+  const vatEnabled = template.lineItems.vat.enabled;
+  const taxMode = getTemplateTaxMode(template);
+
   return withCalculatedLineTotals(
     lineItems.map((lineItem, index) => ({
       id: randomUUID(),
@@ -2131,7 +2140,7 @@ function normalizeLineItems(
       quantity: lineItem.quantity,
       unitPriceMinor: lineItem.unitPriceMinor,
       discountMinor: lineItem.discountMinor,
-      taxRate: lineItem.taxRate,
+      taxRate: vatEnabled ? lineItem.taxRate : 0,
       descriptionImageStoragePath: emptyToUndefined(
         lineItem.descriptionImageStoragePath,
       ),
@@ -2330,7 +2339,9 @@ function emptyToNull(value: string | undefined) {
 }
 
 function getTemplateTaxMode(template?: QuoteTemplate): TaxMode {
-  return template?.lineItems.vat.mode ?? "exclusive";
+  return template?.lineItems.vat.enabled
+    ? template.lineItems.vat.mode
+    : "exclusive";
 }
 
 function stripBucketPrefix(path: string, bucket: string) {

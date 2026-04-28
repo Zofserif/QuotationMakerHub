@@ -6,7 +6,7 @@ import {
   hashClientAccessToken,
   isClientTokenHashMatch,
 } from "@/lib/client-links/token";
-import { APP_CURRENCY, normalizeCurrency } from "@/lib/currency";
+import { normalizeCurrency } from "@/lib/currency";
 import { createAuditEvent } from "@/lib/audit/write-audit-event";
 import {
   calculateQuoteTotals,
@@ -100,7 +100,7 @@ function seedDemoState(): DemoState {
       discountMinor: 25000,
       taxRate: 0.12,
     },
-  ], getTemplateTaxMode(templateSnapshot));
+  ], templateSnapshot);
   const totals = calculateQuoteTotals(
     lineItems,
     0,
@@ -113,7 +113,7 @@ function seedDemoState(): DemoState {
     quotationName: "Website Redesign Quotation",
     title: "Website Redesign Quotation",
     status: "draft",
-    currency: APP_CURRENCY,
+    currency: normalizeCurrency(templateSnapshot.lineItems.unitPrice.currency),
     client: {
       companyName: "Acme Corp",
       contactName: "Jane Client",
@@ -396,8 +396,11 @@ export function createDemoQuote(draft: QuoteDraft) {
   const templateSnapshot = mergeQuoteTemplate(
     draft.templateSnapshot ?? demoState.quoteTemplate,
   );
+  const quoteCurrency = normalizeCurrency(
+    draft.currency || templateSnapshot.lineItems.unitPrice.currency,
+  );
   const taxMode = getTemplateTaxMode(templateSnapshot);
-  const lineItems = normalizeLineItems(draft.lineItems, taxMode);
+  const lineItems = normalizeLineItems(draft.lineItems, templateSnapshot);
   const totals = calculateQuoteTotals(
     lineItems,
     draft.quoteLevelDiscountMinor ?? 0,
@@ -413,7 +416,7 @@ export function createDemoQuote(draft: QuoteDraft) {
     quotationName: draft.quotationName,
     title: draft.title,
     status: "draft",
-    currency: APP_CURRENCY,
+    currency: quoteCurrency,
     client: draft.client,
     lineItems,
     recipients: [
@@ -474,8 +477,11 @@ export function updateDemoQuote(
   const templateSnapshot = mergeQuoteTemplate(
     quote.templateSnapshot ?? draft.templateSnapshot ?? demoState.quoteTemplate,
   );
+  const quoteCurrency = normalizeCurrency(
+    draft.currency || templateSnapshot.lineItems.unitPrice.currency,
+  );
   const taxMode = getTemplateTaxMode(templateSnapshot);
-  const lineItems = normalizeLineItems(draft.lineItems, taxMode);
+  const lineItems = normalizeLineItems(draft.lineItems, templateSnapshot);
   const totals = calculateQuoteTotals(
     lineItems,
     draft.quoteLevelDiscountMinor ?? 0,
@@ -483,7 +489,7 @@ export function updateDemoQuote(
   );
   quote.quotationName = draft.quotationName;
   quote.title = draft.title;
-  quote.currency = APP_CURRENCY;
+  quote.currency = quoteCurrency;
   quote.client = draft.client;
   quote.lineItems = lineItems;
   quote.validUntil = emptyToUndefined(draft.validUntil);
@@ -817,8 +823,11 @@ export function createDemoPdfExport(quoteId: string) {
 
 function normalizeLineItems(
   lineItems: QuoteDraft["lineItems"],
-  taxMode: TaxMode = "exclusive",
+  template: QuoteTemplate,
 ): QuoteLineItem[] {
+  const vatEnabled = template.lineItems.vat.enabled;
+  const taxMode = getTemplateTaxMode(template);
+
   return withCalculatedLineTotals(
     lineItems.map((lineItem, index) => ({
       id: randomUUID(),
@@ -829,7 +838,7 @@ function normalizeLineItems(
       quantity: lineItem.quantity,
       unitPriceMinor: lineItem.unitPriceMinor,
       discountMinor: lineItem.discountMinor,
-      taxRate: lineItem.taxRate,
+      taxRate: vatEnabled ? lineItem.taxRate : 0,
       descriptionImageStoragePath: emptyToUndefined(
         lineItem.descriptionImageStoragePath,
       ),
@@ -956,7 +965,9 @@ function emptyToUndefined<T extends string | undefined>(value: T) {
 }
 
 function getTemplateTaxMode(template?: QuoteTemplate): TaxMode {
-  return template?.lineItems.vat.mode ?? "exclusive";
+  return template?.lineItems.vat.enabled
+    ? template.lineItems.vat.mode
+    : "exclusive";
 }
 
 async function fileToDataUrl(file: File) {

@@ -6,6 +6,7 @@ import {
   FileText,
   ListOrdered,
   PenLine,
+  Plus,
   ReceiptText,
   Save,
   Trash2,
@@ -23,25 +24,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { APP_CURRENCY_DISPLAY_NAME } from "@/lib/currency";
+import {
+  getCurrencyDisplayName,
+  normalizeCurrency,
+  supportedCurrencies,
+} from "@/lib/currency";
 import type { QuoteTemplate, ToggleText } from "@/lib/quote-templates/types";
 
 const logoSizeLimitBytes = 1_200_000;
 const selectClassName =
   "h-10 w-full rounded-md border border-stone-200 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-400 focus:ring-4 focus:ring-stone-100";
-
-function ensureVatEnabled(template: QuoteTemplate): QuoteTemplate {
-  return {
-    ...template,
-    lineItems: {
-      ...template.lineItems,
-      vat: {
-        ...template.lineItems.vat,
-        enabled: true,
-      },
-    },
-  };
-}
 
 export function QuoteTemplateDesigner({
   template: initialTemplate,
@@ -50,9 +42,7 @@ export function QuoteTemplateDesigner({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [template, setTemplate] = useState(() =>
-    ensureVatEnabled(initialTemplate),
-  );
+  const [template, setTemplate] = useState(initialTemplate);
   const [message, setMessage] = useState<string | null>(null);
 
   function updateCompany(patch: Partial<QuoteTemplate["company"]>) {
@@ -85,6 +75,39 @@ export function QuoteTemplateDesigner({
     }));
   }
 
+  function updateUnitOption(index: number, value: string) {
+    updateLineItems({
+      unit: {
+        ...template.lineItems.unit,
+        options: template.lineItems.unit.options.map((option, candidateIndex) =>
+          candidateIndex === index ? value : option,
+        ),
+      },
+    });
+  }
+
+  function addUnitOption() {
+    updateLineItems({
+      unit: {
+        ...template.lineItems.unit,
+        options: [...template.lineItems.unit.options, ""],
+      },
+    });
+  }
+
+  function removeUnitOption(index: number) {
+    updateLineItems({
+      unit: {
+        ...template.lineItems.unit,
+        options: normalizeUnitOptions(
+          template.lineItems.unit.options.filter(
+            (_, candidateIndex) => candidateIndex !== index,
+          ),
+        ),
+      },
+    });
+  }
+
   function updateLogoFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
 
@@ -113,13 +136,25 @@ export function QuoteTemplateDesigner({
 
   async function saveTemplate() {
     setMessage(null);
-    const templateToSave = ensureVatEnabled(template);
     const response = await fetch("/api/quote-template", {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(templateToSave),
+      body: JSON.stringify({
+        ...template,
+        lineItems: {
+          ...template.lineItems,
+          unit: {
+            ...template.lineItems.unit,
+            options: normalizeUnitOptions(template.lineItems.unit.options),
+          },
+          unitPrice: {
+            ...template.lineItems.unitPrice,
+            currency: normalizeCurrency(template.lineItems.unitPrice.currency),
+          },
+        },
+      }),
     });
     const payload = await response.json();
 
@@ -128,7 +163,7 @@ export function QuoteTemplateDesigner({
       return;
     }
 
-    setTemplate(ensureVatEnabled(payload.template));
+    setTemplate(payload.template);
     setMessage("Quote template saved.");
     router.refresh();
   }
@@ -346,39 +381,75 @@ export function QuoteTemplateDesigner({
               />
             </Field>
             <Field label="Unit options">
-              <div className="flex items-center gap-2">
-                <input
-                  checked={template.lineItems.unit.enabled}
-                  className="size-4"
-                  type="checkbox"
-                  onChange={(event) =>
-                    updateLineItems({
-                      unit: {
-                        ...template.lineItems.unit,
-                        enabled: event.target.checked,
-                      },
-                    })
-                  }
-                />
-                <Input
-                  value={template.lineItems.unit.options.join(", ")}
-                  onChange={(event) =>
-                    updateLineItems({
-                      unit: {
-                        ...template.lineItems.unit,
-                        options: splitOptions(event.target.value),
-                      },
-                    })
-                  }
-                />
+              <div className="space-y-3">
+                <label className="flex h-10 items-center gap-3 rounded-md border border-stone-200 bg-white px-3 text-sm font-medium text-stone-800">
+                  <input
+                    checked={template.lineItems.unit.enabled}
+                    className="size-4"
+                    type="checkbox"
+                    onChange={(event) =>
+                      updateLineItems({
+                        unit: {
+                          ...template.lineItems.unit,
+                          enabled: event.target.checked,
+                        },
+                      })
+                    }
+                  />
+                  Show unit column
+                </label>
+                <div className="space-y-2">
+                  {template.lineItems.unit.options.map((option, index) => (
+                    <div
+                      className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_40px]"
+                      key={index}
+                    >
+                      <Input
+                        aria-label={`Unit option ${index + 1}`}
+                        required
+                        value={option}
+                        onChange={(event) =>
+                          updateUnitOption(index, event.target.value)
+                        }
+                      />
+                      <Button
+                        aria-label={`Remove ${option || `unit option ${index + 1}`}`}
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        disabled={template.lineItems.unit.options.length <= 1}
+                        onClick={() => removeUnitOption(index)}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <Button type="button" variant="secondary" size="sm" onClick={addUnitOption}>
+                  <Plus className="size-4" />
+                  Add unit
+                </Button>
               </div>
             </Field>
             <Field label="Currency">
-              <Input
-                required
-                readOnly
-                value={APP_CURRENCY_DISPLAY_NAME}
-              />
+              <select
+                className={selectClassName}
+                value={normalizeCurrency(template.lineItems.unitPrice.currency)}
+                onChange={(event) =>
+                  updateLineItems({
+                    unitPrice: {
+                      ...template.lineItems.unitPrice,
+                      currency: normalizeCurrency(event.target.value),
+                    },
+                  })
+                }
+              >
+                {supportedCurrencies.map((currency) => (
+                  <option key={currency.code} value={currency.code}>
+                    {currency.label}
+                  </option>
+                ))}
+              </select>
             </Field>
             <Field label="Unit price display">
               <select
@@ -398,17 +469,33 @@ export function QuoteTemplateDesigner({
               </select>
             </Field>
             <Field label="VAT">
-              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_110px]">
+              <div className="grid gap-2">
                 <label className="flex h-10 items-center gap-3 rounded-md border border-stone-200 bg-white px-3 text-sm font-medium text-stone-800">
                   <input
-                    checked={template.lineItems.vat.mode === "inclusive"}
+                    checked={template.lineItems.vat.enabled}
                     className="size-4"
                     type="checkbox"
                     onChange={(event) =>
                       updateLineItems({
                         vat: {
                           ...template.lineItems.vat,
-                          enabled: true,
+                          enabled: event.target.checked,
+                        },
+                      })
+                    }
+                  />
+                  VAT
+                </label>
+                <label className="flex h-10 items-center gap-3 rounded-md border border-stone-200 bg-white px-3 text-sm font-medium text-stone-800">
+                  <input
+                    checked={template.lineItems.vat.mode === "inclusive"}
+                    className="size-4"
+                    disabled={!template.lineItems.vat.enabled}
+                    type="checkbox"
+                    onChange={(event) =>
+                      updateLineItems({
+                        vat: {
+                          ...template.lineItems.vat,
                           mode: event.target.checked
                             ? "inclusive"
                             : "exclusive",
@@ -419,6 +506,7 @@ export function QuoteTemplateDesigner({
                   VAT inclusive
                 </label>
                 <Input
+                  disabled={!template.lineItems.vat.enabled}
                   min="0"
                   max="100"
                   step="0.01"
@@ -523,13 +611,17 @@ export function QuoteTemplateDesigner({
             />
             <SummaryRow
               label="Currency"
-              value={APP_CURRENCY_DISPLAY_NAME}
+              value={getCurrencyDisplayName(template.lineItems.unitPrice.currency)}
             />
             <SummaryRow
               label="VAT"
-              value={`${Math.round(template.lineItems.vat.rate * 10000) / 100}% ${
-                template.lineItems.vat.mode
-              }`}
+              value={
+                template.lineItems.vat.enabled
+                  ? `${Math.round(template.lineItems.vat.rate * 10000) / 100}% ${
+                      template.lineItems.vat.mode
+                    }`
+                  : "Off"
+              }
             />
             <SummaryRow
               label="Logo"
@@ -654,10 +746,10 @@ function Section({
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="space-y-2">
+    <div className="space-y-2">
       <Label>{label}</Label>
       {children}
-    </label>
+    </div>
   );
 }
 
@@ -692,11 +784,18 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function splitOptions(value: string) {
-  const options = value
-    .split(",")
+function normalizeUnitOptions(options: string[]) {
+  const seen = new Set<string>();
+  const normalizedOptions = options
     .map((option) => option.trim())
-    .filter(Boolean);
+    .filter((option) => {
+      if (!option || seen.has(option.toLowerCase())) {
+        return false;
+      }
 
-  return options.length > 0 ? options : ["Unit"];
+      seen.add(option.toLowerCase());
+      return true;
+    });
+
+  return normalizedOptions.length > 0 ? normalizedOptions : ["Unit"];
 }
