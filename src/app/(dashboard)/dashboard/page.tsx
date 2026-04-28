@@ -7,17 +7,54 @@ import {
   TrendingUp,
 } from "lucide-react";
 
+import { DashboardStatusTabs } from "@/components/dashboard/dashboard-status-tabs";
 import { LinkButton } from "@/components/ui/button";
 import { QuoteList } from "@/components/dashboard/quote-list";
 import { requireQuoter } from "@/lib/auth/require-quoter";
 import { listQuotes } from "@/lib/quotes/persistence";
+import { statusLabel } from "@/lib/quotes/quote-state";
+import { quoteStatuses, type QuoteStatus } from "@/lib/quotes/types";
 import { formatMoney } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
+type DashboardSearchParams = {
+  status?: string | string[];
+};
+
+type StatusTab = {
+  label: string;
+  status?: QuoteStatus;
+};
+
+const statusTabs: StatusTab[] = [
+  { label: "All" },
+  ...quoteStatuses.map((status) => ({
+    label: statusLabel(status),
+    status,
+  })),
+];
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<DashboardSearchParams>;
+}) {
+  const { status: statusParam } = await searchParams;
+  const selectedStatus = parseQuoteStatus(statusParam);
   const quoter = await requireQuoter();
   const quotes = await listQuotes(quoter);
+  const visibleQuotes = selectedStatus
+    ? quotes.filter((quote) => quote.status === selectedStatus)
+    : quotes;
+  const statusCounts = countQuotesByStatus(quotes);
+  const tabs = statusTabs.map((tab) => ({
+    key: tab.status ?? "all",
+    label: tab.label,
+    href: tab.status ? `/dashboard?status=${tab.status}` : "/dashboard",
+    count: tab.status ? (statusCounts.get(tab.status) ?? 0) : quotes.length,
+    selected: selectedStatus === tab.status,
+  }));
   const sentCount = quotes.filter((quote) => quote.status !== "draft").length;
   const acceptedCount = quotes.filter((quote) =>
     ["accepted", "locked"].includes(quote.status),
@@ -62,9 +99,38 @@ export default async function DashboardPage() {
         />
       </section>
 
-      <QuoteList quotes={quotes} />
+      <DashboardStatusTabs tabs={tabs} />
+
+      <QuoteList
+        emptyMessage={
+          selectedStatus
+            ? `No ${statusLabel(selectedStatus).toLowerCase()} quotations yet.`
+            : "No quotations yet."
+        }
+        quotes={visibleQuotes}
+      />
     </div>
   );
+}
+
+function parseQuoteStatus(value?: string | string[]) {
+  const status = Array.isArray(value) ? value[0] : value;
+
+  return quoteStatuses.includes(status as QuoteStatus)
+    ? (status as QuoteStatus)
+    : undefined;
+}
+
+function countQuotesByStatus(quotes: Array<{ status: QuoteStatus }>) {
+  const counts = new Map<QuoteStatus, number>(
+    quoteStatuses.map((status) => [status, 0]),
+  );
+
+  for (const quote of quotes) {
+    counts.set(quote.status, (counts.get(quote.status) ?? 0) + 1);
+  }
+
+  return counts;
 }
 
 function formatPipelineValue(
