@@ -1,6 +1,14 @@
 "use client";
 
-import { Database, ImagePlus, LoaderCircle, Plus, Trash2, X } from "lucide-react";
+import {
+  ChevronDown,
+  Database,
+  ImagePlus,
+  LoaderCircle,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useState, type ChangeEvent, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -17,6 +25,7 @@ import {
 import type { QuoteTemplate } from "@/lib/quote-templates/types";
 import type { QuoteDraft } from "@/lib/quotes/types";
 import { calculateLineTotalMinor } from "@/lib/quotes/calculate-totals";
+import type { ValidationIssue } from "@/lib/quotes/validation";
 import { cn, formatMoney, majorToMinor, minorToMajorString } from "@/lib/utils";
 
 type LineItemInput = QuoteDraft["lineItems"][number];
@@ -25,17 +34,25 @@ export function LineItemsTable({
   lineItems,
   currency,
   lineItemData = [],
+  validationIssues = [],
   template,
   onChange,
 }: {
   lineItems: LineItemInput[];
   currency: string;
   lineItemData?: LineItemData[];
+  validationIssues?: ValidationIssue[];
   template: QuoteTemplate;
   onChange: (lineItems: LineItemInput[]) => void;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
+  const [expandedDetailIndexes, setExpandedDetailIndexes] = useState<Set<number>>(
+    new Set(),
+  );
+  const [collapsedDetailIndexes, setCollapsedDetailIndexes] = useState<Set<number>>(
+    new Set(),
+  );
   const quantityEnabled = template.lineItems.showQuantity;
   const unitEnabled = template.lineItems.unit.enabled;
   const vatEnabled = template.lineItems.vat.enabled;
@@ -82,11 +99,39 @@ export function LineItemsTable({
         ? [nextLineItem, ...lineItems.slice(1)]
         : [...lineItems, nextLineItem],
     );
+    setCollapsedDetailIndexes(new Set());
     setPickerOpen(false);
   }
 
   function removeLineItem(index: number) {
     onChange(lineItems.filter((_, candidateIndex) => candidateIndex !== index));
+    setExpandedDetailIndexes((current) => shiftIndexesAfterRemoval(current, index));
+    setCollapsedDetailIndexes((current) => shiftIndexesAfterRemoval(current, index));
+  }
+
+  function toggleLineItemDetails(index: number, currentlyOpen: boolean) {
+    setExpandedDetailIndexes((current) => {
+      const next = new Set(current);
+
+      if (currentlyOpen) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+
+      return next;
+    });
+    setCollapsedDetailIndexes((current) => {
+      const next = new Set(current);
+
+      if (currentlyOpen) {
+        next.add(index);
+      } else {
+        next.delete(index);
+      }
+
+      return next;
+    });
   }
 
   async function uploadImage(index: number, event: ChangeEvent<HTMLInputElement>) {
@@ -143,14 +188,43 @@ export function LineItemsTable({
             template.lineItems.unit.options,
             currentUnit,
           );
+          const detailsOpen =
+            expandedDetailIndexes.has(index) ||
+            (hasLineItemDetails(lineItem) &&
+              !collapsedDetailIndexes.has(index));
+          const nameError = getLineItemIssueMessage(
+            validationIssues,
+            index,
+            "name",
+          );
+          const quantityError = getLineItemIssueMessage(
+            validationIssues,
+            index,
+            "quantity",
+          );
+          const unitError = getLineItemIssueMessage(
+            validationIssues,
+            index,
+            "unit",
+          );
+          const unitPriceError = getLineItemIssueMessage(
+            validationIssues,
+            index,
+            "unitPriceMinor",
+          );
+          const discountError = getLineItemIssueMessage(
+            validationIssues,
+            index,
+            "discountMinor",
+          );
 
           return (
             <article
-              className="rounded-lg border border-stone-200 bg-stone-50 p-4"
+              className="min-w-0 max-w-full overflow-hidden rounded-lg border border-stone-200 bg-stone-50 p-4"
               key={index}
             >
-              <div className="mb-4 flex items-start justify-between gap-3">
-                <div>
+              <div className="mb-4 grid min-w-0 gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+                <div className="min-w-0">
                   <p className="text-sm font-semibold uppercase tracking-wide text-stone-500">
                     {template.lineItems.showItemNumber
                       ? `Item ${index + 1}`
@@ -162,77 +236,50 @@ export function LineItemsTable({
                       : "off"}
                   </p>
                 </div>
-                <Button
-                  aria-label="Remove line item"
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeLineItem(index)}
-                  disabled={lineItems.length === 1}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
+                <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 md:justify-end">
+                  <div className="min-w-0 max-w-full rounded-md border border-stone-200 bg-white px-3 py-2 text-right">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+                      Line Total
+                    </p>
+                    <p className="mt-1 break-words text-base font-semibold text-stone-950">
+                      {formatMoney(total, currency, moneyDisplay)}
+                    </p>
+                  </div>
+                  <Button
+                    aria-expanded={detailsOpen}
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => toggleLineItemDetails(index, detailsOpen)}
+                  >
+                    <ChevronDown
+                      className={cn(
+                        "size-4 transition-transform",
+                        detailsOpen && "rotate-180",
+                      )}
+                    />
+                    Details
+                  </Button>
+                  <Button
+                    aria-label="Remove line item"
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeLineItem(index)}
+                    disabled={lineItems.length === 1}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_100px_110px_130px_120px_140px]">
-                <div className="space-y-3">
-                  {imageSrc ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      alt=""
-                      className="h-36 w-full rounded-md border border-stone-200 object-cover"
-                      src={imageSrc}
-                    />
-                  ) : (
-                    <div className="flex h-36 items-center justify-center rounded-md border border-dashed border-stone-300 bg-white text-sm text-stone-500">
-                      No picture
-                    </div>
-                  )}
-
-                  <div className="flex flex-wrap gap-2">
-                    <label
-                      aria-busy={isUploadingImage || undefined}
-                      className={cn(
-                        "inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-stone-200 bg-white px-3 text-sm font-medium text-stone-900 transition hover:bg-stone-100",
-                        uploadingIndex !== null && "pointer-events-none opacity-50",
-                      )}
-                    >
-                      {isUploadingImage ? (
-                        <LoaderCircle
-                          aria-hidden="true"
-                          className="size-4 animate-spin"
-                        />
-                      ) : (
-                        <ImagePlus className="size-4" />
-                      )}
-                      {isUploadingImage ? "Uploading..." : "Upload picture"}
-                      <input
-                        accept="image/png,image/jpeg,image/webp"
-                        className="sr-only"
-                        disabled={uploadingIndex !== null}
-                        type="file"
-                        onChange={(event) => void uploadImage(index, event)}
-                      />
-                    </label>
-                    {imageSrc ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() =>
-                          updateLineItem(index, {
-                            descriptionImageStoragePath: "",
-                            descriptionImageMimeType: undefined,
-                            descriptionImageUrl: "",
-                          })
-                        }
-                      >
-                        <Trash2 className="size-4" />
-                        Remove picture
-                      </Button>
-                    ) : null}
-                  </div>
-
+              <div className="grid min-w-0 max-w-full gap-3 sm:grid-cols-2 lg:grid-cols-12">
+                <Field
+                  className="sm:col-span-2 lg:col-span-4"
+                  label="Item name"
+                  required
+                  error={nameError}
+                >
                   <Input
                     aria-label="Line item name"
                     placeholder="Service or product"
@@ -241,21 +288,15 @@ export function LineItemsTable({
                       updateLineItem(index, { name: event.target.value })
                     }
                   />
-                  <Textarea
-                    aria-label="Line item description"
-                    className="min-h-32 bg-white"
-                    placeholder={descriptionPlaceholder}
-                    value={lineItem.description}
-                    onChange={(event) =>
-                      updateLineItem(index, {
-                        description: event.target.value,
-                      })
-                    }
-                  />
-                </div>
+                </Field>
 
                 {quantityEnabled ? (
-                  <Field label="Quantity">
+                  <Field
+                    className="lg:col-span-2"
+                    label="Quantity"
+                    required
+                    error={quantityError}
+                  >
                     <Input
                       aria-label="Quantity"
                       type="number"
@@ -278,15 +319,18 @@ export function LineItemsTable({
                       }}
                     />
                   </Field>
-                ) : (
-                  <div />
-                )}
+                ) : null}
 
                 {unitEnabled ? (
-                  <Field label="Unit">
+                  <Field
+                    className="lg:col-span-2"
+                    label="Unit"
+                    required
+                    error={unitError}
+                  >
                     <select
                       aria-label="Unit"
-                      className="h-10 w-full rounded-md border border-stone-200 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-400 focus:ring-4 focus:ring-stone-100"
+                      className="h-10 w-full max-w-full rounded-md border border-stone-200 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-400 focus:ring-4 focus:ring-stone-100"
                       value={currentUnit}
                       onChange={(event) =>
                         updateLineItem(index, { unit: event.target.value })
@@ -299,11 +343,13 @@ export function LineItemsTable({
                       ))}
                     </select>
                   </Field>
-                ) : (
-                  <div />
-                )}
+                ) : null}
 
-                <Field label="Unit Price">
+                <Field
+                  className="lg:col-span-2"
+                  label="Unit Price"
+                  error={unitPriceError}
+                >
                   <Input
                     aria-label="Unit price"
                     type="number"
@@ -327,7 +373,11 @@ export function LineItemsTable({
                   />
                 </Field>
 
-                <Field label="Discount %">
+                <Field
+                  className="lg:col-span-2"
+                  label="Discount %"
+                  error={discountError}
+                >
                   <Input
                     aria-label="Discount percentage"
                     type="number"
@@ -345,25 +395,97 @@ export function LineItemsTable({
                     }
                   />
                 </Field>
-
-                <div className="space-y-3">
-                  {vatEnabled && taxMode === "exclusive" ? (
-                    <Field label="VAT">
-                      <div className="flex h-10 items-center rounded-md border border-stone-200 bg-white px-3 text-sm text-stone-600">
-                        {Math.round(lineItem.taxRate * 10000) / 100}% excl.
-                      </div>
-                    </Field>
-                  ) : null}
-                  <div className="rounded-md border border-stone-200 bg-white p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
-                      Line Total
-                    </p>
-                    <p className="mt-2 text-lg font-semibold text-stone-950">
-                      {formatMoney(total, currency, moneyDisplay)}
-                    </p>
-                  </div>
-                </div>
               </div>
+
+              {detailsOpen ? (
+                <div className="mt-4 grid min-w-0 max-w-full gap-4 overflow-hidden border-t border-stone-200 pt-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+                  <div className="min-w-0 space-y-3">
+                    {imageSrc ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        alt=""
+                        className="h-36 w-full max-w-full rounded-md border border-stone-200 object-cover"
+                        src={imageSrc}
+                      />
+                    ) : (
+                      <div className="flex h-36 max-w-full items-center justify-center rounded-md border border-dashed border-stone-300 bg-white text-sm text-stone-500">
+                        No picture
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-2">
+                      <label
+                        aria-busy={isUploadingImage || undefined}
+                        className={cn(
+                          "inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-stone-200 bg-white px-3 text-sm font-medium text-stone-900 transition hover:bg-stone-100",
+                          uploadingIndex !== null &&
+                            "pointer-events-none opacity-50",
+                        )}
+                      >
+                        {isUploadingImage ? (
+                          <LoaderCircle
+                            aria-hidden="true"
+                            className="size-4 animate-spin"
+                          />
+                        ) : (
+                          <ImagePlus className="size-4" />
+                        )}
+                        {isUploadingImage ? "Uploading..." : "Upload picture"}
+                        <input
+                          accept="image/png,image/jpeg,image/webp"
+                          className="sr-only"
+                          disabled={uploadingIndex !== null}
+                          type="file"
+                          onChange={(event) => void uploadImage(index, event)}
+                        />
+                      </label>
+                      {imageSrc ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() =>
+                            updateLineItem(index, {
+                              descriptionImageStoragePath: "",
+                              descriptionImageMimeType: undefined,
+                              descriptionImageUrl: "",
+                            })
+                          }
+                        >
+                          <Trash2 className="size-4" />
+                          Remove picture
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <Field label="Line item description">
+                    <Textarea
+                      aria-label="Line item description"
+                      className="min-h-36 bg-white"
+                      placeholder={descriptionPlaceholder}
+                      value={lineItem.description}
+                      onChange={(event) =>
+                        updateLineItem(index, {
+                          description: event.target.value,
+                        })
+                      }
+                    />
+                  </Field>
+                </div>
+              ) : hasLineItemDetails(lineItem) ? (
+                <div className="mt-4 border-t border-stone-200 pt-4">
+                  <MarkdownText
+                    className="line-clamp-2 text-sm text-stone-600"
+                    value={lineItem.description}
+                  />
+                  {imageSrc ? (
+                    <p className="mt-2 text-sm font-medium text-stone-500">
+                      Picture attached
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
             </article>
           );
         })}
@@ -561,17 +683,94 @@ function includeCurrentOption(options: string[], currentValue: string) {
   return [normalizedCurrentValue, ...options];
 }
 
+function shiftIndexesAfterRemoval(indexes: Set<number>, removedIndex: number) {
+  const next = new Set<number>();
+
+  indexes.forEach((index) => {
+    if (index < removedIndex) {
+      next.add(index);
+    } else if (index > removedIndex) {
+      next.add(index - 1);
+    }
+  });
+
+  return next;
+}
+
+function hasLineItemDetails(lineItem: LineItemInput) {
+  return Boolean(
+    (lineItem.description ?? "").trim() ||
+      lineItem.descriptionImageStoragePath ||
+      lineItem.descriptionImageUrl,
+  );
+}
+
+function getLineItemIssueMessage(
+  issues: ValidationIssue[],
+  index: number,
+  field: keyof LineItemInput,
+) {
+  const issue = issues.find(
+    (candidate) =>
+      candidate.path[0] === "lineItems" &&
+      candidate.path[1] === index &&
+      candidate.path[2] === field,
+  );
+
+  if (!issue) {
+    return undefined;
+  }
+
+  if (field === "name") {
+    return "Item name is required.";
+  }
+
+  if (field === "quantity") {
+    return "Quantity must be greater than 0.";
+  }
+
+  if (field === "unit") {
+    return "Unit is required.";
+  }
+
+  if (field === "unitPriceMinor") {
+    return "Unit price cannot be negative.";
+  }
+
+  if (field === "discountMinor") {
+    return "Discount cannot be negative.";
+  }
+
+  return issue.message;
+}
+
 function Field({
   label,
   children,
+  className,
+  error,
+  required = false,
 }: {
   label: string;
   children: ReactNode;
+  className?: string;
+  error?: string;
+  required?: boolean;
 }) {
   return (
-    <label className="space-y-2">
-      <span className="text-sm font-medium text-stone-800">{label}</span>
+    <div className={cn("min-w-0 space-y-2", className)}>
+      <span className="flex min-h-11 flex-wrap content-start items-start gap-x-2 gap-y-1">
+        <span className="text-sm font-medium text-stone-800">{label}</span>
+        {required ? (
+          <span className="rounded-sm bg-stone-100 px-1.5 py-0.5 text-xs font-medium text-stone-600">
+            Required
+          </span>
+        ) : null}
+      </span>
       {children}
-    </label>
+      {error ? (
+        <span className="block text-sm font-medium text-red-600">{error}</span>
+      ) : null}
+    </div>
   );
 }

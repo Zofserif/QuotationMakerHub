@@ -10,7 +10,6 @@ import {
   ReceiptText,
   Save,
   Trash2,
-  UserRound,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -49,16 +48,6 @@ export function QuoteTemplateDesigner({
       ...current,
       company: {
         ...current.company,
-        ...patch,
-      },
-    }));
-  }
-
-  function updateCustomer(patch: Partial<QuoteTemplate["customer"]>) {
-    setTemplate((current) => ({
-      ...current,
-      customer: {
-        ...current.customer,
         ...patch,
       },
     }));
@@ -308,40 +297,6 @@ export function QuoteTemplateDesigner({
           </div>
         </Section>
 
-        <Section icon={UserRound} title="Customer Information">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Client name label">
-              <Input
-                required
-                value={template.customer.clientNameLabel}
-                onChange={(event) =>
-                  updateCustomer({ clientNameLabel: event.target.value })
-                }
-              />
-            </Field>
-            <ToggleTextField
-              label="Client company"
-              value={template.customer.clientCompany}
-              onChange={(clientCompany) => updateCustomer({ clientCompany })}
-            />
-            <ToggleTextField
-              label="Address"
-              value={template.customer.address}
-              onChange={(address) => updateCustomer({ address })}
-            />
-            <ToggleTextField
-              label="Email"
-              value={template.customer.email}
-              onChange={(email) => updateCustomer({ email })}
-            />
-            <ToggleTextField
-              label="Contact #"
-              value={template.customer.contactNumber}
-              onChange={(contactNumber) => updateCustomer({ contactNumber })}
-            />
-          </div>
-        </Section>
-
         <Section icon={FileText} title="Quote Content">
           <div className="grid gap-4 md:grid-cols-2">
             <ToggleTextField
@@ -523,7 +478,7 @@ export function QuoteTemplateDesigner({
         </Section>
 
         <Section icon={ReceiptText} title="Terms">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4">
             <Field label="Payment terms">
               <Textarea
                 required

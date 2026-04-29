@@ -37,7 +37,10 @@ import type {
   QuoteStatus,
   UnavailableQuoteShareLink,
 } from "@/lib/quotes/types";
-import type { ValidationErrorDetails } from "@/lib/quotes/validation";
+import type {
+  ValidationErrorDetails,
+  ValidationIssue,
+} from "@/lib/quotes/validation";
 import { formatQuoteIssuedDate } from "@/lib/utils";
 
 const customerFieldVisibilityOptions = [
@@ -72,6 +75,9 @@ export function QuoteEditor({
   const [pendingAction, setPendingAction] =
     useState<PendingQuoteAction | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>(
+    [],
+  );
   const [signatureOpen, setSignatureOpen] = useState(false);
   const [shareLinks, setShareLinks] = useState<QuoteShareLink[]>(() =>
     quote ? buildQuoteShareLinks(quote) : [],
@@ -116,6 +122,8 @@ export function QuoteEditor({
     ? draft.lineItems
     : draft.lineItems.map((lineItem) => ({ ...lineItem, taxRate: 0 }));
   const isPending = pendingAction !== null;
+  const fieldError = (path: Array<string | number>) =>
+    getDraftIssueMessage(validationIssues, path, { clientNameLabel });
 
   const totals = calculateQuoteTotals(
     lineItemsForTotals,
@@ -171,14 +179,17 @@ export function QuoteEditor({
     const payload = await response.json();
 
     if (!response.ok) {
+      const errorPayload = payload as QuoteDraftErrorPayload;
+      setValidationIssues(errorPayload.error?.details?.issues ?? []);
       setMessage(
-        formatQuoteDraftSaveError(payload as QuoteDraftErrorPayload, {
+        formatQuoteDraftSaveError(errorPayload, {
           clientNameLabel,
         }),
       );
       return null;
     }
 
+    setValidationIssues([]);
     setMessage("Draft saved.");
     router.refresh();
 
@@ -301,12 +312,39 @@ export function QuoteEditor({
         <section className="rounded-lg border border-stone-200 bg-white p-5">
           <h2 className="mb-5 font-semibold text-stone-950">Quote details</h2>
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Quotation name">
+            <Field
+              label="Quotation name"
+              error={fieldError(["quotationName"])}
+            >
               <Input
                 placeholder="Defaults to quotation number"
                 value={draft.quotationName}
                 onChange={(event) =>
                   updateDraft({ quotationName: event.target.value })
+                }
+              />
+            </Field>
+            {effectiveTemplate.offerTitle.enabled ? (
+              <Field label="Title Offer" error={fieldError(["title"])}>
+                <Input
+                  maxLength={160}
+                  placeholder={offerTitlePlaceholder}
+                  value={draft.title}
+                  onChange={(event) => updateDraft({ title: event.target.value })}
+                />
+              </Field>
+            ) : null}
+            <Field
+              label="Quotation Validity"
+              required
+              error={fieldError(["validUntil"])}
+            >
+              <Input
+                required
+                type="date"
+                value={draft.validUntil ?? ""}
+                onChange={(event) =>
+                  updateDraft({ validUntil: event.target.value })
                 }
               />
             </Field>
@@ -336,16 +374,6 @@ export function QuoteEditor({
                   <ReadOnlyBox value="Hidden" />
                 )}
               </StaticToggleField>
-              <StaticField label="Quotation Validity">
-                <Input
-                  required
-                  type="date"
-                  value={draft.validUntil ?? ""}
-                  onChange={(event) =>
-                    updateDraft({ validUntil: event.target.value })
-                  }
-                />
-              </StaticField>
               <StaticField label={effectiveTemplate.company.dateLabel || "Date"}>
                 <ReadOnlyBox value={formatQuoteIssuedDate(quote?.sentAt)} />
               </StaticField>
@@ -392,17 +420,6 @@ export function QuoteEditor({
               >
                 <ReadOnlyInput value={effectiveTemplate.company.vatRegTin.value} />
               </StaticToggleField>
-              <StaticToggleField
-                enabled={effectiveTemplate.offerTitle.enabled}
-                label="Title Offer"
-              >
-                <Input
-                  maxLength={160}
-                  placeholder={offerTitlePlaceholder}
-                  value={draft.title}
-                  onChange={(event) => updateDraft({ title: event.target.value })}
-                />
-              </StaticToggleField>
             </div>
           </div>
         </section>
@@ -430,7 +447,11 @@ export function QuoteEditor({
                 ))}
               </div>
             </div>
-            <Field label={clientNameLabel}>
+            <Field
+              label={clientNameLabel}
+              required
+              error={fieldError(["client", "contactName"])}
+            >
               <Input
                 required
                 placeholder={clientNameLabel}
@@ -463,7 +484,10 @@ export function QuoteEditor({
               </Field>
             ) : null}
             {(effectiveTemplate.customer.email.enabled ?? true) ? (
-              <Field label={effectiveTemplate.customer.email.value || "Email"}>
+              <Field
+                label={effectiveTemplate.customer.email.value || "Email"}
+                error={fieldError(["client", "email"])}
+              >
                 <Input
                   type="email"
                   placeholder={clientEmailPlaceholder}
@@ -508,18 +532,42 @@ export function QuoteEditor({
             currency={draft.currency}
             lineItems={draft.lineItems}
             lineItemData={lineItemData}
+            validationIssues={validationIssues}
             template={effectiveTemplate}
             onChange={(lineItems) => updateDraft({ lineItems })}
           />
         </section>
 
+        <section className="rounded-lg border border-stone-200 bg-white p-5">
+          <h2 className="mb-5 font-semibold text-stone-950">
+            Payment and terms
+          </h2>
+          <div className="grid gap-4">
+            <Field label="Payment Terms" error={fieldError(["terms"])}>
+              <Textarea
+                className="min-h-36"
+                value={draft.terms ?? ""}
+                onChange={(event) =>
+                  updateDraft({ terms: event.target.value })
+                }
+              />
+            </Field>
+            <Field
+              label="Terms & Conditions"
+              error={fieldError(["notes"])}
+            >
+              <Textarea
+                className="min-h-36"
+                value={draft.notes ?? ""}
+                onChange={(event) =>
+                  updateDraft({ notes: event.target.value })
+                }
+              />
+            </Field>
+          </div>
+        </section>
+
         <section className="grid gap-4 rounded-lg border border-stone-200 bg-white p-5 md:grid-cols-2">
-          <StaticField label="Payment Terms">
-            <ReadOnlyText value={effectiveTemplate.paymentTerms} />
-          </StaticField>
-          <StaticField label="Terms & Conditions">
-            <ReadOnlyText value={effectiveTemplate.termsAndConditions} />
-          </StaticField>
           <StaticField label="Client signature">
             <ReadOnlyBox
               value={
@@ -529,15 +577,17 @@ export function QuoteEditor({
               }
             />
           </StaticField>
-          <Field label="Quoter signature">
+          <StaticField label="Quoter signature" marker="Required to send">
             <div className="space-y-3">
-              <Input
-                placeholder="Printed name"
-                value={draft.quoterPrintedName ?? ""}
-                onChange={(event) =>
-                  updateDraft({ quoterPrintedName: event.target.value })
-                }
-              />
+              <Field label="Printed name" marker="Required to send">
+                <Input
+                  placeholder="Printed name"
+                  value={draft.quoterPrintedName ?? ""}
+                  onChange={(event) =>
+                    updateDraft({ quoterPrintedName: event.target.value })
+                  }
+                />
+              </Field>
               {draft.quoterSignatureAsset?.dataUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -583,7 +633,7 @@ export function QuoteEditor({
                 ) : null}
               </div>
             </div>
-          </Field>
+          </StaticField>
           {effectiveTemplate.footer.enabled ? (
             <div className="md:col-span-2">
               <StaticField label="Footer">
@@ -688,6 +738,8 @@ function createInitialDraft(quote: Quote | undefined, template: QuoteTemplate): 
     return createDraftFromTemplate(template);
   }
 
+  const templateSnapshot = quote.templateSnapshot ?? template;
+
   return {
     quotationName: quote.quotationName || quote.title,
     title: quote.title,
@@ -699,11 +751,11 @@ function createInitialDraft(quote: Quote | undefined, template: QuoteTemplate): 
       phone: quote.client.phone ?? "",
     },
     currency: normalizeCurrency(quote.currency),
-    validUntil: quote.validUntil ?? "",
+    validUntil: quote.validUntil ?? getDefaultValidityDate(quote.createdAt),
     requestSummary: quote.requestSummary ?? "",
-    terms: quote.terms ?? "",
-    notes: quote.notes ?? "",
-    templateSnapshot: quote.templateSnapshot ?? template,
+    terms: quote.terms ?? templateSnapshot.paymentTerms,
+    notes: quote.notes ?? templateSnapshot.termsAndConditions,
+    templateSnapshot,
     quoterPrintedName: quote.quoterPrintedName ?? "",
     quoterSignatureAsset: quote.quoterSignatureAsset ?? null,
     lineItems: quote.lineItems.map((lineItem) => ({
@@ -719,6 +771,29 @@ function createInitialDraft(quote: Quote | undefined, template: QuoteTemplate): 
       descriptionImageUrl: lineItem.descriptionImageUrl,
     })),
   };
+}
+
+function getDefaultValidityDate(value?: string | Date) {
+  const baseDate = value ? new Date(value) : new Date();
+
+  if (Number.isNaN(baseDate.getTime())) {
+    return formatDateInput(addLocalDays(new Date(), 14));
+  }
+
+  return formatDateInput(addLocalDays(baseDate, 14));
+}
+
+function addLocalDays(date: Date, days: number) {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + days);
+  return nextDate;
+}
+
+function formatDateInput(date: Date) {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${date.getFullYear()}-${month}-${day}`;
 }
 
 function formatQuoteDraftSaveError(
@@ -829,6 +904,26 @@ function formatQuoteDraftIssue(
   return null;
 }
 
+function getDraftIssueMessage(
+  issues: ValidationIssue[],
+  path: Array<string | number>,
+  input: { clientNameLabel: string },
+) {
+  const issue = issues.find((candidate) => isPathMatch(candidate.path, path));
+
+  return issue ? (formatQuoteDraftIssue(issue, input) ?? undefined) : undefined;
+}
+
+function isPathMatch(
+  candidatePath: Array<string | number>,
+  targetPath: Array<string | number>,
+) {
+  return (
+    candidatePath.length >= targetPath.length &&
+    targetPath.every((segment, index) => candidatePath[index] === segment)
+  );
+}
+
 function normalizeValidationMessage(message: string) {
   if (message === "Too small: expected string to have >=1 characters") {
     return "is required";
@@ -847,29 +942,61 @@ function startCase(value: string) {
 function Field({
   label,
   children,
+  error,
+  marker,
+  required = false,
 }: {
   label: string;
   children: ReactNode;
+  error?: string;
+  marker?: string;
+  required?: boolean;
 }) {
   return (
-    <label className="space-y-2">
-      <Label>{label}</Label>
+    <div className="space-y-2">
+      <FieldLabel label={label} marker={marker} required={required} />
       {children}
-    </label>
+      {error ? (
+        <p className="text-sm font-medium text-red-600">{error}</p>
+      ) : null}
+    </div>
   );
 }
 
 function StaticField({
   label,
   children,
+  marker,
 }: {
   label: string;
   children: ReactNode;
+  marker?: string;
 }) {
   return (
     <div className="space-y-2">
-      <Label>{label}</Label>
+      <FieldLabel label={label} marker={marker} />
       {children}
+    </div>
+  );
+}
+
+function FieldLabel({
+  label,
+  marker,
+  required = false,
+}: {
+  label: string;
+  marker?: string;
+  required?: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Label>{label}</Label>
+      {required || marker ? (
+        <span className="rounded-sm bg-stone-100 px-1.5 py-0.5 text-xs font-medium text-stone-600">
+          {marker ?? "Required"}
+        </span>
+      ) : null}
     </div>
   );
 }

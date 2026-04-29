@@ -241,11 +241,11 @@ export function QuoteDocument({
       <section className="grid gap-6 border-t border-stone-200 py-6 md:grid-cols-2">
         <DocumentTextBlock
           title="Payment Terms"
-          value={template?.paymentTerms || snapshot.terms}
+          value={snapshot.terms || template?.paymentTerms}
         />
         <DocumentTextBlock
           title="Terms & Conditions"
-          value={template?.termsAndConditions || snapshot.notes}
+          value={snapshot.notes || template?.termsAndConditions}
         />
       </section>
 

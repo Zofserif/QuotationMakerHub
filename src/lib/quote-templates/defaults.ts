@@ -221,23 +221,12 @@ export function createDraftFromTemplate(template: QuoteTemplate): QuoteDraft {
       phone: "",
     },
     currency: normalizeCurrency(template.lineItems.unitPrice.currency),
-    validUntil: "",
+    validUntil: formatDateInput(addLocalDays(new Date(), 14)),
     requestSummary: template.requestSummary.enabled
       ? template.requestSummary.value
       : "",
-    terms: [
-      "Payment Terms",
-      template.paymentTerms,
-      "",
-      "Terms & Conditions",
-      template.termsAndConditions,
-    ].join("\n"),
-    notes: [
-      template.requestSummary.enabled ? template.requestSummary.value : "",
-      template.footer.enabled ? template.footer.value : "",
-    ]
-      .filter(Boolean)
-      .join("\n\n"),
+    terms: template.paymentTerms,
+    notes: template.termsAndConditions,
     templateSnapshot: structuredClone(template),
     quoterPrintedName: "",
     quoterSignatureAsset: null,
@@ -253,4 +242,17 @@ export function createDraftFromTemplate(template: QuoteTemplate): QuoteDraft {
       },
     ],
   };
+}
+
+function addLocalDays(date: Date, days: number) {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + days);
+  return nextDate;
+}
+
+function formatDateInput(date: Date) {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${date.getFullYear()}-${month}-${day}`;
 }
