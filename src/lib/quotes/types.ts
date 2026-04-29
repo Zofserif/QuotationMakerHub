@@ -83,6 +83,7 @@ export type QuoteRecipient = {
   accessTokenHash?: string;
   accessTokenExpiresAt?: string;
   accessToken?: string;
+  shareLinkIssued?: boolean;
   viewedAt?: string;
   signedAt?: string;
   acceptedAt?: string;
@@ -222,6 +223,14 @@ export type QuoteShareLink = {
   signingPath: string;
 };
 
+export type UnavailableQuoteShareLink = {
+  recipientId: string;
+  name: string;
+  email: string;
+  status: RecipientStatus;
+  reason: "legacy_hash_only";
+};
+
 export type UpdateQuoteResult =
   | { ok: true; quote: Quote }
   | { ok: false; code: "QUOTE_NOT_FOUND" | "QUOTE_LOCKED" };
@@ -240,14 +249,23 @@ export type SendQuoteResult =
       quote: Quote;
       version: QuoteVersion;
       shareLinks: QuoteShareLink[];
+      unavailableShareLinks: UnavailableQuoteShareLink[];
     }
   | {
       ok: false;
       code: "QUOTE_NOT_FOUND" | "QUOTE_LOCKED" | "QUOTE_NOT_SENDABLE";
     };
 
-export type RotateQuoteShareLinksResult =
-  | { ok: true; quote: Quote; shareLinks: QuoteShareLink[] }
+export type EnsureQuoteShareLinksResult =
+  | {
+      ok: true;
+      quote: Quote;
+      shareLinks: QuoteShareLink[];
+      unavailableShareLinks: UnavailableQuoteShareLink[];
+      createdCount: number;
+      returnedCount: number;
+      unavailableCount: number;
+    }
   | {
       ok: false;
       code: "QUOTE_NOT_FOUND" | "QUOTE_LOCKED" | "QUOTE_NOT_SHAREABLE";

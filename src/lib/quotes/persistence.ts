@@ -14,7 +14,7 @@ import {
   listDemoQuotes,
   deleteDemoLineItemData,
   placeDemoSignature,
-  rotateDemoQuoteShareLinks,
+  ensureDemoQuoteShareLinks,
   sendDemoQuote,
   updateDemoLineItemData,
   updateDemoQuoteTemplate,
@@ -48,7 +48,7 @@ import {
   listSupabaseQuoteVersions,
   listSupabaseQuotes,
   placeSupabaseSignature,
-  rotateSupabaseQuoteShareLinks,
+  ensureSupabaseQuoteShareLinks,
   sendSupabaseQuote,
   updateSupabaseLineItemData,
   updateSupabaseQuoteTemplate,
@@ -233,15 +233,15 @@ export async function sendQuote(quoter: QuoterContext, quoteId: string) {
   return sendSupabaseQuote(quoter, quoteId);
 }
 
-export async function rotateQuoteShareLinks(
+export async function ensureQuoteShareLinks(
   quoter: QuoterContext,
   quoteId: string,
 ) {
   if (shouldUseDemoPersistence()) {
-    return rotateDemoQuoteShareLinks(quoteId);
+    return ensureDemoQuoteShareLinks(quoteId);
   }
 
-  return rotateSupabaseQuoteShareLinks(quoter, quoteId);
+  return ensureSupabaseQuoteShareLinks(quoter, quoteId);
 }
 
 export async function getClientQuoteView(token: string) {

@@ -43,6 +43,7 @@ export async function POST(
     versionNumber: result.version.versionNumber,
     status: result.quote.status,
     shareLinks: result.shareLinks,
+    unavailableShareLinks: result.unavailableShareLinks,
     recipients: result.quote.recipients.map((recipient) => ({
       recipientId: recipient.id,
       email: recipient.email,

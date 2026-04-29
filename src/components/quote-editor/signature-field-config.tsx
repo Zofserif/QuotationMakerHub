@@ -36,6 +36,8 @@ export function SignatureFieldConfig({
               <p className="mt-3 text-sm font-medium text-stone-700">
                 {href
                   ? `Open signing page for ${recipient.email}`
+                  : recipient.shareLinkIssued
+                    ? `Existing signing link remains valid for ${recipient.email}`
                   : `Send the quote to generate a signing link for ${recipient.email}`}
               </p>
             ) : null}

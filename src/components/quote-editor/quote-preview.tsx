@@ -6,7 +6,10 @@ import { SignatureFieldConfig } from "@/components/quote-editor/signature-field-
 import { mergeQuoteTemplate } from "@/lib/quote-templates/defaults";
 import type { QuoteTemplate } from "@/lib/quote-templates/types";
 import { createVersionSnapshot } from "@/lib/quotes/create-version-snapshot";
-import { buildQuoteShareLinks } from "@/lib/quotes/share-links";
+import {
+  buildQuoteShareLinks,
+  buildUnavailableQuoteShareLinks,
+} from "@/lib/quotes/share-links";
 import type { Quote } from "@/lib/quotes/types";
 
 export function QuotePreview({
@@ -27,6 +30,7 @@ export function QuotePreview({
         quoteId={quote.id}
         quoteStatus={quote.status}
         initialShareLinks={buildQuoteShareLinks(quote)}
+        initialUnavailableShareLinks={buildUnavailableQuoteShareLinks(quote)}
       />
 
       <QuoteDocument snapshot={snapshot} />

@@ -1,7 +1,7 @@
 import { captureServerEvent } from "@/lib/analytics/posthog-server";
 import { errorResponse } from "@/lib/api/responses";
 import { requireQuoter } from "@/lib/auth/require-quoter";
-import { rotateQuoteShareLinks } from "@/lib/quotes/persistence";
+import { ensureQuoteShareLinks } from "@/lib/quotes/persistence";
 
 export async function POST(
   _request: Request,
@@ -9,7 +9,7 @@ export async function POST(
 ) {
   const quoter = await requireQuoter();
   const { quoteId } = await params;
-  const result = await rotateQuoteShareLinks(quoter, quoteId);
+  const result = await ensureQuoteShareLinks(quoter, quoteId);
 
   if (!result.ok) {
     const quoteLocked = result.code === "QUOTE_LOCKED";
@@ -28,11 +28,15 @@ export async function POST(
 
   await captureServerEvent({
     distinctId: quoter.clerkUserId,
-    event: "quote_share_links_rotated",
+    event: "quote_share_links_ensured",
     properties: {
       quote_id: result.quote.id,
       organization_id: quoter.organizationId,
-      recipient_count: result.shareLinks.length,
+      recipient_count:
+        result.shareLinks.length + result.unavailableShareLinks.length,
+      created_count: result.createdCount,
+      returned_count: result.returnedCount,
+      unavailable_count: result.unavailableCount,
       quote_status: result.quote.status,
     },
   });
@@ -41,5 +45,9 @@ export async function POST(
     quoteId: result.quote.id,
     status: result.quote.status,
     shareLinks: result.shareLinks,
+    unavailableShareLinks: result.unavailableShareLinks,
+    createdCount: result.createdCount,
+    returnedCount: result.returnedCount,
+    unavailableCount: result.unavailableCount,
   });
 }

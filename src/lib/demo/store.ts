@@ -2,7 +2,6 @@ import { randomUUID } from "crypto";
 
 import {
   createClientAccessToken,
-  defaultTokenExpiry,
   hashClientAccessToken,
   isClientTokenHashMatch,
 } from "@/lib/client-links/token";
@@ -39,7 +38,7 @@ import type {
   QuoteLineItem,
   QuoteRecipient,
   QuoteVisibility,
-  RotateQuoteShareLinksResult,
+  EnsureQuoteShareLinksResult,
   SendQuoteResult,
   UpdateQuoteResult,
   UpdateQuoteVisibilityResult,
@@ -49,6 +48,7 @@ import type {
 } from "@/lib/quotes/types";
 import {
   buildQuoteShareLinks,
+  buildUnavailableQuoteShareLinks,
   isQuoteShareable,
 } from "@/lib/quotes/share-links";
 import { hashImageBytes, dataUrlToBuffer } from "@/lib/signatures/hash-image";
@@ -628,13 +628,22 @@ export function sendDemoQuote(quoteId: string): SendQuoteResult {
 
   demoState.versions.push(version);
   quote.recipients = quote.recipients.map((recipient) => {
-    const token = createClientAccessToken();
+    if (!recipient.accessToken && recipient.shareLinkIssued) {
+      return {
+        ...recipient,
+        accessTokenExpiresAt: undefined,
+        status: "pending",
+      };
+    }
+
+    const token = recipient.accessToken ?? createClientAccessToken();
 
     return {
       ...recipient,
       accessToken: token,
       accessTokenHash: hashClientAccessToken(token),
-      accessTokenExpiresAt: defaultTokenExpiry(),
+      accessTokenExpiresAt: undefined,
+      shareLinkIssued: true,
       status: "pending",
     };
   });
@@ -650,12 +659,13 @@ export function sendDemoQuote(quoteId: string): SendQuoteResult {
     quote,
     version,
     shareLinks: buildQuoteShareLinks(quote),
+    unavailableShareLinks: buildUnavailableQuoteShareLinks(quote),
   };
 }
 
-export function rotateDemoQuoteShareLinks(
+export function ensureDemoQuoteShareLinks(
   quoteId: string,
-): RotateQuoteShareLinksResult {
+): EnsureQuoteShareLinksResult {
   const quote = getDemoQuote(quoteId);
 
   if (!quote) {
@@ -678,27 +688,59 @@ export function rotateDemoQuoteShareLinks(
     return { ok: false as const, code: "QUOTE_NOT_SHAREABLE" };
   }
 
-  const expiresAt = defaultTokenExpiry();
+  let createdCount = 0;
+  let returnedCount = 0;
+  let unavailableCount = 0;
 
   quote.recipients = quote.recipients.map((recipient) => {
+    if (recipient.accessToken) {
+      returnedCount += 1;
+
+      return {
+        ...recipient,
+        accessTokenExpiresAt: undefined,
+        shareLinkIssued: true,
+      };
+    }
+
+    if (recipient.shareLinkIssued) {
+      unavailableCount += 1;
+
+      return {
+        ...recipient,
+        accessTokenExpiresAt: undefined,
+      };
+    }
+
     const token = createClientAccessToken();
+    createdCount += 1;
 
     return {
       ...recipient,
       accessToken: token,
       accessTokenHash: hashClientAccessToken(token),
-      accessTokenExpiresAt: expiresAt,
+      accessTokenExpiresAt: undefined,
+      shareLinkIssued: true,
     };
   });
-  quote.updatedAt = new Date().toISOString();
-  appendAudit(quote.id, "quote.share_links.rotated", "quoter", DEMO_USER_ID, {
+  if (createdCount > 0) {
+    quote.updatedAt = new Date().toISOString();
+  }
+  appendAudit(quote.id, "quote.share_links.ensured", "quoter", DEMO_USER_ID, {
     recipientCount: quote.recipients.length,
+    createdCount,
+    returnedCount,
+    unavailableCount,
   });
 
   return {
     ok: true as const,
     quote,
     shareLinks: buildQuoteShareLinks(quote),
+    unavailableShareLinks: buildUnavailableQuoteShareLinks(quote),
+    createdCount,
+    returnedCount,
+    unavailableCount,
   };
 }
 

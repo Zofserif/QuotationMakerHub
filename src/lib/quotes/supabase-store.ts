@@ -38,7 +38,7 @@ import type {
   QuoteRecipient,
   QuoteStatus,
   QuoteVisibility,
-  RotateQuoteShareLinksResult,
+  EnsureQuoteShareLinksResult,
   SendQuoteResult,
   QuoteVersion,
   QuoteVersionSnapshot,
@@ -52,6 +52,7 @@ import type {
 } from "@/lib/quotes/types";
 import {
   buildQuoteShareLinks,
+  buildUnavailableQuoteShareLinks,
   isQuoteShareable,
 } from "@/lib/quotes/share-links";
 import { renderQuotePdf } from "@/lib/pdf/render-pdf";
@@ -180,8 +181,9 @@ type QuoteRecipientRow = {
   email: string;
   role: "client" | "quoter";
   status: RecipientStatus;
+  access_token: string | null;
   access_token_hash: string;
-  access_token_expires_at: string;
+  access_token_expires_at: string | null;
   viewed_at: string | null;
   signed_at: string | null;
   accepted_at: string | null;
@@ -838,20 +840,20 @@ export async function sendSupabaseQuote(
 
   throwIfError(versionError, "Create quote version");
 
-  const tokenByRecipientId = new Map<string, string>();
-  const expiresAt = defaultTokenExpiry();
-
   await Promise.all(
     quote.recipients.map(async (recipient) => {
-      const token = createClientAccessToken();
-      tokenByRecipientId.set(recipient.id, token);
+      const tokenPayload =
+        recipient.accessToken || recipient.shareLinkIssued
+          ? {}
+          : createRecipientTokenPayload();
+
       const { error } = await db
         .from("quote_recipients")
         .update({
           quote_version_id: version.id,
           status: "pending",
-          access_token_hash: hashClientAccessToken(token),
-          access_token_expires_at: expiresAt,
+          ...tokenPayload,
+          access_token_expires_at: null,
           viewed_at: null,
           signed_at: null,
           accepted_at: null,
@@ -861,7 +863,7 @@ export async function sendSupabaseQuote(
         .eq("id", recipient.id)
         .eq("quote_id", quote.id);
 
-      throwIfError(error, "Rotate recipient token");
+      throwIfError(error, "Ensure recipient token");
     }),
   );
 
@@ -905,23 +907,28 @@ export async function sendSupabaseQuote(
     throw new Error("Sent quote could not be loaded.");
   }
 
-  sentQuote.recipients = sentQuote.recipients.map((recipient) => ({
-    ...recipient,
-    accessToken: tokenByRecipientId.get(recipient.id),
-  }));
-
   return {
     ok: true,
     quote: sentQuote,
     version,
     shareLinks: buildQuoteShareLinks(sentQuote),
+    unavailableShareLinks: buildUnavailableQuoteShareLinks(sentQuote),
   };
 }
 
-export async function rotateSupabaseQuoteShareLinks(
+function createRecipientTokenPayload() {
+  const token = createClientAccessToken();
+
+  return {
+    access_token: token,
+    access_token_hash: hashClientAccessToken(token),
+  };
+}
+
+export async function ensureSupabaseQuoteShareLinks(
   quoter: QuoterContext,
   quoteId: string,
-): Promise<RotateQuoteShareLinksResult> {
+): Promise<EnsureQuoteShareLinksResult> {
   const db = createSupabaseAdminClient();
   const organization = await ensureWorkspace(db, quoter);
   const quote = await loadQuote(db, quoteId, organization.id);
@@ -944,35 +951,77 @@ export async function rotateSupabaseQuoteShareLinks(
     return { ok: false, code: "QUOTE_NOT_SHAREABLE" };
   }
 
-  const expiresAt = defaultTokenExpiry();
-  const tokenByRecipientId = new Map<string, string>();
+  let createdCount = 0;
+  let returnedCount = 0;
+  let unavailableCount = 0;
+  let changedRecipients = false;
 
   await Promise.all(
     quote.recipients.map(async (recipient) => {
+      if (recipient.accessToken) {
+        returnedCount += 1;
+
+        if (!recipient.accessTokenExpiresAt) {
+          return;
+        }
+
+        changedRecipients = true;
+        const { error } = await db
+          .from("quote_recipients")
+          .update({ access_token_expires_at: null })
+          .eq("id", recipient.id)
+          .eq("quote_id", quote.id);
+
+        throwIfError(error, "Clear recipient share token expiry");
+        return;
+      }
+
+      if (recipient.shareLinkIssued) {
+        unavailableCount += 1;
+
+        if (!recipient.accessTokenExpiresAt) {
+          return;
+        }
+
+        changedRecipients = true;
+        const { error } = await db
+          .from("quote_recipients")
+          .update({ access_token_expires_at: null })
+          .eq("id", recipient.id)
+          .eq("quote_id", quote.id);
+
+        throwIfError(error, "Clear legacy recipient token expiry");
+        return;
+      }
+
       const token = createClientAccessToken();
-      tokenByRecipientId.set(recipient.id, token);
+      createdCount += 1;
+      changedRecipients = true;
 
       const { error } = await db
         .from("quote_recipients")
         .update({
+          access_token: token,
           access_token_hash: hashClientAccessToken(token),
-          access_token_expires_at: expiresAt,
+          access_token_expires_at: null,
         })
         .eq("id", recipient.id)
         .eq("quote_id", quote.id);
 
-      throwIfError(error, "Rotate recipient share token");
+      throwIfError(error, "Create stable recipient share token");
     }),
   );
 
-  const updatedAt = new Date().toISOString();
-  const { error: quoteError } = await db
-    .from("quotes")
-    .update({ updated_at: updatedAt })
-    .eq("id", quote.id)
-    .eq("organization_id", organization.id);
+  if (changedRecipients) {
+    const updatedAt = new Date().toISOString();
+    const { error: quoteError } = await db
+      .from("quotes")
+      .update({ updated_at: updatedAt })
+      .eq("id", quote.id)
+      .eq("organization_id", organization.id);
 
-  throwIfError(quoteError, "Mark quote share links rotated");
+    throwIfError(quoteError, "Mark quote share links ensured");
+  }
 
   await appendAuditEvent(db, {
     organizationId: organization.id,
@@ -980,27 +1029,29 @@ export async function rotateSupabaseQuoteShareLinks(
     quoteVersionId: version.id,
     actorType: "quoter",
     actorRef: quoter.clerkUserId,
-    eventType: "quote.share_links.rotated",
+    eventType: "quote.share_links.ensured",
     metadata: {
       recipientCount: quote.recipients.length,
+      createdCount,
+      returnedCount,
+      unavailableCount,
     },
   });
 
-  const rotatedQuote = await loadQuote(db, quote.id, organization.id);
+  const ensuredQuote = await loadQuote(db, quote.id, organization.id);
 
-  if (!rotatedQuote) {
+  if (!ensuredQuote) {
     return { ok: false, code: "QUOTE_NOT_FOUND" };
   }
 
-  rotatedQuote.recipients = rotatedQuote.recipients.map((recipient) => ({
-    ...recipient,
-    accessToken: tokenByRecipientId.get(recipient.id),
-  }));
-
   return {
     ok: true,
-    quote: rotatedQuote,
-    shareLinks: buildQuoteShareLinks(rotatedQuote),
+    quote: ensuredQuote,
+    shareLinks: buildQuoteShareLinks(ensuredQuote),
+    unavailableShareLinks: buildUnavailableQuoteShareLinks(ensuredQuote),
+    createdCount,
+    returnedCount,
+    unavailableCount,
   };
 }
 
@@ -2087,7 +2138,10 @@ async function findRecipientByToken(db: SupabaseClient, token: string) {
     return null;
   }
 
-  if (new Date(recipientRow.access_token_expires_at) < new Date()) {
+  if (
+    recipientRow.access_token_expires_at &&
+    new Date(recipientRow.access_token_expires_at) < new Date()
+  ) {
     return null;
   }
 
@@ -2372,7 +2426,9 @@ function mapRecipientRow(row: QuoteRecipientRow): QuoteRecipient {
     email: row.email,
     role: row.role,
     status: row.status,
-    accessTokenExpiresAt: row.access_token_expires_at,
+    accessToken: row.access_token ?? undefined,
+    accessTokenExpiresAt: row.access_token_expires_at ?? undefined,
+    shareLinkIssued: Boolean(row.access_token || row.quote_version_id),
     viewedAt: row.viewed_at ?? undefined,
     signedAt: row.signed_at ?? undefined,
     acceptedAt: row.accepted_at ?? undefined,

@@ -6,7 +6,6 @@ import {
   Copy,
   ExternalLink,
   QrCode,
-  RefreshCw,
   Send,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -16,13 +15,15 @@ import { isQuoteShareable } from "@/lib/quotes/share-links";
 import type {
   QuoteShareLink,
   QuoteStatus,
+  UnavailableQuoteShareLink,
 } from "@/lib/quotes/types";
-import { cn, formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 type QuoteSharePanelProps = {
   quoteId?: string;
   quoteStatus: QuoteStatus;
   initialShareLinks?: QuoteShareLink[];
+  initialUnavailableShareLinks?: UnavailableQuoteShareLink[];
   variant?: "panel" | "compact";
   className?: string;
   title?: string;
@@ -31,6 +32,7 @@ type QuoteSharePanelProps = {
 type ShareLinksPayload = {
   status?: QuoteStatus;
   shareLinks?: QuoteShareLink[];
+  unavailableShareLinks?: UnavailableQuoteShareLink[];
   error?: {
     message?: string;
   };
@@ -40,34 +42,44 @@ export function QuoteSharePanel({
   quoteId,
   quoteStatus,
   initialShareLinks = [],
+  initialUnavailableShareLinks = [],
   variant = "panel",
   className,
   title = "Client signing links",
 }: QuoteSharePanelProps) {
   const origin = useClientOrigin();
-  const [rotatedStatus, setRotatedStatus] = useState<QuoteStatus | null>(null);
+  const [ensuredStatus, setEnsuredStatus] = useState<QuoteStatus | null>(null);
   const [generatedShareLinks, setGeneratedShareLinks] = useState<
     QuoteShareLink[] | null
   >(null);
+  const [generatedUnavailableShareLinks, setGeneratedUnavailableShareLinks] =
+    useState<UnavailableQuoteShareLink[] | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const status = rotatedStatus ?? quoteStatus;
+  const [isGenerating, setIsGenerating] = useState(false);
+  const status = ensuredStatus ?? quoteStatus;
   const shareLinks = generatedShareLinks ?? initialShareLinks;
+  const unavailableShareLinks =
+    generatedUnavailableShareLinks ?? initialUnavailableShareLinks;
   const hasLinks = shareLinks.length > 0;
-  const canRefresh = Boolean(quoteId && isQuoteShareable(status));
+  const hasUnavailableLinks = unavailableShareLinks.length > 0;
+  const hasIssuedLinks = hasLinks || hasUnavailableLinks;
+  const canGenerate = Boolean(
+    quoteId && isQuoteShareable(status) && !hasIssuedLinks,
+  );
   const description = resolveDescription({
-    canRefresh,
+    canGenerate,
     hasLinks,
+    hasUnavailableLinks,
     status,
   });
 
-  async function refreshShareLinks() {
+  async function generateShareLinks() {
     if (!quoteId) {
       return;
     }
 
-    setIsRefreshing(true);
+    setIsGenerating(true);
 
     try {
       setMessage(null);
@@ -81,13 +93,18 @@ export function QuoteSharePanel({
         return;
       }
 
-      setRotatedStatus(payload.status ?? status);
+      setEnsuredStatus(payload.status ?? status);
       setGeneratedShareLinks(payload.shareLinks ?? []);
-      setMessage("Fresh signing link generated. Previous links no longer work.");
+      setGeneratedUnavailableShareLinks(payload.unavailableShareLinks ?? []);
+      setMessage(
+        payload.shareLinks?.length
+          ? "Signing link ready."
+          : "Existing customer link remains valid but cannot be displayed.",
+      );
     } catch {
       setMessage("Could not generate share links.");
     } finally {
-      setIsRefreshing(false);
+      setIsGenerating(false);
     }
   }
 
@@ -111,19 +128,19 @@ export function QuoteSharePanel({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <p className="text-sm leading-6 text-stone-600">{description}</p>
-        {canRefresh ? (
+        {canGenerate ? (
           <Button
             type="button"
-            variant={hasLinks ? "secondary" : "primary"}
+            variant="primary"
             size="sm"
-            disabled={isRefreshing}
-            loading={isRefreshing}
-            loadingText={hasLinks ? "Refreshing..." : "Generating..."}
+            disabled={isGenerating}
+            loading={isGenerating}
+            loadingText="Generating..."
             className="shrink-0"
-            onClick={() => void refreshShareLinks()}
+            onClick={() => void generateShareLinks()}
           >
-            <RefreshCw className="size-4" />
-            {hasLinks ? "Refresh link" : "Generate link"}
+            <Send className="size-4" />
+            Generate link
           </Button>
         ) : null}
       </div>
@@ -151,8 +168,7 @@ export function QuoteSharePanel({
                       {shareLink.name || "Manual signing link"}
                     </p>
                     <p className="text-xs text-stone-500">
-                      {shareLink.email || "No client email"} · Expires{" "}
-                      {formatDate(shareLink.accessTokenExpiresAt)}
+                      {shareLink.email || "No client email"} · No auto-expiry
                     </p>
                   </div>
                   <input
@@ -211,6 +227,28 @@ export function QuoteSharePanel({
           })}
         </div>
       ) : null}
+
+      {hasUnavailableLinks ? (
+        <div className="space-y-3">
+          {unavailableShareLinks.map((shareLink) => (
+            <div
+              className="rounded-lg border border-stone-200 bg-stone-50 p-3"
+              key={shareLink.recipientId}
+            >
+              <p className="text-sm font-semibold text-stone-950">
+                {shareLink.name || "Manual signing link"}
+              </p>
+              <p className="mt-1 text-xs text-stone-500">
+                {shareLink.email || "No client email"}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-stone-600">
+                Existing customer link remains valid, but this older quote does
+                not store the original URL. It cannot be displayed or refreshed.
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 
@@ -228,7 +266,11 @@ export function QuoteSharePanel({
             Share quote
           </span>
           <span className="text-xs font-medium text-stone-500">
-            {hasLinks ? "Link ready" : canRefresh ? "Generate" : "Unavailable"}
+            {resolveSummaryLabel({
+              canGenerate,
+              hasLinks,
+              hasUnavailableLinks,
+            })}
           </span>
         </summary>
         <div className="border-t border-stone-200 bg-white p-3">{content}</div>
@@ -250,16 +292,21 @@ export function QuoteSharePanel({
 }
 
 function resolveDescription(input: {
-  canRefresh: boolean;
+  canGenerate: boolean;
   hasLinks: boolean;
+  hasUnavailableLinks: boolean;
   status: QuoteStatus;
 }) {
   if (input.hasLinks) {
     return "Copy the full signing URL or let the client scan the QR code.";
   }
 
-  if (input.canRefresh) {
-    return "Generate a fresh signing link when you are ready to share this quote. Refreshing invalidates previously generated links.";
+  if (input.hasUnavailableLinks) {
+    return "An existing customer link remains valid, but this older quote does not store the original URL.";
+  }
+
+  if (input.canGenerate) {
+    return "Generate the client signing link when you are ready to share this quote.";
   }
 
   if (input.status === "locked") {
@@ -267,6 +314,22 @@ function resolveDescription(input: {
   }
 
   return "Save, sign, and send first to generate a client signing link.";
+}
+
+function resolveSummaryLabel(input: {
+  canGenerate: boolean;
+  hasLinks: boolean;
+  hasUnavailableLinks: boolean;
+}) {
+  if (input.hasLinks) {
+    return "Link ready";
+  }
+
+  if (input.hasUnavailableLinks) {
+    return "Existing link";
+  }
+
+  return input.canGenerate ? "Generate" : "Unavailable";
 }
 
 function absoluteShareUrl(origin: string, signingPath: string) {

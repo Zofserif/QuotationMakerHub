@@ -26,12 +26,16 @@ import {
 import type { QuoteTemplate } from "@/lib/quote-templates/types";
 import type { LineItemData } from "@/lib/line-item-data/types";
 import { calculateQuoteTotals } from "@/lib/quotes/calculate-totals";
-import { buildQuoteShareLinks } from "@/lib/quotes/share-links";
+import {
+  buildQuoteShareLinks,
+  buildUnavailableQuoteShareLinks,
+} from "@/lib/quotes/share-links";
 import type {
   Quote,
   QuoteDraft,
   QuoteShareLink,
   QuoteStatus,
+  UnavailableQuoteShareLink,
 } from "@/lib/quotes/types";
 import type { ValidationErrorDetails } from "@/lib/quotes/validation";
 import { formatQuoteIssuedDate } from "@/lib/utils";
@@ -72,6 +76,9 @@ export function QuoteEditor({
   const [shareLinks, setShareLinks] = useState<QuoteShareLink[]>(() =>
     quote ? buildQuoteShareLinks(quote) : [],
   );
+  const [unavailableShareLinks, setUnavailableShareLinks] = useState<
+    UnavailableQuoteShareLink[]
+  >(() => (quote ? buildUnavailableQuoteShareLinks(quote) : []));
   const [shareStatus, setShareStatus] = useState<QuoteStatus>(
     quote?.status ?? "draft",
   );
@@ -207,7 +214,12 @@ export function QuoteEditor({
 
     setShareStatus(payload.status ?? "sent");
     setShareLinks(parseShareLinksPayload(payload));
-    setMessage("Quote sent. Copy or scan the signing link in the share panel.");
+    setUnavailableShareLinks(payload.unavailableShareLinks ?? []);
+    setMessage(
+      payload.unavailableShareLinks?.length
+        ? "Quote sent. Existing customer link remains valid but cannot be displayed."
+        : "Quote sent. Copy or scan the signing link in the share panel.",
+    );
     router.refresh();
   }
 
@@ -622,6 +634,7 @@ export function QuoteEditor({
           quoteId={quote?.id}
           quoteStatus={quote ? shareStatus : "draft"}
           initialShareLinks={shareLinks}
+          initialUnavailableShareLinks={unavailableShareLinks}
         />
       </aside>
 
@@ -639,6 +652,7 @@ export function QuoteEditor({
 
 function parseShareLinksPayload(payload: {
   shareLinks?: QuoteShareLink[];
+  unavailableShareLinks?: UnavailableQuoteShareLink[];
   recipients?: Array<{
     recipientId: string;
     email: string;

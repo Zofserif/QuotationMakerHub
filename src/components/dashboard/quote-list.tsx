@@ -4,7 +4,10 @@ import { QuoteSharePanel } from "@/components/quote-share/quote-share-panel";
 import { LinkButton } from "@/components/ui/button";
 import { QuoteStatusBadge } from "@/components/dashboard/quote-status-badge";
 import { QuoteVisibilityActions } from "@/components/dashboard/quote-visibility-actions";
-import { buildQuoteShareLinks } from "@/lib/quotes/share-links";
+import {
+  buildQuoteShareLinks,
+  buildUnavailableQuoteShareLinks,
+} from "@/lib/quotes/share-links";
 import type { Quote } from "@/lib/quotes/types";
 import { formatDate, formatMoney } from "@/lib/utils";
 
@@ -97,6 +100,9 @@ export function QuoteList({
                   quoteId={quote.id}
                   quoteStatus={quote.status}
                   initialShareLinks={buildQuoteShareLinks(quote)}
+                  initialUnavailableShareLinks={buildUnavailableQuoteShareLinks(
+                    quote,
+                  )}
                   variant="compact"
                   className="lg:col-span-5"
                 />
