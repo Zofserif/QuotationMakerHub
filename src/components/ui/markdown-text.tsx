@@ -30,7 +30,7 @@ export function MarkdownText({
           return (
             <ul className="list-disc space-y-1 pl-5" key={index}>
               {block.items.map((item, itemIndex) => (
-                <li key={itemIndex}>
+                <li className="text-justify" key={itemIndex}>
                   <InlineMarkdown value={item} />
                 </li>
               ))}
@@ -42,8 +42,12 @@ export function MarkdownText({
           return (
             <ol className="list-decimal space-y-1 pl-5" key={index}>
               {block.items.map((item, itemIndex) => (
-                <li key={itemIndex}>
-                  <InlineMarkdown value={item} />
+                <li
+                  className="text-justify"
+                  key={itemIndex}
+                  value={item.value}
+                >
+                  <InlineMarkdown value={item.text} />
                 </li>
               ))}
             </ol>
@@ -51,7 +55,7 @@ export function MarkdownText({
         }
 
         return (
-          <p className="whitespace-pre-wrap" key={index}>
+          <p className="whitespace-pre-wrap text-justify" key={index}>
             <InlineMarkdown value={block.text} />
           </p>
         );
@@ -64,7 +68,12 @@ type MarkdownBlock =
   | { type: "heading"; level: 2 | 3 | 4; text: string }
   | { type: "paragraph"; text: string }
   | { type: "unordered-list"; items: string[] }
-  | { type: "ordered-list"; items: string[] };
+  | { type: "ordered-list"; items: OrderedListItem[] };
+
+type OrderedListItem = {
+  text: string;
+  value: number;
+};
 
 function parseBlocks(value: string): MarkdownBlock[] {
   const blocks: MarkdownBlock[] = [];
@@ -120,20 +129,28 @@ function parseBlocks(value: string): MarkdownBlock[] {
       continue;
     }
 
-    const ordered = /^\d+\.\s+(.+)$/.exec(trimmed);
+    const ordered = /^(\d+)\.\s+(.+)$/.exec(trimmed);
 
     if (ordered) {
       flushParagraph();
-      const items = [ordered[1]];
+      const items = [
+        {
+          text: ordered[2],
+          value: Number.parseInt(ordered[1], 10),
+        },
+      ];
 
       while (index + 1 < lines.length) {
-        const next = /^\d+\.\s+(.+)$/.exec(lines[index + 1].trim());
+        const next = /^(\d+)\.\s+(.+)$/.exec(lines[index + 1].trim());
 
         if (!next) {
           break;
         }
 
-        items.push(next[1]);
+        items.push({
+          text: next[2],
+          value: Number.parseInt(next[1], 10),
+        });
         index += 1;
       }
 

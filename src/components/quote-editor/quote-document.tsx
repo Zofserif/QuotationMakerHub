@@ -364,7 +364,7 @@ export function QuoteDocument({
         />
       </section>
 
-      <section className="grid gap-6 border-t border-stone-200 py-6 md:grid-cols-2">
+      <section className="grid gap-6 border-t border-stone-200 py-6 md:grid-cols-2 print:grid-cols-2">
         <div>
           <h2 className="font-semibold text-stone-950">
             {usesClientDocumentLayout ? "Confirmed by:" : "Client signature"}
@@ -444,11 +444,16 @@ export function QuoteDocument({
         </div>
       </section>
 
-      {!usesClientDocumentLayout && template?.footer.enabled && template.footer.value ? (
+      {template?.footer.enabled && template.footer.value ? (
         <section className="border-t border-stone-200 pt-6">
-          <h2 className="font-semibold text-stone-950">Footer</h2>
+          {!usesClientDocumentLayout ? (
+            <h2 className="font-semibold text-stone-950">Footer</h2>
+          ) : null}
           <MarkdownText
-            className="mt-3 text-sm leading-6 text-stone-600"
+            className={cn(
+              "text-sm leading-6 text-stone-600",
+              !usesClientDocumentLayout ? "mt-3" : null,
+            )}
             value={template.footer.value}
           />
         </section>
@@ -572,9 +577,10 @@ function DocumentTextBlock({
   return (
     <div>
       <h2 className="font-semibold text-stone-950">{title}</h2>
-      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-stone-600">
-        {value || "Not set"}
-      </p>
+      <MarkdownText
+        className="mt-2 text-sm leading-6 text-stone-600"
+        value={value || "Not set"}
+      />
     </div>
   );
 }
