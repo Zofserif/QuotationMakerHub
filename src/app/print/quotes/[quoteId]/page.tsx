@@ -1,19 +1,37 @@
 import { notFound } from "next/navigation";
 
 import { QuoteDocument } from "@/components/quote-editor/quote-document";
+import { QuotePrintToolbar } from "@/components/quote-editor/quote-print-toolbar";
 import { requireQuoter } from "@/lib/auth/require-quoter";
-import { getQuote, listQuoteVersions } from "@/lib/quotes/persistence";
-import { formatDate } from "@/lib/utils";
+import { mergeQuoteTemplate } from "@/lib/quote-templates/defaults";
+import { createVersionSnapshot } from "@/lib/quotes/create-version-snapshot";
+import {
+  getQuote,
+  getQuoteTemplate,
+  listQuoteDocumentSignatures,
+  listQuoteVersions,
+} from "@/lib/quotes/persistence";
+import {
+  getQuotePaperSizeOption,
+  parseQuotePaperSize,
+  parseQuoteSignatureMode,
+} from "@/lib/quotes/print-options";
 
 export default async function PrintQuotePage({
   params,
   searchParams,
 }: {
   params: Promise<{ quoteId: string }>;
-  searchParams: Promise<{ version?: string }>;
+  searchParams: Promise<{
+    paper?: string;
+    signature?: string;
+    version?: string;
+  }>;
 }) {
   const { quoteId } = await params;
-  const { version } = await searchParams;
+  const { paper, signature, version } = await searchParams;
+  const paperSize = parseQuotePaperSize(paper);
+  const paperOption = getQuotePaperSizeOption(paperSize);
   const quoter = await requireQuoter();
   const quote = await getQuote(quoter, quoteId);
 
@@ -25,40 +43,57 @@ export default async function PrintQuotePage({
   const selectedVersion =
     versions.find((candidate) => String(candidate.versionNumber) === version) ??
     versions.at(-1);
-  const snapshot = selectedVersion?.snapshot;
+  const template = selectedVersion ? undefined : await getQuoteTemplate(quoter);
+  const snapshot =
+    selectedVersion?.snapshot ??
+    createVersionSnapshot(
+      quote,
+      mergeQuoteTemplate(quote.templateSnapshot ?? template),
+    );
+  const allowSignatureModeToggle = quote.status === "locked";
+  const signatureMode = allowSignatureModeToggle
+    ? parseQuoteSignatureMode(signature)
+    : "wet";
 
   if (!snapshot) {
     notFound();
   }
 
+  const clientSignatures = selectedVersion
+    ? await listQuoteDocumentSignatures(quoter, quote.id, selectedVersion.id)
+    : undefined;
+
   return (
-    <main className="bg-white p-8 text-stone-950 print:p-0">
-      <div className="mx-auto max-w-4xl">
-        <QuoteDocument
-          snapshot={snapshot}
-          headerSuffix={`version ${selectedVersion.versionNumber}`}
+    <main className="bg-stone-100 p-6 text-stone-950 print:bg-white print:p-0">
+      <style>
+        {`@media print { @page { size: ${paperOption.cssSize}; margin: 0.5in; } }`}
+      </style>
+
+      <div className="mx-auto max-w-5xl space-y-4">
+        <QuotePrintToolbar
+          allowSignatureModeToggle={allowSignatureModeToggle}
+          paperSize={paperSize}
+          quoteId={quote.id}
+          signatureMode={signatureMode}
+          versionNumber={selectedVersion?.versionNumber}
         />
 
-        <section className="border-t border-stone-300 pt-6">
-          <h2 className="font-semibold">Acceptance metadata</h2>
-          <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
-            {quote.recipients.map((recipient) => (
-              <div className="rounded-md border border-stone-200 p-3" key={recipient.id}>
-                <dt className="font-medium">{recipient.name}</dt>
-                <dd className="text-stone-600">{recipient.email}</dd>
-                <dd className="mt-2">
-                  Status: {recipient.status}
-                  {recipient.acceptedAt
-                    ? ` · accepted ${formatDate(recipient.acceptedAt)}`
-                    : ""}
-                </dd>
-              </div>
-            ))}
-          </dl>
-          <p className="mt-6 break-all text-xs text-stone-500">
-            Snapshot SHA-256: {selectedVersion.snapshotSha256}
-          </p>
-        </section>
+        <div
+          className="mx-auto bg-white p-4 shadow-sm ring-1 ring-stone-200 print:p-0 print:shadow-none print:ring-0"
+          style={{ maxWidth: paperOption.previewWidth }}
+        >
+          <QuoteDocument
+            snapshot={snapshot}
+            headerSuffix={
+              selectedVersion
+                ? `version ${selectedVersion.versionNumber}`
+                : "live draft"
+            }
+            clientSignatures={clientSignatures}
+            signatureMode={signatureMode}
+            variant="print"
+          />
+        </div>
       </div>
     </main>
   );

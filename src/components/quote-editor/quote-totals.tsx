@@ -17,11 +17,27 @@ export function QuoteTotalsView({
   taxMode?: TaxMode;
   moneyDisplay?: MoneyDisplay;
 }) {
+  const vatInclusive = taxEnabled && taxMode === "inclusive";
   const taxLabel = !taxEnabled
     ? "VAT Off"
-    : taxMode === "inclusive"
+    : vatInclusive
       ? "VAT Included"
       : "VAT";
+
+  if (vatInclusive) {
+    return (
+      <div className="space-y-3 rounded-lg border border-stone-200 bg-stone-50 p-4">
+        <TotalRow
+          label="Total"
+          value={formatMoney(totals.totalMinor, currency, moneyDisplay)}
+          strong
+        />
+        <p className="text-sm text-stone-600">
+          All prices are VAT inclusive.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3 rounded-lg border border-stone-200 bg-stone-50 p-4">
@@ -29,10 +45,12 @@ export function QuoteTotalsView({
         label="Subtotal"
         value={formatMoney(totals.subtotalMinor, currency, moneyDisplay)}
       />
-      <TotalRow
-        label="Discount"
-        value={`-${formatMoney(totals.discountMinor, currency, moneyDisplay)}`}
-      />
+      {totals.discountMinor > 0 ? (
+        <TotalRow
+          label="Discount"
+          value={`-${formatMoney(totals.discountMinor, currency, moneyDisplay)}`}
+        />
+      ) : null}
       <TotalRow
         label={taxLabel}
         value={formatMoney(totals.taxMinor, currency, moneyDisplay)}

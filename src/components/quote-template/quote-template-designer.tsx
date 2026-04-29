@@ -297,17 +297,13 @@ export function QuoteTemplateDesigner({
                   }
                 />
               </Field>
-              <Field label="Quotation number format">
-                <Input
-                  required
-                  value={template.company.quoteNumberFormat}
-                  onChange={(event) =>
-                    updateCompany({
-                      quoteNumberFormat: event.target.value,
-                    })
-                  }
-                />
-              </Field>
+              <CheckboxField
+                checked={template.company.showQuoteNumber}
+                label="Quotation number"
+                onChange={(showQuoteNumber) =>
+                  updateCompany({ showQuoteNumber })
+                }
+              />
             </div>
           </div>
         </Section>
@@ -606,8 +602,8 @@ export function QuoteTemplateDesigner({
           <h2 className="font-semibold text-stone-950">Quote Template</h2>
           <dl className="mt-4 space-y-3 text-sm">
             <SummaryRow
-              label="Number format"
-              value={template.company.quoteNumberFormat}
+              label="Quotation number"
+              value={template.company.showQuoteNumber ? "On" : "Off"}
             />
             <SummaryRow
               label="Currency"

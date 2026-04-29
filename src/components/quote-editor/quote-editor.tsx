@@ -303,7 +303,7 @@ export function QuoteEditor({
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Quotation name">
               <Input
-                required
+                placeholder="Defaults to quotation number"
                 value={draft.quotationName}
                 onChange={(event) =>
                   updateDraft({ quotationName: event.target.value })
@@ -351,7 +351,7 @@ export function QuoteEditor({
               </StaticField>
               <StaticField label="Quotation Number">
                 <ReadOnlyBox
-                  value={quote?.quoteNumber || effectiveTemplate.company.quoteNumberFormat}
+                  value={quote?.quoteNumber || "Generated when saved"}
                 />
               </StaticField>
             </div>
@@ -798,7 +798,7 @@ function formatQuoteDraftIssue(
   if (scope === "quotationName") {
     return issue.code === "too_big"
       ? "Quotation name must be 160 characters or fewer."
-      : "Quotation name is required.";
+      : "Quotation name is invalid.";
   }
 
   if (scope === "title") {

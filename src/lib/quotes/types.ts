@@ -165,6 +165,13 @@ export type QuoteVersion = {
   createdAt: string;
 };
 
+export type QuoteDocumentSignature = {
+  field: SignatureField;
+  recipient?: Pick<QuoteRecipient, "id" | "name" | "email">;
+  placement?: SignaturePlacement;
+  signatureAsset?: SignatureAsset;
+};
+
 export type QuoteDraft = {
   quotationName: string;
   title: string;

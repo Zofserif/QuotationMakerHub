@@ -8,6 +8,7 @@ import {
   getDemoClientQuoteView,
   getDemoQuote,
   getDemoQuoteTemplate,
+  listDemoQuoteDocumentSignatures,
   listDemoLineItemData,
   getDemoQuoteVersions,
   createDemoLineItemData,
@@ -42,6 +43,7 @@ import {
   getSupabaseQuote,
   getSupabaseQuoteTemplate,
   listSupabaseLineItemData,
+  listSupabaseQuoteDocumentSignatures,
   createSupabaseLineItemData,
   deleteSupabaseLineItemData,
   listSupabaseAuditEvents,
@@ -289,6 +291,18 @@ export async function listQuoteVersions(
   }
 
   return listSupabaseQuoteVersions(quoter, quoteId);
+}
+
+export async function listQuoteDocumentSignatures(
+  quoter: QuoterContext,
+  quoteId: string,
+  quoteVersionId: string,
+) {
+  if (shouldUseDemoPersistence()) {
+    return listDemoQuoteDocumentSignatures(quoteId, quoteVersionId);
+  }
+
+  return listSupabaseQuoteDocumentSignatures(quoter, quoteId, quoteVersionId);
 }
 
 export async function listAuditEvents(

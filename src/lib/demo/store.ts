@@ -34,6 +34,7 @@ import type {
   ClientQuoteView,
   DeleteQuoteResult,
   Quote,
+  QuoteDocumentSignature,
   QuoteDraft,
   QuoteLineItem,
   QuoteRecipient,
@@ -230,6 +231,18 @@ export function getDemoQuoteVersions(quoteId: string) {
     .map(withDemoSnapshotAssets);
 }
 
+export function listDemoQuoteDocumentSignatures(
+  quoteId: string,
+  quoteVersionId: string,
+): QuoteDocumentSignature[] {
+  const version = demoState.versions.find(
+    (candidate) =>
+      candidate.quoteId === quoteId && candidate.id === quoteVersionId,
+  );
+
+  return version ? buildQuoteDocumentSignatures(version) : [];
+}
+
 export function getDemoAuditEvents(quoteId: string) {
   return demoState.auditEvents[quoteId] ?? [];
 }
@@ -388,7 +401,7 @@ export function deleteDemoQuoteQuoterSignature(
 function withAppCurrency(quote: Quote) {
   quote.visibility = resolveDemoQuoteVisibility(quote);
   quote.currency = normalizeCurrency(quote.currency);
-  quote.quotationName = quote.quotationName || quote.title;
+  quote.quotationName = quote.quotationName || quote.quoteNumber;
   quote.templateSnapshot = quote.templateSnapshot
     ? mergeQuoteTemplate(quote.templateSnapshot)
     : quote.templateSnapshot;
@@ -416,15 +429,13 @@ export function createDemoQuote(draft: QuoteDraft) {
     draft.quoteLevelDiscountMinor ?? 0,
     taxMode,
   );
+  const quoteNumber = formatQuoteNumber(demoState.quoteCounter);
   const quote: Quote = {
     id: quoteId,
     organizationId: DEMO_ORG_ID,
     visibility: "active",
-    quoteNumber: formatQuoteNumber(
-      templateSnapshot.company.quoteNumberFormat,
-      demoState.quoteCounter,
-    ),
-    quotationName: draft.quotationName,
+    quoteNumber,
+    quotationName: resolveQuotationName(draft.quotationName, quoteNumber),
     title: draft.title,
     status: "draft",
     currency: quoteCurrency,
@@ -498,7 +509,7 @@ export function updateDemoQuote(
     draft.quoteLevelDiscountMinor ?? 0,
     taxMode,
   );
-  quote.quotationName = draft.quotationName;
+  quote.quotationName = resolveQuotationName(draft.quotationName, quote.quoteNumber);
   quote.title = draft.title;
   quote.currency = quoteCurrency;
   quote.client = draft.client;
@@ -1065,6 +1076,37 @@ function withDemoSnapshotAssets(version: QuoteVersion): QuoteVersion {
   };
 }
 
+function buildQuoteDocumentSignatures(
+  version: QuoteVersion,
+): QuoteDocumentSignature[] {
+  const placements = demoState.placements.filter(
+    (placement) => placement.quoteVersionId === version.id,
+  );
+
+  return version.snapshot.signatureFields
+    .filter((field) => field.signerType === "client")
+    .map((field) => {
+      const placement = placements.find(
+        (candidate) =>
+          candidate.signatureFieldId === field.id &&
+          candidate.recipientId === field.recipientId,
+      );
+
+      return {
+        field,
+        recipient: version.snapshot.recipients.find(
+          (recipient) => recipient.id === field.recipientId,
+        ),
+        placement,
+        signatureAsset: placement
+          ? demoState.assets.find(
+              (asset) => asset.id === placement.signatureAssetId,
+            )
+          : undefined,
+      };
+    });
+}
+
 function buildClientView(
   quote: Quote,
   version: QuoteVersion,
@@ -1112,6 +1154,10 @@ function buildClientView(
 
 function emptyToUndefined<T extends string | undefined>(value: T) {
   return value?.trim() ? value : undefined;
+}
+
+function resolveQuotationName(value: string | undefined, quoteNumber: string) {
+  return value?.trim() || quoteNumber;
 }
 
 function getTemplateTaxMode(template?: QuoteTemplate): TaxMode {

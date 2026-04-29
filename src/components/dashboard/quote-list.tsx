@@ -80,16 +80,18 @@ export function QuoteList({
                   <Activity className="size-4" />
                   Activity
                 </LinkButton>
-                {quote.status === "locked" ? (
-                  <LinkButton
-                    href={`/print/quotes/${quote.id}`}
-                    variant="primary"
-                    size="sm"
-                  >
-                    <FileText className="size-4" />
-                    PDF
-                  </LinkButton>
-                ) : null}
+                <LinkButton
+                  href={
+                    quote.status === "locked"
+                      ? `/print/quotes/${quote.id}`
+                      : `/print/quotes/${quote.id}?signature=wet`
+                  }
+                  variant="primary"
+                  size="sm"
+                >
+                  <FileText className="size-4" />
+                  PDF
+                </LinkButton>
                 <QuoteVisibilityActions
                   quoteId={quote.id}
                   visibility={quote.visibility}

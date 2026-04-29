@@ -1,6 +1,7 @@
 import { PenLine } from "lucide-react";
 
 import { QuoteSharePanel } from "@/components/quote-share/quote-share-panel";
+import { QuoteAcceptanceMetadata } from "@/components/quote-editor/quote-acceptance-metadata";
 import { QuoteDocument } from "@/components/quote-editor/quote-document";
 import { SignatureFieldConfig } from "@/components/quote-editor/signature-field-config";
 import { mergeQuoteTemplate } from "@/lib/quote-templates/defaults";
@@ -10,14 +11,20 @@ import {
   buildQuoteShareLinks,
   buildUnavailableQuoteShareLinks,
 } from "@/lib/quotes/share-links";
-import type { Quote } from "@/lib/quotes/types";
+import type { Quote, QuoteDocumentSignature } from "@/lib/quotes/types";
 
 export function QuotePreview({
   quote,
   template,
+  clientSignatures,
+  latestSnapshotSha256,
+  latestVersionNumber,
 }: {
   quote: Quote;
   template?: QuoteTemplate;
+  clientSignatures?: QuoteDocumentSignature[];
+  latestSnapshotSha256?: string;
+  latestVersionNumber?: number;
 }) {
   const snapshot = createVersionSnapshot(
     quote,
@@ -33,7 +40,13 @@ export function QuotePreview({
         initialUnavailableShareLinks={buildUnavailableQuoteShareLinks(quote)}
       />
 
-      <QuoteDocument snapshot={snapshot} />
+      <QuoteDocument snapshot={snapshot} clientSignatures={clientSignatures} />
+
+      <QuoteAcceptanceMetadata
+        recipients={quote.recipients}
+        snapshotSha256={latestSnapshotSha256}
+        versionNumber={latestVersionNumber}
+      />
 
       <section className="bg-white p-6 shadow-sm ring-1 ring-stone-200 sm:p-8">
         <div className="mb-3 flex items-center gap-2">

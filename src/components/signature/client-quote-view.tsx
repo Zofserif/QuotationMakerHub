@@ -34,6 +34,12 @@ export function ClientQuoteViewComponent({
     (field) => field.status === "signed",
   );
   const locked = Boolean(view.recipient.lockedAt);
+  const clientSignatures = view.requiredSignatureFields.map((field) => ({
+    field,
+    recipient: view.recipient,
+    placement: field.placement,
+    signatureAsset: field.signatureAsset,
+  }));
 
   function openSignatureField(signatureFieldId: string) {
     if (locked) {
@@ -127,6 +133,7 @@ export function ClientQuoteViewComponent({
         <QuoteDocument
           snapshot={view.quote}
           headerSuffix={`version ${view.versionNumber}`}
+          clientSignatures={clientSignatures}
         />
 
         <div className="mt-6 rounded-lg border border-stone-200 bg-white p-5 shadow-sm ring-1 ring-stone-200">

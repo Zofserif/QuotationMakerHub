@@ -33,6 +33,7 @@ import type {
   ClientQuoteView,
   DeleteQuoteResult,
   Quote,
+  QuoteDocumentSignature,
   QuoteDraft,
   QuoteLineItem,
   QuoteRecipient,
@@ -495,10 +496,10 @@ export async function createSupabaseQuote(
   const recipientId = randomUUID();
   const signatureFieldId = randomUUID();
   const now = new Date().toISOString();
-  const quoteNumber = await nextQuoteNumber(
-    db,
-    organization.id,
-    templateSnapshot.company.quoteNumberFormat,
+  const quoteNumber = await nextQuoteNumber(db, organization.id);
+  const quotationName = resolveQuotationName(
+    draft.quotationName,
+    quoteNumber,
   );
   const dormantToken = createClientAccessToken();
 
@@ -506,7 +507,7 @@ export async function createSupabaseQuote(
     id: quoteId,
     organization_id: organization.id,
     quote_number: quoteNumber,
-    quotation_name: draft.quotationName,
+    quotation_name: quotationName,
     title: draft.title,
     status: "draft",
     currency: quoteCurrency,
@@ -616,12 +617,16 @@ export async function updateSupabaseQuote(
     draft.quoteLevelDiscountMinor ?? 0,
     taxMode,
   );
+  const quotationName = resolveQuotationName(
+    draft.quotationName,
+    existing.quoteNumber,
+  );
   const now = new Date().toISOString();
 
   const { error: quoteError } = await db
     .from("quotes")
     .update({
-      quotation_name: draft.quotationName,
+      quotation_name: quotationName,
       title: draft.title,
       currency: quoteCurrency,
       subtotal_minor: totals.subtotalMinor,
@@ -1530,6 +1535,33 @@ export async function listSupabaseQuoteVersions(
   );
 }
 
+export async function listSupabaseQuoteDocumentSignatures(
+  quoter: QuoterContext,
+  quoteId: string,
+  quoteVersionId: string,
+): Promise<QuoteDocumentSignature[]> {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  const quoteRow = await getQuoteRow(db, quoteId, organization.id);
+
+  if (!quoteRow) {
+    return [];
+  }
+
+  const { data, error } = await db
+    .from("quote_versions")
+    .select("*")
+    .eq("quote_id", quoteRow.id)
+    .eq("id", quoteVersionId)
+    .maybeSingle();
+
+  throwIfError(error, "Get quote version signatures");
+
+  return data
+    ? buildQuoteDocumentSignatures(db, mapVersionRow(data as QuoteVersionRow))
+    : [];
+}
+
 export async function listSupabaseAuditEvents(
   quoter: QuoterContext,
   quoteId: string,
@@ -2071,7 +2103,6 @@ async function createDefaultRecipientAndField(
 async function nextQuoteNumber(
   db: SupabaseClient,
   organizationId: string,
-  format: string,
 ) {
   const { count, error } = await db
     .from("quotes")
@@ -2080,7 +2111,7 @@ async function nextQuoteNumber(
 
   throwIfError(error, "Count quotes");
 
-  return formatQuoteNumber(format, (count ?? 0) + 1);
+  return formatQuoteNumber((count ?? 0) + 1);
 }
 
 async function nextVersionNumber(db: SupabaseClient, quoteId: string) {
@@ -2273,6 +2304,63 @@ async function buildClientView(
       }),
     placements,
   };
+}
+
+async function buildQuoteDocumentSignatures(
+  db: SupabaseClient,
+  version: QuoteVersion,
+): Promise<QuoteDocumentSignature[]> {
+  const fields = version.snapshot.signatureFields.filter(
+    (field) => field.signerType === "client",
+  );
+
+  if (fields.length === 0) {
+    return [];
+  }
+
+  const { data, error } = await db
+    .from("signature_placements")
+    .select("*")
+    .eq("quote_id", version.quoteId)
+    .eq("quote_version_id", version.id);
+
+  throwIfError(error, "Get quote document signature placements");
+
+  const placementRows = (data ?? []) as SignaturePlacementRow[];
+  const placements = placementRows.map(mapSignaturePlacementRow);
+  const assetRows = await getSignatureAssets(
+    db,
+    Array.from(
+      new Set(placementRows.map((placement) => placement.signature_asset_id)),
+    ),
+  );
+  const assets = new Map(
+    await Promise.all(
+      assetRows.map(async (asset) => {
+        const mapped = await mapSignatureAssetRow(db, asset);
+        return [asset.id, mapped] as const;
+      }),
+    ),
+  );
+
+  return fields.map((field) => {
+    const placement = placements.find(
+      (candidate) =>
+        candidate.signatureFieldId === field.id &&
+        candidate.recipientId === field.recipientId,
+    );
+
+    return {
+      field,
+      recipient: version.snapshot.recipients.find(
+        (recipient) => recipient.id === field.recipientId,
+      ),
+      placement,
+      signatureAsset: placement
+        ? assets.get(placement.signatureAssetId)
+        : undefined,
+    };
+  });
 }
 
 async function getSignatureAssets(db: SupabaseClient, assetIds: string[]) {
@@ -2576,6 +2664,10 @@ function emptyToUndefined<T extends string | undefined>(value: T) {
 
 function emptyToNull(value: string | undefined) {
   return value?.trim() ? value : null;
+}
+
+function resolveQuotationName(value: string | undefined, quoteNumber: string) {
+  return value?.trim() || quoteNumber;
 }
 
 function getTemplateTaxMode(template?: QuoteTemplate): TaxMode {

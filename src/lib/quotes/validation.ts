@@ -50,7 +50,7 @@ const currencySchema = z
   .pipe(z.enum(supportedCurrencyCodes));
 
 export const quoteDraftSchema = z.object({
-  quotationName: z.string().trim().min(1).max(160),
+  quotationName: z.string().trim().max(160),
   title: z.string().trim().max(160),
   client: clientSchema,
   currency: currencySchema,

@@ -3,7 +3,12 @@ import { notFound } from "next/navigation";
 import { LinkButton } from "@/components/ui/button";
 import { QuotePreview } from "@/components/quote-editor/quote-preview";
 import { requireQuoter } from "@/lib/auth/require-quoter";
-import { getQuote, getQuoteTemplate } from "@/lib/quotes/persistence";
+import {
+  getQuote,
+  getQuoteTemplate,
+  listQuoteDocumentSignatures,
+  listQuoteVersions,
+} from "@/lib/quotes/persistence";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +28,12 @@ export default async function PreviewQuotePage({
     notFound();
   }
 
+  const versions = await listQuoteVersions(quoter, quote.id);
+  const latestVersion = versions.at(-1);
+  const clientSignatures = latestVersion
+    ? await listQuoteDocumentSignatures(quoter, quote.id, latestVersion.id)
+    : undefined;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -40,7 +51,13 @@ export default async function PreviewQuotePage({
           </LinkButton>
         ) : null}
       </div>
-      <QuotePreview quote={quote} template={template} />
+      <QuotePreview
+        quote={quote}
+        template={template}
+        clientSignatures={clientSignatures}
+        latestSnapshotSha256={latestVersion?.snapshotSha256}
+        latestVersionNumber={latestVersion?.versionNumber}
+      />
     </div>
   );
 }

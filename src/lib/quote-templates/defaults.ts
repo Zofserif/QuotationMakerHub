@@ -30,7 +30,7 @@ export const defaultQuoteTemplate: QuoteTemplate = {
       value: "",
     },
     dateLabel: "Date",
-    quoteNumberFormat: "Q-MMDDYYYY-NNNN",
+    showQuoteNumber: true,
   },
   offerTitle: {
     enabled: true,
@@ -97,6 +97,8 @@ export function mergeQuoteTemplate(
     return structuredClone(defaultQuoteTemplate);
   }
 
+  const company = removeLegacyQuoteNumberFormat(value.company);
+
   return {
     ...defaultQuoteTemplate,
     ...value,
@@ -106,26 +108,26 @@ export function mergeQuoteTemplate(
     },
     company: {
       ...defaultQuoteTemplate.company,
-      ...value.company,
+      ...company,
       name: {
         ...defaultQuoteTemplate.company.name,
-        ...value.company?.name,
+        ...company?.name,
       },
       telephone: {
         ...defaultQuoteTemplate.company.telephone,
-        ...value.company?.telephone,
+        ...company?.telephone,
       },
       phone: {
         ...defaultQuoteTemplate.company.phone,
-        ...value.company?.phone,
+        ...company?.phone,
       },
       email: {
         ...defaultQuoteTemplate.company.email,
-        ...value.company?.email,
+        ...company?.email,
       },
       vatRegTin: {
         ...defaultQuoteTemplate.company.vatRegTin,
-        ...value.company?.vatRegTin,
+        ...company?.vatRegTin,
       },
     },
     offerTitle: {
@@ -184,6 +186,21 @@ export function mergeQuoteTemplate(
   };
 }
 
+function removeLegacyQuoteNumberFormat(
+  company?: Partial<QuoteTemplate["company"]> & {
+    quoteNumberFormat?: unknown;
+  },
+) {
+  if (!company) {
+    return undefined;
+  }
+
+  const currentCompany = { ...company };
+  delete currentCompany.quoteNumberFormat;
+
+  return currentCompany;
+}
+
 export function getTemplateDefaultLineItemUnit(template: QuoteTemplate) {
   return template.lineItems.unit.options[0] ?? "Unit";
 }
@@ -193,12 +210,8 @@ export function getTemplateDefaultLineItemTaxRate(template: QuoteTemplate) {
 }
 
 export function createDraftFromTemplate(template: QuoteTemplate): QuoteDraft {
-  const quotationName = template.offerTitle.enabled
-    ? template.offerTitle.value || "Quotation"
-    : "Quotation";
-
   return {
-    quotationName,
+    quotationName: "",
     title: "",
     client: {
       companyName: "",

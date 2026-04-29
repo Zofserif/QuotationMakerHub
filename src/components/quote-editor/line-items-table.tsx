@@ -131,6 +131,11 @@ export function LineItemsTable({
             taxRate: vatEnabled ? lineItem.taxRate : 0,
             taxMode,
           }).lineTotalMinor;
+          const lineSubtotalMinor = calculateLineSubtotalMinor(lineItem);
+          const discountPercent = discountPercentFromMinor(
+            lineItem.discountMinor,
+            lineSubtotalMinor,
+          );
           const imageSrc = getLineItemImageSrc(lineItem);
           const isUploadingImage = uploadingIndex === index;
           const currentUnit = lineItem.unit || defaultUnit;
@@ -169,7 +174,7 @@ export function LineItemsTable({
                 </Button>
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_120px_140px_140px_140px]">
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_100px_110px_130px_120px_140px]">
                 <div className="space-y-3">
                   {imageSrc ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -257,11 +262,20 @@ export function LineItemsTable({
                       min="1"
                       step="1"
                       value={String(lineItem.quantity)}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        const quantity = Math.max(1, Number(event.target.value || 1));
+
                         updateLineItem(index, {
-                          quantity: Math.max(1, Number(event.target.value || 1)),
-                        })
-                      }
+                          quantity,
+                          discountMinor: discountMinorFromPercent(
+                            discountPercent,
+                            calculateLineSubtotalMinor({
+                              ...lineItem,
+                              quantity,
+                            }),
+                          ),
+                        });
+                      }}
                     />
                   </Field>
                 ) : (
@@ -296,9 +310,37 @@ export function LineItemsTable({
                     min="0"
                     step={unitPriceStep}
                     value={minorToMajorString(lineItem.unitPriceMinor, currency)}
+                    onChange={(event) => {
+                      const unitPriceMinor = majorToMinor(event.target.value, currency);
+
+                      updateLineItem(index, {
+                        unitPriceMinor,
+                        discountMinor: discountMinorFromPercent(
+                          discountPercent,
+                          calculateLineSubtotalMinor({
+                            ...lineItem,
+                            unitPriceMinor,
+                          }),
+                        ),
+                      });
+                    }}
+                  />
+                </Field>
+
+                <Field label="Discount %">
+                  <Input
+                    aria-label="Discount percentage"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={formatDiscountPercent(discountPercent)}
                     onChange={(event) =>
                       updateLineItem(index, {
-                        unitPriceMinor: majorToMinor(event.target.value, currency),
+                        discountMinor: discountMinorFromPercent(
+                          event.target.value,
+                          lineSubtotalMinor,
+                        ),
                       })
                     }
                   />
@@ -407,6 +449,45 @@ export function LineItemsTable({
       ) : null}
     </div>
   );
+}
+
+function calculateLineSubtotalMinor(
+  lineItem: Pick<LineItemInput, "quantity" | "unitPriceMinor">,
+) {
+  return Math.round(lineItem.quantity * lineItem.unitPriceMinor);
+}
+
+function discountPercentFromMinor(discountMinor: number, lineSubtotalMinor: number) {
+  if (lineSubtotalMinor <= 0) {
+    return 0;
+  }
+
+  return Math.min(100, Math.max(0, (discountMinor / lineSubtotalMinor) * 100));
+}
+
+function discountMinorFromPercent(
+  value: number | string,
+  lineSubtotalMinor: number,
+) {
+  const percent = typeof value === "number" ? value : Number(value);
+
+  if (!Number.isFinite(percent) || lineSubtotalMinor <= 0) {
+    return 0;
+  }
+
+  const clampedPercent = Math.min(100, Math.max(0, percent));
+
+  return Math.round(lineSubtotalMinor * (clampedPercent / 100));
+}
+
+function formatDiscountPercent(value: number) {
+  if (!Number.isFinite(value) || value === 0) {
+    return "0";
+  }
+
+  return Number.isInteger(value)
+    ? String(value)
+    : value.toFixed(2).replace(/\.?0+$/, "");
 }
 
 function createEmptyLineItem(input: {

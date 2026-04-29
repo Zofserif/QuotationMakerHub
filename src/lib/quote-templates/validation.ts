@@ -38,7 +38,7 @@ export const quoteTemplateSchema = z.object({
     }),
     vatRegTin: toggleTextSchema,
     dateLabel: z.string().min(1).max(60),
-    quoteNumberFormat: z.string().min(1).max(80),
+    showQuoteNumber: z.boolean(),
   }),
   offerTitle: toggleTextSchema,
   customer: z.object({

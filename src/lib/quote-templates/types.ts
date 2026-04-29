@@ -16,7 +16,7 @@ export type QuoteTemplate = {
     email: ToggleText;
     vatRegTin: ToggleText;
     dateLabel: string;
-    quoteNumberFormat: string;
+    showQuoteNumber: boolean;
   };
   offerTitle: ToggleText;
   customer: {
