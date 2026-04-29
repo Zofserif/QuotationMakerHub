@@ -12,7 +12,8 @@ export function QuoteDocument({
   headerSuffix?: string;
 }) {
   const template = snapshot.template;
-  const showOfferTitle = template?.offerTitle.enabled ?? true;
+  const offerTitle = snapshot.title.trim();
+  const showOfferTitle = (template?.offerTitle.enabled ?? true) && Boolean(offerTitle);
   const showRequestSummary = template?.requestSummary.enabled ?? Boolean(snapshot.requestSummary);
   const showItemNumber = template?.lineItems.showItemNumber ?? true;
   const showDescriptionPicture = template?.lineItems.showDescriptionPicture ?? false;
@@ -35,7 +36,7 @@ export function QuoteDocument({
             </p>
             {showOfferTitle ? (
               <h1 className="mt-2 text-3xl font-bold text-stone-950">
-                {snapshot.title}
+                {offerTitle}
               </h1>
             ) : null}
           </div>

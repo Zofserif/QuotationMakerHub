@@ -99,6 +99,10 @@ export function QuoteEditor({
     effectiveTemplate.customer.contactNumber.value,
     "Contact #",
   );
+  const offerTitlePlaceholder = resolvePlaceholder(
+    effectiveTemplate.offerTitle.value,
+    "Quotation",
+  );
   const vatEnabled = effectiveTemplate.lineItems.vat.enabled;
   const taxMode = vatEnabled ? effectiveTemplate.lineItems.vat.mode : "exclusive";
   const lineItemsForTotals = vatEnabled
@@ -322,6 +326,7 @@ export function QuoteEditor({
               </StaticToggleField>
               <StaticField label="Quotation Validity">
                 <Input
+                  required
                   type="date"
                   value={draft.validUntil ?? ""}
                   onChange={(event) =>
@@ -379,7 +384,12 @@ export function QuoteEditor({
                 enabled={effectiveTemplate.offerTitle.enabled}
                 label="Title Offer"
               >
-                <ReadOnlyInput value={draft.title} />
+                <Input
+                  maxLength={160}
+                  placeholder={offerTitlePlaceholder}
+                  value={draft.title}
+                  onChange={(event) => updateDraft({ title: event.target.value })}
+                />
               </StaticToggleField>
             </div>
           </div>
@@ -778,7 +788,16 @@ function formatQuoteDraftIssue(
   }
 
   if (scope === "title") {
-    return "Quote title is required.";
+    return issue.code === "too_big"
+      ? "Quote title must be 160 characters or fewer."
+      : "Quote title is invalid.";
+  }
+
+  if (
+    scope === "validUntil" &&
+    (issue.code === "too_small" || issue.code === "invalid_type")
+  ) {
+    return "Quotation validity is required.";
   }
 
   if (

@@ -51,10 +51,10 @@ const currencySchema = z
 
 export const quoteDraftSchema = z.object({
   quotationName: z.string().trim().min(1).max(160),
-  title: z.string().min(1).max(160),
+  title: z.string().trim().max(160),
   client: clientSchema,
   currency: currencySchema,
-  validUntil: z.string().date().optional().or(z.literal("")),
+  validUntil: z.string().trim().min(1).pipe(z.string().date()),
   requestSummary: z.string().max(10000).optional().or(z.literal("")),
   terms: z.string().max(10000).optional().or(z.literal("")),
   notes: z.string().max(10000).optional().or(z.literal("")),

@@ -13,13 +13,18 @@ import { QuoteList } from "@/components/dashboard/quote-list";
 import { requireQuoter } from "@/lib/auth/require-quoter";
 import { listQuotes } from "@/lib/quotes/persistence";
 import { statusLabel } from "@/lib/quotes/quote-state";
-import { quoteStatuses, type QuoteStatus } from "@/lib/quotes/types";
+import {
+  quoteStatuses,
+  type QuoteStatus,
+  type QuoteVisibility,
+} from "@/lib/quotes/types";
 import { formatMoney } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 type DashboardSearchParams = {
   status?: string | string[];
+  visibility?: string | string[];
 };
 
 type StatusTab = {
@@ -35,23 +40,52 @@ const statusTabs: StatusTab[] = [
   })),
 ];
 
+const visibilityTabs: Array<{ label: string; visibility: QuoteVisibility }> = [
+  { label: "Active", visibility: "active" },
+  { label: "Archived", visibility: "archived" },
+];
+
 export default async function DashboardPage({
   searchParams,
 }: {
   searchParams: Promise<DashboardSearchParams>;
 }) {
-  const { status: statusParam } = await searchParams;
+  const { status: statusParam, visibility: visibilityParam } =
+    await searchParams;
   const selectedStatus = parseQuoteStatus(statusParam);
+  const selectedVisibility = parseQuoteVisibility(visibilityParam);
   const quoter = await requireQuoter();
-  const quotes = await listQuotes(quoter);
+  const [activeQuotes, archivedQuotes] = await Promise.all([
+    listQuotes(quoter, { visibility: "active" }),
+    listQuotes(quoter, { visibility: "archived" }),
+  ]);
+  const quotes =
+    selectedVisibility === "archived" ? archivedQuotes : activeQuotes;
   const visibleQuotes = selectedStatus
     ? quotes.filter((quote) => quote.status === selectedStatus)
     : quotes;
   const statusCounts = countQuotesByStatus(quotes);
+  const visibilityCounts = new Map<QuoteVisibility, number>([
+    ["active", activeQuotes.length],
+    ["archived", archivedQuotes.length],
+  ]);
+  const visibilityNavigationTabs = visibilityTabs.map((tab) => ({
+    key: tab.visibility,
+    label: tab.label,
+    href: buildDashboardHref({
+      status: selectedStatus,
+      visibility: tab.visibility,
+    }),
+    count: visibilityCounts.get(tab.visibility) ?? 0,
+    selected: selectedVisibility === tab.visibility,
+  }));
   const tabs = statusTabs.map((tab) => ({
     key: tab.status ?? "all",
     label: tab.label,
-    href: tab.status ? `/dashboard?status=${tab.status}` : "/dashboard",
+    href: buildDashboardHref({
+      status: tab.status,
+      visibility: selectedVisibility,
+    }),
     count: tab.status ? (statusCounts.get(tab.status) ?? 0) : quotes.length,
     selected: selectedStatus === tab.status,
   }));
@@ -99,6 +133,10 @@ export default async function DashboardPage({
         />
       </section>
 
+      <DashboardStatusTabs
+        ariaLabel="Quotation visibility"
+        tabs={visibilityNavigationTabs}
+      />
       <DashboardStatusTabs tabs={tabs} />
 
       <QuoteList
@@ -119,6 +157,36 @@ function parseQuoteStatus(value?: string | string[]) {
   return quoteStatuses.includes(status as QuoteStatus)
     ? (status as QuoteStatus)
     : undefined;
+}
+
+function parseQuoteVisibility(value?: string | string[]): QuoteVisibility {
+  const visibility = Array.isArray(value) ? value[0] : value;
+
+  return visibility === "archived" || visibility === "deleted"
+    ? "archived"
+    : "active";
+}
+
+function buildDashboardHref({
+  status,
+  visibility,
+}: {
+  status?: QuoteStatus;
+  visibility: QuoteVisibility;
+}) {
+  const params = new URLSearchParams();
+
+  if (visibility !== "active") {
+    params.set("visibility", visibility);
+  }
+
+  if (status) {
+    params.set("status", status);
+  }
+
+  const query = params.toString();
+
+  return query ? `/dashboard?${query}` : "/dashboard";
 }
 
 function countQuotesByStatus(quotes: Array<{ status: QuoteStatus }>) {

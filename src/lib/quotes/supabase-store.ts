@@ -31,6 +31,7 @@ import type {
   AuditEvent,
   ClientInput,
   ClientQuoteView,
+  DeleteQuoteResult,
   Quote,
   QuoteDraft,
   QuoteLineItem,
@@ -684,6 +685,7 @@ export async function updateSupabaseQuoteVisibility(
   quoteId: string,
   visibility: QuoteVisibility,
 ): Promise<UpdateQuoteVisibilityResult> {
+  const normalizedVisibility = normalizeQuoteVisibility(visibility);
   const db = createSupabaseAdminClient();
   const organization = await ensureWorkspace(db, quoter);
   const existing = await getQuoteRow(db, quoteId, organization.id);
@@ -695,7 +697,7 @@ export async function updateSupabaseQuoteVisibility(
   const previousVisibility = resolveQuoteVisibility(existing);
   const now = new Date().toISOString();
   const payload =
-    visibility === "active"
+    normalizedVisibility === "active"
       ? {
           archived_at: null,
           archived_by_clerk_user_id: null,
@@ -703,21 +705,13 @@ export async function updateSupabaseQuoteVisibility(
           deleted_by_clerk_user_id: null,
           updated_at: now,
         }
-      : visibility === "archived"
-        ? {
-            archived_at: now,
-            archived_by_clerk_user_id: quoter.clerkUserId,
-            deleted_at: null,
-            deleted_by_clerk_user_id: null,
-            updated_at: now,
-          }
-        : {
-            archived_at: null,
-            archived_by_clerk_user_id: null,
-            deleted_at: now,
-            deleted_by_clerk_user_id: quoter.clerkUserId,
-            updated_at: now,
-          };
+      : {
+          archived_at: now,
+          archived_by_clerk_user_id: quoter.clerkUserId,
+          deleted_at: null,
+          deleted_by_clerk_user_id: null,
+          updated_at: now,
+        };
 
   const { error } = await db
     .from("quotes")
@@ -732,10 +726,10 @@ export async function updateSupabaseQuoteVisibility(
     quoteId,
     actorType: "quoter",
     actorRef: quoter.clerkUserId,
-    eventType: quoteVisibilityAuditEvent(visibility),
+    eventType: quoteVisibilityAuditEvent(normalizedVisibility),
     metadata: {
       previousVisibility,
-      visibility,
+      visibility: normalizedVisibility,
     },
   });
 
@@ -746,6 +740,39 @@ export async function updateSupabaseQuoteVisibility(
   }
 
   return { ok: true, quote };
+}
+
+export async function deleteSupabaseQuote(
+  quoter: QuoterContext,
+  quoteId: string,
+): Promise<DeleteQuoteResult> {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  const existing = await getQuoteRow(db, quoteId, organization.id);
+
+  if (!existing) {
+    return { ok: false, code: "QUOTE_NOT_FOUND" };
+  }
+
+  if (resolveQuoteVisibility(existing) !== "archived") {
+    return { ok: false, code: "QUOTE_NOT_ARCHIVED" };
+  }
+
+  await deleteQuoteChildRows(db, quoteId);
+
+  const { data, error } = await db
+    .from("quotes")
+    .delete()
+    .eq("id", quoteId)
+    .eq("organization_id", organization.id)
+    .select("id")
+    .maybeSingle();
+
+  throwIfError(error, "Delete quote");
+
+  return data
+    ? { ok: true, quoteId }
+    : { ok: false, code: "QUOTE_NOT_FOUND" };
 }
 
 export async function sendSupabaseQuote(
@@ -1778,19 +1805,16 @@ function applyQuoteVisibilityFilter<
   T extends {
     is(column: string, value: null): T;
     not(column: string, operator: string, value: unknown): T;
+    or(filters: string): T;
   },
 >(
   query: T,
   visibility: QuoteVisibility,
 ) {
-  if (visibility === "archived") {
-    return query
-      .not("archived_at", "is", null)
-      .is("deleted_at", null);
-  }
+  const normalizedVisibility = normalizeQuoteVisibility(visibility);
 
-  if (visibility === "deleted") {
-    return query.not("deleted_at", "is", null);
+  if (normalizedVisibility === "archived") {
+    return query.or("archived_at.not.is.null,deleted_at.not.is.null");
   }
 
   return query.is("archived_at", null).is("deleted_at", null);
@@ -1799,11 +1823,7 @@ function applyQuoteVisibilityFilter<
 function resolveQuoteVisibility(
   quote: Pick<QuoteRow, "archived_at" | "deleted_at">,
 ): QuoteVisibility {
-  if (quote.deleted_at) {
-    return "deleted";
-  }
-
-  if (quote.archived_at) {
+  if (quote.archived_at || quote.deleted_at) {
     return "archived";
   }
 
@@ -1811,11 +1831,43 @@ function resolveQuoteVisibility(
 }
 
 function quoteVisibilityAuditEvent(visibility: QuoteVisibility) {
-  if (visibility === "active") {
+  const normalizedVisibility = normalizeQuoteVisibility(visibility);
+
+  if (normalizedVisibility === "active") {
     return "quote.restored";
   }
 
-  return visibility === "archived" ? "quote.archived" : "quote.deleted";
+  return "quote.archived";
+}
+
+function normalizeQuoteVisibility(
+  visibility: QuoteVisibility,
+): QuoteVisibility {
+  return visibility === "deleted" ? "archived" : visibility;
+}
+
+async function deleteQuoteChildRows(db: SupabaseClient, quoteId: string) {
+  const deleteSteps = [
+    {
+      table: "signature_placements",
+      label: "Delete quote signature placements",
+    },
+    { table: "pdf_exports", label: "Delete quote PDF exports" },
+    { table: "signature_fields", label: "Delete quote signature fields" },
+    { table: "quote_recipients", label: "Delete quote recipients" },
+    { table: "quote_line_items", label: "Delete quote line items" },
+    { table: "audit_events", label: "Delete quote audit events" },
+    { table: "quote_versions", label: "Delete quote versions" },
+  ] as const;
+
+  for (const step of deleteSteps) {
+    const { error } = await db
+      .from(step.table)
+      .delete()
+      .eq("quote_id", quoteId);
+
+    throwIfError(error, step.label);
+  }
 }
 
 async function getLineItemRows(db: SupabaseClient, quoteId: string) {

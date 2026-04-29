@@ -2,6 +2,7 @@ import {
   acceptDemoQuote,
   createDemoPdfExport,
   createDemoQuote,
+  deleteDemoQuote,
   deleteDemoQuoteQuoterSignature,
   getDemoAuditEvents,
   getDemoClientQuoteView,
@@ -35,6 +36,7 @@ import {
   acceptSupabaseQuote,
   createSupabasePdfExport,
   createSupabaseQuote,
+  deleteSupabaseQuote,
   deleteSupabaseQuoteQuoterSignature,
   getSupabaseClientQuoteView,
   getSupabaseQuote,
@@ -187,6 +189,14 @@ export async function updateQuoteVisibility(
   }
 
   return updateSupabaseQuoteVisibility(quoter, quoteId, visibility);
+}
+
+export async function deleteQuote(quoter: QuoterContext, quoteId: string) {
+  if (shouldUseDemoPersistence()) {
+    return deleteDemoQuote(quoteId);
+  }
+
+  return deleteSupabaseQuote(quoter, quoteId);
 }
 
 export async function updateQuoteQuoterSignature(

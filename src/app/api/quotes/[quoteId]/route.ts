@@ -1,7 +1,7 @@
 import { captureServerEvent } from "@/lib/analytics/posthog-server";
 import { errorResponse, readJson } from "@/lib/api/responses";
 import { requireQuoter } from "@/lib/auth/require-quoter";
-import { getQuote, updateQuote } from "@/lib/quotes/persistence";
+import { deleteQuote, getQuote, updateQuote } from "@/lib/quotes/persistence";
 import { parseJsonBody, quoteDraftSchema } from "@/lib/quotes/validation";
 
 export async function GET(
@@ -68,5 +68,38 @@ export async function PATCH(
     subtotalMinor: quote.subtotalMinor,
     taxMinor: quote.taxMinor,
     totalMinor: quote.totalMinor,
+  });
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ quoteId: string }> },
+) {
+  const quoter = await requireQuoter();
+  const { quoteId } = await params;
+  const result = await deleteQuote(quoter, quoteId);
+
+  if (!result.ok) {
+    return errorResponse(
+      result.code,
+      result.code === "QUOTE_NOT_ARCHIVED"
+        ? "Only archived quotes can be deleted."
+        : "Quote was not found.",
+      result.code === "QUOTE_NOT_ARCHIVED" ? 409 : 404,
+    );
+  }
+
+  await captureServerEvent({
+    distinctId: quoter.clerkUserId,
+    event: "quote_deleted",
+    properties: {
+      quote_id: quoteId,
+      organization_id: quoter.organizationId,
+    },
+  });
+
+  return Response.json({
+    deleted: true,
+    quoteId,
   });
 }

@@ -5,7 +5,6 @@ import { requireQuoter } from "@/lib/auth/require-quoter";
 import { listQuotes } from "@/lib/quotes/persistence";
 import {
   quoteStatuses,
-  quoteVisibilities,
   type QuoteStatus,
   type QuoteVisibility,
 } from "@/lib/quotes/types";
@@ -16,7 +15,6 @@ export const dynamic = "force-dynamic";
 const visibilityTabs: Array<{ label: string; value: QuoteVisibility }> = [
   { label: "Active", value: "active" },
   { label: "Archived", value: "archived" },
-  { label: "Deleted", value: "deleted" },
 ];
 
 export default async function QuotesPage({
@@ -70,9 +68,7 @@ export default async function QuotesPage({
 }
 
 function parseQuoteVisibility(value?: string): QuoteVisibility {
-  return quoteVisibilities.includes(value as QuoteVisibility)
-    ? (value as QuoteVisibility)
-    : "active";
+  return value === "archived" || value === "deleted" ? "archived" : "active";
 }
 
 function parseQuoteStatus(value?: string): QuoteStatus | undefined {

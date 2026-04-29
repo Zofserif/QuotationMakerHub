@@ -171,7 +171,7 @@ export type QuoteDraft = {
   currency: string;
   lineItems: Omit<QuoteLineItem, "id" | "sortOrder" | "lineTotalMinor">[];
   quoteLevelDiscountMinor?: number;
-  validUntil?: string;
+  validUntil: string;
   requestSummary?: string;
   terms?: string;
   notes?: string;
@@ -229,6 +229,10 @@ export type UpdateQuoteResult =
 export type UpdateQuoteVisibilityResult =
   | { ok: true; quote: Quote }
   | { ok: false; code: "QUOTE_NOT_FOUND" };
+
+export type DeleteQuoteResult =
+  | { ok: true; quoteId: string }
+  | { ok: false; code: "QUOTE_NOT_FOUND" | "QUOTE_NOT_ARCHIVED" };
 
 export type SendQuoteResult =
   | {

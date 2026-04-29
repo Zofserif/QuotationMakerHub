@@ -193,13 +193,13 @@ export function getTemplateDefaultLineItemTaxRate(template: QuoteTemplate) {
 }
 
 export function createDraftFromTemplate(template: QuoteTemplate): QuoteDraft {
-  const title = template.offerTitle.enabled
+  const quotationName = template.offerTitle.enabled
     ? template.offerTitle.value || "Quotation"
     : "Quotation";
 
   return {
-    quotationName: title,
-    title,
+    quotationName,
+    title: "",
     client: {
       companyName: "",
       contactName: "",

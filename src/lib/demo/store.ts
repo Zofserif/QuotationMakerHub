@@ -33,6 +33,7 @@ import { getAggregateQuoteStatus } from "@/lib/quotes/quote-state";
 import type {
   AuditEvent,
   ClientQuoteView,
+  DeleteQuoteResult,
   Quote,
   QuoteDraft,
   QuoteLineItem,
@@ -527,6 +528,7 @@ export function updateDemoQuoteVisibility(
   quoteId: string,
   visibility: QuoteVisibility,
 ): UpdateQuoteVisibilityResult {
+  const normalizedVisibility = normalizeQuoteVisibility(visibility);
   const quote = getDemoQuote(quoteId);
 
   if (!quote) {
@@ -536,37 +538,57 @@ export function updateDemoQuoteVisibility(
   const previousVisibility = resolveDemoQuoteVisibility(quote);
   const now = new Date().toISOString();
 
-  if (visibility === "active") {
+  if (normalizedVisibility === "active") {
     quote.archivedAt = undefined;
     quote.archivedByClerkUserId = undefined;
     quote.deletedAt = undefined;
     quote.deletedByClerkUserId = undefined;
-  } else if (visibility === "archived") {
+  } else {
     quote.archivedAt = now;
     quote.archivedByClerkUserId = DEMO_USER_ID;
     quote.deletedAt = undefined;
     quote.deletedByClerkUserId = undefined;
-  } else {
-    quote.archivedAt = undefined;
-    quote.archivedByClerkUserId = undefined;
-    quote.deletedAt = now;
-    quote.deletedByClerkUserId = DEMO_USER_ID;
   }
 
-  quote.visibility = visibility;
+  quote.visibility = normalizedVisibility;
   quote.updatedAt = now;
   appendAudit(
     quote.id,
-    quoteVisibilityAuditEvent(visibility),
+    quoteVisibilityAuditEvent(normalizedVisibility),
     "quoter",
     DEMO_USER_ID,
     {
       previousVisibility,
-      visibility,
+      visibility: normalizedVisibility,
     },
   );
 
   return { ok: true, quote };
+}
+
+export function deleteDemoQuote(quoteId: string): DeleteQuoteResult {
+  const quoteIndex = demoState.quotes.findIndex((quote) => quote.id === quoteId);
+
+  if (quoteIndex === -1) {
+    return { ok: false, code: "QUOTE_NOT_FOUND" };
+  }
+
+  const quote = demoState.quotes[quoteIndex];
+
+  if (resolveDemoQuoteVisibility(quote) !== "archived") {
+    return { ok: false, code: "QUOTE_NOT_ARCHIVED" };
+  }
+
+  demoState.quotes.splice(quoteIndex, 1);
+  demoState.versions = demoState.versions.filter(
+    (version) => version.quoteId !== quoteId,
+  );
+  demoState.placements = demoState.placements.filter(
+    (placement) => placement.quoteId !== quoteId,
+  );
+  delete demoState.auditEvents[quoteId];
+
+  return { ok: true, quoteId };
 }
 
 export function sendDemoQuote(quoteId: string): SendQuoteResult {
@@ -924,15 +946,13 @@ function appendAudit(
 }
 
 function quoteMatchesVisibility(quote: Quote, visibility: QuoteVisibility) {
-  return resolveDemoQuoteVisibility(quote) === visibility;
+  return (
+    resolveDemoQuoteVisibility(quote) === normalizeQuoteVisibility(visibility)
+  );
 }
 
 function resolveDemoQuoteVisibility(quote: Quote): QuoteVisibility {
-  if (quote.deletedAt) {
-    return "deleted";
-  }
-
-  if (quote.archivedAt) {
+  if (quote.archivedAt || quote.deletedAt) {
     return "archived";
   }
 
@@ -940,11 +960,19 @@ function resolveDemoQuoteVisibility(quote: Quote): QuoteVisibility {
 }
 
 function quoteVisibilityAuditEvent(visibility: QuoteVisibility) {
-  if (visibility === "active") {
+  const normalizedVisibility = normalizeQuoteVisibility(visibility);
+
+  if (normalizedVisibility === "active") {
     return "quote.restored";
   }
 
-  return visibility === "archived" ? "quote.archived" : "quote.deleted";
+  return "quote.archived";
+}
+
+function normalizeQuoteVisibility(
+  visibility: QuoteVisibility,
+): QuoteVisibility {
+  return visibility === "deleted" ? "archived" : visibility;
 }
 
 function findRecipientByToken(token: string) {

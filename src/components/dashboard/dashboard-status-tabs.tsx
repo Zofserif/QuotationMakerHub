@@ -16,8 +16,10 @@ export type DashboardStatusTab = {
 };
 
 export function DashboardStatusTabs({
+  ariaLabel = "Quotation status",
   tabs,
 }: {
+  ariaLabel?: string;
   tabs: DashboardStatusTab[];
 }) {
   const searchParams = useSearchParams();
@@ -40,7 +42,7 @@ export function DashboardStatusTabs({
 
   return (
     <nav
-      aria-label="Quotation status"
+      aria-label={ariaLabel}
       className="flex flex-wrap gap-2 rounded-lg border border-stone-200 bg-white p-2"
     >
       {tabs.map((tab) => {

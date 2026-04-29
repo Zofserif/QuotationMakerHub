@@ -14,6 +14,15 @@ type VisibilityPayload = {
   };
 };
 
+type DeletePayload = {
+  deleted?: boolean;
+  error?: {
+    message?: string;
+  };
+};
+
+type VisibilityAction = "archive" | "delete" | "restore";
+
 export function QuoteVisibilityActions({
   quoteId,
   visibility,
@@ -23,21 +32,16 @@ export function QuoteVisibilityActions({
 }) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
-  const [pendingVisibility, setPendingVisibility] =
-    useState<QuoteVisibility | null>(null);
-  const isPending = pendingVisibility !== null;
+  const [pendingAction, setPendingAction] = useState<VisibilityAction | null>(
+    null,
+  );
+  const isPending = pendingAction !== null;
 
-  async function updateVisibility(nextVisibility: QuoteVisibility) {
-    if (
-      nextVisibility === "deleted" &&
-      !window.confirm(
-        "This will hide the quote from normal lists, but it will remain in the database and can be restored from the Deleted tab.",
-      )
-    ) {
-      return;
-    }
-
-    setPendingVisibility(nextVisibility);
+  async function updateVisibility(
+    nextVisibility: QuoteVisibility,
+    action: VisibilityAction,
+  ) {
+    setPendingAction(action);
 
     try {
       setMessage(null);
@@ -59,51 +63,68 @@ export function QuoteVisibilityActions({
     } catch {
       setMessage("Could not update quote.");
     } finally {
-      setPendingVisibility(null);
+      setPendingAction(null);
+    }
+  }
+
+  async function deleteArchivedQuote() {
+    if (
+      !window.confirm(
+        "This will permanently delete this archived quote from the database. This action cannot be undone.",
+      )
+    ) {
+      return;
+    }
+
+    setPendingAction("delete");
+
+    try {
+      setMessage(null);
+      const response = await fetch(`/api/quotes/${quoteId}`, {
+        method: "DELETE",
+      });
+      const payload = (await response.json()) as DeletePayload;
+
+      if (!response.ok) {
+        setMessage(payload.error?.message ?? "Could not delete quote.");
+        return;
+      }
+
+      router.refresh();
+    } catch {
+      setMessage("Could not delete quote.");
+    } finally {
+      setPendingAction(null);
     }
   }
 
   return (
     <>
       {visibility === "active" ? (
-        <>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            disabled={isPending}
-            loading={pendingVisibility === "archived"}
-            loadingText="Archiving..."
-            onClick={() => void updateVisibility("archived")}
-          >
-            <Archive className="size-4" />
-            Archive
-          </Button>
-          <Button
-            type="button"
-            variant="danger"
-            size="sm"
-            disabled={isPending}
-            loading={pendingVisibility === "deleted"}
-            loadingText="Deleting..."
-            onClick={() => void updateVisibility("deleted")}
-          >
-            <Trash2 className="size-4" />
-            Delete
-          </Button>
-        </>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled={isPending}
+          loading={pendingAction === "archive"}
+          loadingText="Archiving..."
+          onClick={() => void updateVisibility("archived", "archive")}
+        >
+          <Archive className="size-4" />
+          Archive
+        </Button>
       ) : null}
 
-      {visibility === "archived" ? (
+      {visibility !== "active" ? (
         <>
           <Button
             type="button"
             variant="secondary"
             size="sm"
             disabled={isPending}
-            loading={pendingVisibility === "active"}
+            loading={pendingAction === "restore"}
             loadingText="Restoring..."
-            onClick={() => void updateVisibility("active")}
+            onClick={() => void updateVisibility("active", "restore")}
           >
             <RotateCcw className="size-4" />
             Restore
@@ -113,29 +134,14 @@ export function QuoteVisibilityActions({
             variant="danger"
             size="sm"
             disabled={isPending}
-            loading={pendingVisibility === "deleted"}
+            loading={pendingAction === "delete"}
             loadingText="Deleting..."
-            onClick={() => void updateVisibility("deleted")}
+            onClick={() => void deleteArchivedQuote()}
           >
             <Trash2 className="size-4" />
             Delete
           </Button>
         </>
-      ) : null}
-
-      {visibility === "deleted" ? (
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          disabled={isPending}
-          loading={pendingVisibility === "active"}
-          loadingText="Restoring..."
-          onClick={() => void updateVisibility("active")}
-        >
-          <RotateCcw className="size-4" />
-          Restore
-        </Button>
       ) : null}
 
       {message ? (
