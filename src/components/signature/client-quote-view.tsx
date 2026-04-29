@@ -134,6 +134,7 @@ export function ClientQuoteViewComponent({
           snapshot={view.quote}
           headerSuffix={`version ${view.versionNumber}`}
           clientSignatures={clientSignatures}
+          variant="client"
         />
 
         <div className="mt-6 rounded-lg border border-stone-200 bg-white p-5 shadow-sm ring-1 ring-stone-200">
