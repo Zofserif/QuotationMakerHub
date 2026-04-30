@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 
 import { LinkButton } from "@/components/ui/button";
+import { APP_NAME } from "@/lib/app-config";
 
 export default function Home() {
   return (
@@ -18,7 +19,7 @@ export default function Home() {
           <nav className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-lg font-semibold">
               <FileSignature className="size-5" />
-              Quotation Maker Hub
+              {APP_NAME}
             </div>
             <LinkButton href="/dashboard" variant="secondary" size="sm">
               <LayoutDashboard className="size-4" />
@@ -30,7 +31,7 @@ export default function Home() {
               Structured quotes, secure links, browser signatures, PDF export
             </p>
             <h1 className="text-5xl font-bold leading-tight sm:text-6xl">
-              Quotation Maker Hub
+              {APP_NAME}
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-stone-100">
               Create polished quotations, send tokenized client links, collect

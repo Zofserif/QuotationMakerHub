@@ -1,4 +1,4 @@
-Quotation Maker Hub is a Next.js App Router MVP foundation for creating structured quotations, sending secure client signing links, capturing cleaned signature images in the browser, locking accepted quotes, and exporting printable versions.
+Remote Quote is a Next.js App Router MVP foundation for creating structured quotations, sending secure client signing links, capturing cleaned signature images in the browser, locking accepted quotes, and exporting printable versions.
 
 ## Getting Started
 
@@ -41,6 +41,7 @@ Copy `.env.example` to `.env.local` and fill in Clerk, Supabase, PostHog, and em
 
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
 - `CLERK_SECRET_KEY`
+- `NEXT_PUBLIC_APP_URL` set to the production origin, such as `https://remotequote.example` until the final domain is configured
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`

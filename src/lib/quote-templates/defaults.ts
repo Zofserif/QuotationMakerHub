@@ -1,5 +1,6 @@
 import type { QuoteDraft } from "@/lib/quotes/types";
 import type { QuoteTemplate } from "@/lib/quote-templates/types";
+import { APP_NAME } from "@/lib/app-config";
 import { APP_CURRENCY, normalizeCurrency } from "@/lib/currency";
 
 export const defaultQuoteTemplate: QuoteTemplate = {
@@ -10,7 +11,7 @@ export const defaultQuoteTemplate: QuoteTemplate = {
   company: {
     name: {
       enabled: true,
-      value: "Quotation Maker Hub",
+      value: APP_NAME,
     },
     address: "",
     telephone: {

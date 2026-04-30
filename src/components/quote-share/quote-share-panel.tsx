@@ -11,6 +11,7 @@ import {
 import { QRCodeSVG } from "qrcode.react";
 
 import { Button } from "@/components/ui/button";
+import { APP_ORIGIN } from "@/lib/app-config";
 import { isQuoteShareable } from "@/lib/quotes/share-links";
 import type {
   QuoteShareLink,
@@ -47,7 +48,8 @@ export function QuoteSharePanel({
   className,
   title = "Client signing links",
 }: QuoteSharePanelProps) {
-  const origin = useClientOrigin();
+  const browserOrigin = useClientOrigin();
+  const origin = APP_ORIGIN || browserOrigin;
   const [ensuredStatus, setEnsuredStatus] = useState<QuoteStatus | null>(null);
   const [generatedShareLinks, setGeneratedShareLinks] = useState<
     QuoteShareLink[] | null

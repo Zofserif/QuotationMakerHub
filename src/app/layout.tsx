@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { APP_DESCRIPTION, APP_NAME, APP_ORIGIN } from "@/lib/app-config";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -14,8 +15,20 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Quotation Maker Hub",
-  description: "Create, send, sign, and export structured quotations.",
+  title: APP_NAME,
+  description: APP_DESCRIPTION,
+  ...(APP_ORIGIN
+    ? {
+        metadataBase: new URL(APP_ORIGIN),
+        openGraph: {
+          title: APP_NAME,
+          description: APP_DESCRIPTION,
+          siteName: APP_NAME,
+          url: APP_ORIGIN,
+          type: "website",
+        },
+      }
+    : {}),
 };
 
 export default function RootLayout({

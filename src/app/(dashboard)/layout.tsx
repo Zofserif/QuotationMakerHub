@@ -11,6 +11,7 @@ import type { ReactNode } from "react";
 import { AccountIndicator } from "@/components/dashboard/account-indicator";
 import { Badge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/button";
+import { APP_NAME } from "@/lib/app-config";
 import { isClerkConfigured } from "@/lib/auth/clerk";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
@@ -22,7 +23,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
           <Link className="flex items-center gap-2 font-semibold text-stone-950" href="/dashboard">
             <FileSignature className="size-5" />
-            Quotation Maker Hub
+            {APP_NAME}
           </Link>
           <div className="flex min-w-0 flex-col gap-3 sm:items-end">
             {hasClerk ? (
