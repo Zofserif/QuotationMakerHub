@@ -298,7 +298,7 @@ export function QuoteTemplateDesigner({
         </Section>
 
         <Section icon={FileText} title="Quote Content">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4">
             <ToggleTextField
               label="Title offer"
               value={template.offerTitle}
@@ -317,35 +317,122 @@ export function QuoteTemplateDesigner({
         </Section>
 
         <Section icon={ListOrdered} title="Line Item Columns">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <CheckboxField
-              checked={template.lineItems.showItemNumber}
-              label="Item number"
-              onChange={(showItemNumber) => updateLineItems({ showItemNumber })}
-            />
-            <CheckboxField
-              checked={template.lineItems.showDescriptionPicture}
-              label="Description picture"
-              onChange={(showDescriptionPicture) =>
-                updateLineItems({ showDescriptionPicture })
-              }
-            />
-            <CheckboxField
-              checked={template.lineItems.showQuantity}
-              label="Quantity"
-              onChange={(showQuantity) => updateLineItems({ showQuantity })}
-            />
-            <Field label="Detailed description label">
-              <Input
-                required
-                value={template.lineItems.detailedDescriptionLabel}
-                onChange={(event) =>
-                  updateLineItems({
-                    detailedDescriptionLabel: event.target.value,
-                  })
+          <div className="space-y-5">
+            <div className="grid gap-3 md:grid-cols-3">
+              <CheckboxField
+                checked={template.lineItems.showItemNumber}
+                label="Item number"
+                onChange={(showItemNumber) =>
+                  updateLineItems({ showItemNumber })
                 }
               />
-            </Field>
+              <CheckboxField
+                checked={template.lineItems.showDescriptionPicture}
+                label="Description picture"
+                onChange={(showDescriptionPicture) =>
+                  updateLineItems({ showDescriptionPicture })
+                }
+              />
+              <CheckboxField
+                checked={template.lineItems.showQuantity}
+                label="Quantity"
+                onChange={(showQuantity) => updateLineItems({ showQuantity })}
+              />
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Field label="Detailed description label">
+                <Input
+                  required
+                  value={template.lineItems.detailedDescriptionLabel}
+                  onChange={(event) =>
+                    updateLineItems({
+                      detailedDescriptionLabel: event.target.value,
+                    })
+                  }
+                />
+              </Field>
+              <Field label="Currency">
+                <select
+                  className={selectClassName}
+                  value={normalizeCurrency(
+                    template.lineItems.unitPrice.currency,
+                  )}
+                  onChange={(event) =>
+                    updateLineItems({
+                      unitPrice: {
+                        ...template.lineItems.unitPrice,
+                        currency: normalizeCurrency(event.target.value),
+                      },
+                    })
+                  }
+                >
+                  {supportedCurrencies.map((currency) => (
+                    <option key={currency.code} value={currency.code}>
+                      {currency.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Unit price display">
+                <select
+                  className={selectClassName}
+                  value={template.lineItems.unitPrice.display}
+                  onChange={(event) =>
+                    updateLineItems({
+                      unitPrice: {
+                        ...template.lineItems.unitPrice,
+                        display: event.target.value as "symbol" | "text",
+                      },
+                    })
+                  }
+                >
+                  <option value="symbol">Symbol</option>
+                  <option value="text">Text</option>
+                </select>
+              </Field>
+              <Field label="VAT">
+                <div className="grid gap-2">
+                  <label className="flex h-10 items-center gap-3 rounded-md border border-stone-200 bg-white px-3 text-sm font-medium text-stone-800">
+                    <input
+                      checked={template.lineItems.vat.mode === "exclusive"}
+                      className="size-4"
+                      type="checkbox"
+                      onChange={(event) =>
+                        updateLineItems({
+                          vat: {
+                            ...template.lineItems.vat,
+                            enabled: true,
+                            mode: event.target.checked
+                              ? "exclusive"
+                              : "inclusive",
+                          },
+                        })
+                      }
+                    />
+                    VAT exclusive
+                  </label>
+                  <Input
+                    aria-label="VAT rate percentage"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    type="number"
+                    value={template.lineItems.vat.rate * 100}
+                    onChange={(event) =>
+                      updateLineItems({
+                        vat: {
+                          ...template.lineItems.vat,
+                          enabled: true,
+                          rate: Number(event.target.value || 0) / 100,
+                        },
+                      })
+                    }
+                  />
+                </div>
+              </Field>
+            </div>
+
             <Field label="Unit options">
               <div className="space-y-3">
                 <label className="flex h-10 items-center gap-3 rounded-md border border-stone-200 bg-white px-3 text-sm font-medium text-stone-800">
@@ -391,87 +478,15 @@ export function QuoteTemplateDesigner({
                     </div>
                   ))}
                 </div>
-                <Button type="button" variant="secondary" size="sm" onClick={addUnitOption}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={addUnitOption}
+                >
                   <Plus className="size-4" />
                   Add unit
                 </Button>
-              </div>
-            </Field>
-            <Field label="Currency">
-              <select
-                className={selectClassName}
-                value={normalizeCurrency(template.lineItems.unitPrice.currency)}
-                onChange={(event) =>
-                  updateLineItems({
-                    unitPrice: {
-                      ...template.lineItems.unitPrice,
-                      currency: normalizeCurrency(event.target.value),
-                    },
-                  })
-                }
-              >
-                {supportedCurrencies.map((currency) => (
-                  <option key={currency.code} value={currency.code}>
-                    {currency.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Unit price display">
-              <select
-                className={selectClassName}
-                value={template.lineItems.unitPrice.display}
-                onChange={(event) =>
-                  updateLineItems({
-                    unitPrice: {
-                      ...template.lineItems.unitPrice,
-                      display: event.target.value as "symbol" | "text",
-                    },
-                  })
-                }
-              >
-                <option value="symbol">Symbol</option>
-                <option value="text">Text</option>
-              </select>
-            </Field>
-            <Field label="VAT">
-              <div className="grid gap-2">
-                <label className="flex h-10 items-center gap-3 rounded-md border border-stone-200 bg-white px-3 text-sm font-medium text-stone-800">
-                  <input
-                    checked={template.lineItems.vat.mode === "exclusive"}
-                    className="size-4"
-                    type="checkbox"
-                    onChange={(event) =>
-                      updateLineItems({
-                        vat: {
-                          ...template.lineItems.vat,
-                          enabled: true,
-                          mode: event.target.checked
-                            ? "exclusive"
-                            : "inclusive",
-                        },
-                      })
-                    }
-                  />
-                  VAT exclusive
-                </label>
-                <Input
-                  aria-label="VAT rate percentage"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  type="number"
-                  value={template.lineItems.vat.rate * 100}
-                  onChange={(event) =>
-                    updateLineItems({
-                      vat: {
-                        ...template.lineItems.vat,
-                        enabled: true,
-                        rate: Number(event.target.value || 0) / 100,
-                      },
-                    })
-                  }
-                />
               </div>
             </Field>
           </div>
@@ -507,47 +522,49 @@ export function QuoteTemplateDesigner({
         </Section>
 
         <Section icon={PenLine} title="Signature & Footer">
-          <div className="grid gap-4 md:grid-cols-2">
-            <CheckboxField
-              checked={template.signature.clientNameInputEnabled}
-              label="Client name input"
-              onChange={(clientNameInputEnabled) =>
-                setTemplate((current) => ({
-                  ...current,
-                  signature: {
-                    ...current.signature,
-                    clientNameInputEnabled,
-                  },
-                }))
+          <div className="grid gap-4">
+            <div className="grid gap-4 md:grid-cols-2 md:items-start">
+              <Field label="Client name input">
+                <CheckboxField
+                  checked={template.signature.clientNameInputEnabled}
+                  label="Enabled"
+                  onChange={(clientNameInputEnabled) =>
+                    setTemplate((current) => ({
+                      ...current,
+                      signature: {
+                        ...current.signature,
+                        clientNameInputEnabled,
+                      },
+                    }))
+                  }
+                />
+              </Field>
+              <Field label="Client signature name case">
+                <select
+                  className={selectClassName}
+                  value={template.signature.nameCase}
+                  onChange={(event) =>
+                    setTemplate((current) => ({
+                      ...current,
+                      signature: {
+                        ...current.signature,
+                        nameCase: event.target.value as "uppercase" | "title",
+                      },
+                    }))
+                  }
+                >
+                  <option value="title">Title Case</option>
+                  <option value="uppercase">CAPITALIZE CASE</option>
+                </select>
+              </Field>
+            </div>
+            <ToggleMarkdownField
+              label="Footer"
+              value={template.footer}
+              onChange={(footer) =>
+                setTemplate((current) => ({ ...current, footer }))
               }
             />
-            <Field label="Client signature name case">
-              <select
-                className={selectClassName}
-                value={template.signature.nameCase}
-                onChange={(event) =>
-                  setTemplate((current) => ({
-                    ...current,
-                    signature: {
-                      ...current.signature,
-                      nameCase: event.target.value as "uppercase" | "title",
-                    },
-                  }))
-                }
-              >
-                <option value="title">Title Case</option>
-                <option value="uppercase">CAPITALIZE CASE</option>
-              </select>
-            </Field>
-            <div className="md:col-span-2">
-              <ToggleMarkdownField
-                label="Footer"
-                value={template.footer}
-                onChange={(footer) =>
-                  setTemplate((current) => ({ ...current, footer }))
-                }
-              />
-            </div>
           </div>
         </Section>
       </div>

@@ -114,6 +114,7 @@ type OrganizationRow = {
   id: string;
   clerk_org_id: string | null;
   name: string;
+  pipeline_currency: string | null;
 };
 
 type ClientRow = {
@@ -306,6 +307,50 @@ export async function updateSupabaseQuoteTemplate(
   throwIfError(error, "Save quote template");
 
   return content;
+}
+
+export async function getSupabasePipelineCurrency(quoter: QuoterContext) {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  const { data, error } = await db
+    .from("organizations")
+    .select("pipeline_currency")
+    .eq("id", organization.id)
+    .single();
+
+  if (isMissingPipelineCurrencyColumn(error)) {
+    return normalizeCurrency();
+  }
+
+  throwIfError(error, "Get pipeline currency");
+
+  return normalizeCurrency(
+    (data as Pick<OrganizationRow, "pipeline_currency">).pipeline_currency,
+  );
+}
+
+export async function updateSupabasePipelineCurrency(
+  quoter: QuoterContext,
+  currency: string,
+) {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  const pipelineCurrency = normalizeCurrency(currency);
+  const { data, error } = await db
+    .from("organizations")
+    .update({
+      pipeline_currency: pipelineCurrency,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", organization.id)
+    .select("pipeline_currency")
+    .single();
+
+  throwIfError(error, "Save pipeline currency");
+
+  return normalizeCurrency(
+    (data as Pick<OrganizationRow, "pipeline_currency">).pipeline_currency,
+  );
 }
 
 export async function listSupabaseLineItemData(quoter: QuoterContext) {
@@ -2713,6 +2758,13 @@ function extensionForMimeType(mimeType: LineItemImageMimeType) {
 
 function normalizeIpAddress(value?: string) {
   return value?.split(",")[0]?.trim() || null;
+}
+
+function isMissingPipelineCurrencyColumn(error: SupabaseError | undefined) {
+  return Boolean(
+    error?.message.toLowerCase().includes("pipeline_currency") &&
+      error.message.toLowerCase().includes("does not exist"),
+  );
 }
 
 function throwIfError(error: SupabaseError | undefined, context: string) {

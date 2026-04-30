@@ -6,6 +6,7 @@ import {
   deleteDemoQuoteQuoterSignature,
   getDemoAuditEvents,
   getDemoClientQuoteView,
+  getDemoPipelineCurrency,
   getDemoQuote,
   getDemoQuoteTemplate,
   listDemoQuoteDocumentSignatures,
@@ -18,6 +19,7 @@ import {
   ensureDemoQuoteShareLinks,
   sendDemoQuote,
   updateDemoLineItemData,
+  updateDemoPipelineCurrency,
   updateDemoQuoteTemplate,
   updateDemoQuote,
   updateDemoQuoteVisibility,
@@ -40,6 +42,7 @@ import {
   deleteSupabaseQuote,
   deleteSupabaseQuoteQuoterSignature,
   getSupabaseClientQuoteView,
+  getSupabasePipelineCurrency,
   getSupabaseQuote,
   getSupabaseQuoteTemplate,
   listSupabaseLineItemData,
@@ -53,6 +56,7 @@ import {
   ensureSupabaseQuoteShareLinks,
   sendSupabaseQuote,
   updateSupabaseLineItemData,
+  updateSupabasePipelineCurrency,
   updateSupabaseQuoteTemplate,
   updateSupabaseQuote,
   updateSupabaseQuoteVisibility,
@@ -103,6 +107,25 @@ export async function updateQuoteTemplate(
   }
 
   return updateSupabaseQuoteTemplate(quoter, template);
+}
+
+export async function getPipelineCurrency(quoter: QuoterContext) {
+  if (shouldUseDemoPersistence()) {
+    return getDemoPipelineCurrency();
+  }
+
+  return getSupabasePipelineCurrency(quoter);
+}
+
+export async function updatePipelineCurrency(
+  quoter: QuoterContext,
+  currency: string,
+) {
+  if (shouldUseDemoPersistence()) {
+    return updateDemoPipelineCurrency(currency);
+  }
+
+  return updateSupabasePipelineCurrency(quoter, currency);
 }
 
 export async function listLineItemData(quoter: QuoterContext) {

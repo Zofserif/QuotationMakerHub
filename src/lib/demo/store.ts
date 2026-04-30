@@ -66,6 +66,7 @@ type DemoState = {
   auditEvents: Record<string, AuditEvent[]>;
   quoteCounter: number;
   quoteTemplate: QuoteTemplate;
+  pipelineCurrency: string;
   lineItemData: LineItemData[];
 };
 
@@ -179,6 +180,7 @@ function seedDemoState(): DemoState {
     },
     quoteCounter: 2,
     quoteTemplate: structuredClone(defaultQuoteTemplate),
+    pipelineCurrency: normalizeCurrency(),
     lineItemData: [
       {
         id: randomUUID(),
@@ -255,6 +257,16 @@ export function getDemoQuoteTemplate() {
 export function updateDemoQuoteTemplate(template: QuoteTemplate) {
   demoState.quoteTemplate = mergeQuoteTemplate(template);
   return demoState.quoteTemplate;
+}
+
+export function getDemoPipelineCurrency() {
+  demoState.pipelineCurrency = normalizeCurrency(demoState.pipelineCurrency);
+  return demoState.pipelineCurrency;
+}
+
+export function updateDemoPipelineCurrency(currency: string) {
+  demoState.pipelineCurrency = normalizeCurrency(currency);
+  return demoState.pipelineCurrency;
 }
 
 export function listDemoLineItemData() {

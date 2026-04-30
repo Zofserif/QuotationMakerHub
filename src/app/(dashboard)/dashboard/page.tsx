@@ -1,24 +1,21 @@
 import {
-  Database,
   FileSignature,
-  FileText,
   Send,
   ShieldCheck,
-  TrendingUp,
 } from "lucide-react";
 
-import { DashboardStatusTabs } from "@/components/dashboard/dashboard-status-tabs";
-import { LinkButton } from "@/components/ui/button";
+import { DashboardFilters } from "@/components/dashboard/dashboard-filters";
+import { PipelineCurrencyCard } from "@/components/dashboard/pipeline-currency-card";
 import { QuoteList } from "@/components/dashboard/quote-list";
 import { requireQuoter } from "@/lib/auth/require-quoter";
-import { listQuotes } from "@/lib/quotes/persistence";
+import { resolvePipelineCurrencySummary } from "@/lib/dashboard/pipeline-currency";
+import { getPipelineCurrency, listQuotes } from "@/lib/quotes/persistence";
 import { statusLabel } from "@/lib/quotes/quote-state";
 import {
   quoteStatuses,
   type QuoteStatus,
   type QuoteVisibility,
 } from "@/lib/quotes/types";
-import { formatMoney } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +39,7 @@ const statusTabs: StatusTab[] = [
 
 const visibilityTabs: Array<{ label: string; visibility: QuoteVisibility }> = [
   { label: "Active", visibility: "active" },
-  { label: "Archived", visibility: "archived" },
+  { label: "Inactive", visibility: "archived" },
 ];
 
 export default async function DashboardPage({
@@ -55,7 +52,8 @@ export default async function DashboardPage({
   const selectedStatus = parseQuoteStatus(statusParam);
   const selectedVisibility = parseQuoteVisibility(visibilityParam);
   const quoter = await requireQuoter();
-  const [activeQuotes, archivedQuotes] = await Promise.all([
+  const [pipelineCurrency, activeQuotes, archivedQuotes] = await Promise.all([
+    getPipelineCurrency(quoter),
     listQuotes(quoter, { visibility: "active" }),
     listQuotes(quoter, { visibility: "archived" }),
   ]);
@@ -69,7 +67,7 @@ export default async function DashboardPage({
     ["active", activeQuotes.length],
     ["archived", archivedQuotes.length],
   ]);
-  const visibilityNavigationTabs = visibilityTabs.map((tab) => ({
+  const visibilityFilterOptions = visibilityTabs.map((tab) => ({
     key: tab.visibility,
     label: tab.label,
     href: buildDashboardHref({
@@ -79,7 +77,7 @@ export default async function DashboardPage({
     count: visibilityCounts.get(tab.visibility) ?? 0,
     selected: selectedVisibility === tab.visibility,
   }));
-  const tabs = statusTabs.map((tab) => ({
+  const statusFilterOptions = statusTabs.map((tab) => ({
     key: tab.status ?? "all",
     label: tab.label,
     href: buildDashboardHref({
@@ -93,28 +91,23 @@ export default async function DashboardPage({
   const acceptedCount = quotes.filter((quote) =>
     ["accepted", "locked"].includes(quote.status),
   ).length;
-  const pipelineValue = formatPipelineValue(quotes);
+  const pipelineSummary = await resolvePipelineCurrencySummary(
+    quotes,
+    pipelineCurrency,
+  );
 
   return (
-    <div className="space-y-6">
-      <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="space-y-4">
+      <section>
         <div>
           <p className="text-sm font-medium text-stone-500">Workspace</p>
           <h1 className="mt-1 text-3xl font-bold text-stone-950">
             Quote dashboard
           </h1>
         </div>
-        <LinkButton href="/quote-template" variant="secondary">
-          <FileText className="size-4" />
-          Quote Template
-        </LinkButton>
-        <LinkButton href="/line-item-data" variant="secondary">
-          <Database className="size-4" />
-          Line Item Data
-        </LinkButton>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-4">
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Metric
           icon={FileSignature}
           label="Total quotes"
@@ -126,18 +119,13 @@ export default async function DashboardPage({
           label="Accepted"
           value={String(acceptedCount)}
         />
-        <Metric
-          icon={TrendingUp}
-          label="Pipeline"
-          value={pipelineValue}
-        />
+        <PipelineCurrencyCard {...pipelineSummary} />
       </section>
 
-      <DashboardStatusTabs
-        ariaLabel="Quotation visibility"
-        tabs={visibilityNavigationTabs}
+      <DashboardFilters
+        statusOptions={statusFilterOptions}
+        visibilityOptions={visibilityFilterOptions}
       />
-      <DashboardStatusTabs tabs={tabs} />
 
       <QuoteList
         emptyMessage={
@@ -201,30 +189,6 @@ function countQuotesByStatus(quotes: Array<{ status: QuoteStatus }>) {
   return counts;
 }
 
-function formatPipelineValue(
-  quotes: Array<{ currency: string; totalMinor: number }>,
-) {
-  const totalsByCurrency = new Map<string, number>();
-
-  for (const quote of quotes) {
-    totalsByCurrency.set(
-      quote.currency,
-      (totalsByCurrency.get(quote.currency) ?? 0) + quote.totalMinor,
-    );
-  }
-
-  if (totalsByCurrency.size === 0) {
-    return formatMoney(0);
-  }
-
-  return Array.from(totalsByCurrency.entries())
-    .toSorted(([leftCurrency], [rightCurrency]) =>
-      leftCurrency.localeCompare(rightCurrency),
-    )
-    .map(([currency, totalMinor]) => formatMoney(totalMinor, currency))
-    .join(" / ");
-}
-
 function Metric({
   icon: Icon,
   label,
@@ -235,12 +199,12 @@ function Metric({
   value: string;
 }) {
   return (
-    <div className="rounded-lg border border-stone-200 bg-white p-4">
-      <div className="mb-3 flex size-10 items-center justify-center rounded-md bg-stone-100">
-        <Icon className="size-5 text-stone-700" />
+    <div className="rounded-lg border border-stone-200 bg-white p-3">
+      <div className="mb-2 flex size-8 items-center justify-center rounded-md bg-stone-100">
+        <Icon className="size-4 text-stone-700" />
       </div>
       <p className="text-sm text-stone-500">{label}</p>
-      <p className="mt-1 text-2xl font-bold text-stone-950">{value}</p>
+      <p className="mt-1 text-xl font-bold text-stone-950">{value}</p>
     </div>
   );
 }

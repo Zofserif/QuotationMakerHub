@@ -3,6 +3,7 @@ export const dashboardRoutes = [
   "/line-item-data(.*)",
   "/quote-template(.*)",
   "/quotes(.*)",
+  "/api/dashboard(.*)",
   "/api/line-item-data(.*)",
   "/api/quote-template(.*)",
   "/print/quotes(.*)",
