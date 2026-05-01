@@ -6,16 +6,60 @@ export type CleanSignatureOptions = {
   minComponentSize?: number;
 };
 
+export type SignatureCropRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type CleanedSignaturePreview = {
+  blob: Blob;
+  crop: SignatureCropRect;
+  width: number;
+  height: number;
+};
+
 const DEFAULT_OPTIONS = {
   thresholdOffset: 25,
   alphaMultiplier: 8,
   minComponentSize: 12,
 };
 
+const AUTO_CROP_PADDING_PX = 4;
+
 export async function cleanSignatureFromCanvas(
   sourceCanvas: HTMLCanvasElement,
   options?: CleanSignatureOptions,
 ): Promise<Blob> {
+  const { crop, imageData } = cleanSignatureImageData(sourceCanvas, options);
+
+  return exportImageDataAsPng(imageData, crop);
+}
+
+export async function prepareCleanSignaturePreview(
+  sourceCanvas: HTMLCanvasElement,
+  options?: CleanSignatureOptions,
+): Promise<CleanedSignaturePreview> {
+  const { crop, imageData } = cleanSignatureImageData(sourceCanvas, options);
+
+  return {
+    blob: await exportImageDataAsPng(imageData, {
+      x: 0,
+      y: 0,
+      width: imageData.width,
+      height: imageData.height,
+    }),
+    crop,
+    width: imageData.width,
+    height: imageData.height,
+  };
+}
+
+function cleanSignatureImageData(
+  sourceCanvas: HTMLCanvasElement,
+  options?: CleanSignatureOptions,
+) {
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const ctx = sourceCanvas.getContext("2d", { willReadFrequently: true });
 
@@ -32,11 +76,46 @@ export async function cleanSignatureFromCanvas(
   const background = estimateBackgroundBrightness(imageData);
   removeBackground(imageData, background, opts);
   removeSmallNoiseComponents(imageData, opts.minComponentSize);
-  const trimmed = trimTransparentBounds(imageData);
 
+  return {
+    crop: getTransparentBounds(imageData, AUTO_CROP_PADDING_PX),
+    imageData,
+  };
+}
+
+export function cropSignaturePreview(
+  previewImage: HTMLImageElement,
+  crop: SignatureCropRect,
+) {
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(crop.width));
+  canvas.height = Math.max(1, Math.round(crop.height));
+
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    throw new Error("Output canvas context is unavailable");
+  }
+
+  context.drawImage(
+    previewImage,
+    crop.x,
+    crop.y,
+    crop.width,
+    crop.height,
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+  );
+
+  return canvasToPngBlob(canvas);
+}
+
+function exportImageDataAsPng(imageData: ImageData, crop: SignatureCropRect) {
   const outputCanvas = document.createElement("canvas");
-  outputCanvas.width = trimmed.width;
-  outputCanvas.height = trimmed.height;
+  outputCanvas.width = Math.max(1, Math.round(crop.width));
+  outputCanvas.height = Math.max(1, Math.round(crop.height));
 
   const outputCtx = outputCanvas.getContext("2d");
 
@@ -44,10 +123,14 @@ export async function cleanSignatureFromCanvas(
     throw new Error("Output canvas context is unavailable");
   }
 
-  outputCtx.putImageData(trimmed, 0, 0);
+  outputCtx.putImageData(imageData, -Math.round(crop.x), -Math.round(crop.y));
 
+  return canvasToPngBlob(outputCanvas);
+}
+
+function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => {
-    outputCanvas.toBlob((blob) => {
+    canvas.toBlob((blob) => {
       if (!blob) {
         reject(new Error("Could not export signature PNG"));
         return;
@@ -152,7 +235,10 @@ function removeSmallNoiseComponents(imageData: ImageData, minSize: number) {
   }
 }
 
-function trimTransparentBounds(imageData: ImageData) {
+function getTransparentBounds(
+  imageData: ImageData,
+  paddingPx: number,
+): SignatureCropRect {
   const { data, width, height } = imageData;
   let minX = width;
   let minY = height;
@@ -173,23 +259,25 @@ function trimTransparentBounds(imageData: ImageData) {
   }
 
   if (minX > maxX || minY > maxY) {
-    return imageData;
+    return {
+      x: 0,
+      y: 0,
+      width,
+      height,
+    };
   }
 
-  const trimmedWidth = Math.max(1, maxX - minX + 8);
-  const trimmedHeight = Math.max(1, maxY - minY + 8);
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const context = canvas.getContext("2d")!;
-  context.putImageData(imageData, 0, 0);
+  const x = Math.max(0, minX - paddingPx);
+  const y = Math.max(0, minY - paddingPx);
+  const right = Math.min(width, maxX + paddingPx + 1);
+  const bottom = Math.min(height, maxY + paddingPx + 1);
 
-  return context.getImageData(
-    Math.max(0, minX - 4),
-    Math.max(0, minY - 4),
-    Math.min(trimmedWidth, width - minX + 4),
-    Math.min(trimmedHeight, height - minY + 4),
-  );
+  return {
+    x,
+    y,
+    width: Math.max(1, right - x),
+    height: Math.max(1, bottom - y),
+  };
 }
 
 function grayAt(data: Uint8ClampedArray, x: number, y: number, width: number) {
