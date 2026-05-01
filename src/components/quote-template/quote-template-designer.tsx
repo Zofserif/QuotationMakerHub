@@ -21,12 +21,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   getCurrencyDisplayName,
   normalizeCurrency,
   supportedCurrencies,
 } from "@/lib/currency";
+import {
+  formatPercentInput,
+  normalizePercentInput,
+  parseNonNegativeDecimalInput,
+} from "@/lib/number-inputs";
 import type { QuoteTemplate, ToggleText } from "@/lib/quote-templates/types";
 
 const logoSizeLimitBytes = 1_200_000;
@@ -412,22 +418,26 @@ export function QuoteTemplateDesigner({
                     />
                     VAT exclusive
                   </label>
-                  <Input
+                  <NumericInput
                     aria-label="VAT rate percentage"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    type="number"
-                    value={template.lineItems.vat.rate * 100}
-                    onChange={(event) =>
+                    inputMode="decimal"
+                    value={formatPercentInput(template.lineItems.vat.rate * 100)}
+                    normalizeValue={(value) => normalizePercentInput(value)}
+                    onValueChange={(value) => {
+                      const vatRatePercent = parseNonNegativeDecimalInput(value);
+
+                      if (vatRatePercent === null) {
+                        return;
+                      }
+
                       updateLineItems({
                         vat: {
                           ...template.lineItems.vat,
                           enabled: true,
-                          rate: Number(event.target.value || 0) / 100,
+                          rate: Math.min(100, vatRatePercent) / 100,
                         },
-                      })
-                    }
+                      });
+                    }}
                   />
                 </div>
               </Field>

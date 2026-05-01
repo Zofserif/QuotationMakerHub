@@ -10,8 +10,10 @@ import {
   supportedCurrencies,
   type SupportedCurrencyCode,
 } from "@/lib/currency";
+import { cn } from "@/lib/utils";
 
 type PipelineCurrencyCardProps = {
+  className?: string;
   currency: SupportedCurrencyCode;
   fallbackValue: string;
   rateUpdatedAt?: string;
@@ -20,6 +22,7 @@ type PipelineCurrencyCardProps = {
 };
 
 export function PipelineCurrencyCard({
+  className,
   currency,
   fallbackValue,
   rateUpdatedAt,
@@ -63,7 +66,7 @@ export function PipelineCurrencyCard({
   }
 
   return (
-    <div className="rounded-lg border border-stone-200 bg-white p-3">
+    <div className={cn("rounded-lg border border-stone-200 bg-white p-3", className)}>
       <div className="flex items-center gap-2">
         <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-stone-100">
           <TrendingUp className="size-4 text-stone-700" />

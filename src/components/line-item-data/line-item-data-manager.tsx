@@ -15,14 +15,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MarkdownText } from "@/components/ui/markdown-text";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { Textarea } from "@/components/ui/textarea";
-import { getCurrencyInputStep } from "@/lib/currency";
 import { getLineItemImageSrc } from "@/lib/line-item-data/images";
 import type {
   LineItemData,
   LineItemDataDraft,
   LineItemImageMimeType,
 } from "@/lib/line-item-data/types";
+import { normalizeMoneyInput } from "@/lib/number-inputs";
 import { cn, formatMoney, majorToMinor, minorToMajorString } from "@/lib/utils";
 
 type FormState = {
@@ -400,14 +401,13 @@ export function LineItemDataManager({
                 </select>
               </Field>
               <Field label="Unit Price">
-                <Input
+                <NumericInput
                   required
-                  min="0"
-                  step={getCurrencyInputStep(currency)}
-                  type="number"
+                  inputMode="decimal"
                   value={form.unitPriceMajor}
-                  onChange={(event) =>
-                    updateForm({ unitPriceMajor: event.target.value })
+                  normalizeValue={(value) => normalizeMoneyInput(value, currency)}
+                  onValueChange={(value) =>
+                    updateForm({ unitPriceMajor: value })
                   }
                 />
               </Field>

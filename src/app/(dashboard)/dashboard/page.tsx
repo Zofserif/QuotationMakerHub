@@ -107,7 +107,7 @@ export default async function DashboardPage({
         </div>
       </section>
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-3 gap-2 sm:gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Metric
           icon={FileSignature}
           label="Total quotes"
@@ -119,7 +119,10 @@ export default async function DashboardPage({
           label="Accepted"
           value={String(acceptedCount)}
         />
-        <PipelineCurrencyCard {...pipelineSummary} />
+        <PipelineCurrencyCard
+          {...pipelineSummary}
+          className="col-span-3 md:col-span-1"
+        />
       </section>
 
       <DashboardFilters
@@ -199,12 +202,16 @@ function Metric({
   value: string;
 }) {
   return (
-    <div className="rounded-lg border border-stone-200 bg-white p-3">
-      <div className="mb-2 flex size-8 items-center justify-center rounded-md bg-stone-100">
-        <Icon className="size-4 text-stone-700" />
+    <div className="min-w-0 rounded-lg border border-stone-200 bg-white px-2 py-3 text-center sm:p-3 sm:text-left">
+      <div className="mx-auto mb-2 flex size-7 items-center justify-center rounded-md bg-stone-100 sm:mx-0 sm:size-8">
+        <Icon className="size-3.5 text-stone-700 sm:size-4" />
       </div>
-      <p className="text-sm text-stone-500">{label}</p>
-      <p className="mt-1 text-xl font-bold text-stone-950">{value}</p>
+      <p className="min-w-0 text-xs leading-tight text-stone-500 sm:text-sm">
+        {label}
+      </p>
+      <p className="mt-1 break-words text-lg font-bold text-stone-950 sm:text-xl">
+        {value}
+      </p>
     </div>
   );
 }

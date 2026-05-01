@@ -14,10 +14,17 @@ import { useState, type ChangeEvent, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MarkdownText } from "@/components/ui/markdown-text";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { Textarea } from "@/components/ui/textarea";
-import { getCurrencyInputStep } from "@/lib/currency";
 import { getLineItemImageSrc } from "@/lib/line-item-data/images";
 import type { LineItemData } from "@/lib/line-item-data/types";
+import {
+  formatPercentInput,
+  normalizeMoneyInput,
+  normalizePercentInput,
+  parseNonNegativeDecimalInput,
+  parsePositiveIntegerInput,
+} from "@/lib/number-inputs";
 import {
   getTemplateDefaultLineItemTaxRate,
   getTemplateDefaultLineItemUnit,
@@ -60,7 +67,6 @@ export function LineItemsTable({
   const defaultTaxRate = getTemplateDefaultLineItemTaxRate(template);
   const taxMode = vatEnabled ? template.lineItems.vat.mode : "exclusive";
   const moneyDisplay = template.lineItems.unitPrice.display;
-  const unitPriceStep = getCurrencyInputStep(currency);
   const descriptionPlaceholder =
     template.lineItems.detailedDescriptionLabel.trim() ||
     "Detailed description markdown";
@@ -297,14 +303,20 @@ export function LineItemsTable({
                     required
                     error={quantityError}
                   >
-                    <Input
+                    <NumericInput
                       aria-label="Quantity"
-                      type="number"
-                      min="1"
-                      step="1"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       value={String(lineItem.quantity)}
-                      onChange={(event) => {
-                        const quantity = Math.max(1, Number(event.target.value || 1));
+                      normalizeValue={(value) =>
+                        String(parsePositiveIntegerInput(value) ?? 1)
+                      }
+                      onValueChange={(value) => {
+                        const quantity = parsePositiveIntegerInput(value);
+
+                        if (quantity === null) {
+                          return;
+                        }
 
                         updateLineItem(index, {
                           quantity,
@@ -350,14 +362,22 @@ export function LineItemsTable({
                   label="Unit Price"
                   error={unitPriceError}
                 >
-                  <Input
+                  <NumericInput
                     aria-label="Unit price"
-                    type="number"
-                    min="0"
-                    step={unitPriceStep}
+                    inputMode="decimal"
                     value={minorToMajorString(lineItem.unitPriceMinor, currency)}
-                    onChange={(event) => {
-                      const unitPriceMinor = majorToMinor(event.target.value, currency);
+                    normalizeValue={(value) => normalizeMoneyInput(value, currency)}
+                    onValueChange={(value) => {
+                      const unitPriceMajor = parseNonNegativeDecimalInput(value);
+
+                      if (unitPriceMajor === null) {
+                        return;
+                      }
+
+                      const unitPriceMinor = majorToMinor(
+                        String(unitPriceMajor),
+                        currency,
+                      );
 
                       updateLineItem(index, {
                         unitPriceMinor,
@@ -378,21 +398,26 @@ export function LineItemsTable({
                   label="Discount %"
                   error={discountError}
                 >
-                  <Input
+                  <NumericInput
                     aria-label="Discount percentage"
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    value={formatDiscountPercent(discountPercent)}
-                    onChange={(event) =>
+                    inputMode="decimal"
+                    value={formatPercentInput(discountPercent)}
+                    normalizeValue={(value) => normalizePercentInput(value)}
+                    onValueChange={(value) => {
+                      const discountPercentValue =
+                        parseNonNegativeDecimalInput(value);
+
+                      if (discountPercentValue === null) {
+                        return;
+                      }
+
                       updateLineItem(index, {
                         discountMinor: discountMinorFromPercent(
-                          event.target.value,
+                          discountPercentValue,
                           lineSubtotalMinor,
                         ),
-                      })
-                    }
+                      });
+                    }}
                   />
                 </Field>
               </div>
@@ -600,16 +625,6 @@ function discountMinorFromPercent(
   const clampedPercent = Math.min(100, Math.max(0, percent));
 
   return Math.round(lineSubtotalMinor * (clampedPercent / 100));
-}
-
-function formatDiscountPercent(value: number) {
-  if (!Number.isFinite(value) || value === 0) {
-    return "0";
-  }
-
-  return Number.isInteger(value)
-    ? String(value)
-    : value.toFixed(2).replace(/\.?0+$/, "");
 }
 
 function createEmptyLineItem(input: {
