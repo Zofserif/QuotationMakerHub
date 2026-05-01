@@ -55,6 +55,7 @@ export default async function PreviewQuotePage({
         quote={quote}
         template={template}
         clientSignatures={clientSignatures}
+        snapshot={latestVersion?.snapshot}
         latestSnapshotSha256={latestVersion?.snapshotSha256}
         latestVersionNumber={latestVersion?.versionNumber}
       />

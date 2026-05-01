@@ -11,25 +11,34 @@ import {
   buildQuoteShareLinks,
   buildUnavailableQuoteShareLinks,
 } from "@/lib/quotes/share-links";
-import type { Quote, QuoteDocumentSignature } from "@/lib/quotes/types";
+import type {
+  Quote,
+  QuoteDocumentSignature,
+  QuoteVersionSnapshot,
+} from "@/lib/quotes/types";
 
 export function QuotePreview({
   quote,
   template,
   clientSignatures,
+  snapshot: savedSnapshot,
   latestSnapshotSha256,
   latestVersionNumber,
 }: {
   quote: Quote;
   template?: QuoteTemplate;
   clientSignatures?: QuoteDocumentSignature[];
+  snapshot?: QuoteVersionSnapshot;
   latestSnapshotSha256?: string;
   latestVersionNumber?: number;
 }) {
-  const snapshot = createVersionSnapshot(
+  const liveSnapshot = createVersionSnapshot(
     quote,
     mergeQuoteTemplate(quote.templateSnapshot ?? template),
   );
+  const snapshot =
+    savedSnapshot ??
+    attachPreviewQuoterSignature(liveSnapshot, quote.quoterSignatureAsset);
 
   return (
     <div className="space-y-6">
@@ -60,4 +69,21 @@ export function QuotePreview({
       </section>
     </div>
   );
+}
+
+function attachPreviewQuoterSignature(
+  snapshot: QuoteVersionSnapshot,
+  quoterSignatureAsset: Quote["quoterSignatureAsset"],
+): QuoteVersionSnapshot {
+  if (!snapshot.quoterSignature || !quoterSignatureAsset) {
+    return snapshot;
+  }
+
+  return {
+    ...snapshot,
+    quoterSignature: {
+      ...snapshot.quoterSignature,
+      asset: quoterSignatureAsset,
+    },
+  };
 }

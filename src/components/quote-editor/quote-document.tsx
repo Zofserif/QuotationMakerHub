@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { MarkdownText } from "@/components/ui/markdown-text";
 import { QuoteTotalsView } from "@/components/quote-editor/quote-totals";
 import { getLineItemImageSrc } from "@/lib/line-item-data/images";
+import { calculateLineTotalMinor } from "@/lib/quotes/calculate-totals";
 import type { QuoteSignatureMode } from "@/lib/quotes/print-options";
 import type {
   QuoteDocumentSignature,
@@ -36,12 +37,13 @@ export function QuoteDocument({
   const taxMode = vatEnabled ? (template?.lineItems.vat.mode ?? "exclusive") : "exclusive";
   const showVat = vatEnabled && taxMode === "exclusive";
   const moneyDisplay = template?.lineItems.unitPrice.display ?? "symbol";
-  const itemNumberLabel = "Item #";
+  const itemNumberLabel = "#";
   const renderedClientSignatures =
     clientSignatures ?? createUnsignedClientSignatures(snapshot);
   const wetSignatureMode = signatureMode === "wet";
   const isPrint = variant === "print";
   const usesClientDocumentLayout = isPrint || variant === "client";
+  const usesClientMobileCards = variant === "client";
   const lineItemHeaderCellClassName = usesClientDocumentLayout
     ? "py-3"
     : undefined;
@@ -49,13 +51,13 @@ export function QuoteDocument({
     ? "py-4"
     : undefined;
   const lineItemGridColumns = [
-    showItemNumber ? "80px" : null,
-    "minmax(0, 1.8fr)",
-    showQuantity ? "90px" : null,
-    showUnit ? "110px" : null,
-    "120px",
-    showVat ? "110px" : null,
-    "120px",
+    showItemNumber ? "44px" : null,
+    "minmax(0, 3fr)",
+    showQuantity ? "minmax(48px, 0.5fr)" : null,
+    showUnit ? "minmax(64px, 0.65fr)" : null,
+    "minmax(96px, 0.95fr)",
+    showVat ? "minmax(82px, 0.8fr)" : null,
+    "minmax(112px, 1.15fr)",
   ]
     .filter(Boolean)
     .join(" ");
@@ -194,7 +196,105 @@ export function QuoteDocument({
       ) : null}
 
       <section className="py-6">
-        <div className="overflow-hidden rounded-lg border border-stone-200">
+        {usesClientMobileCards ? (
+          <div className="space-y-4 sm:hidden print:hidden">
+            {snapshot.lineItems.map((lineItem, index) => {
+              const imageSrc = getLineItemImageSrc(lineItem);
+              const safeQuantity = Math.max(1, lineItem.quantity);
+              const unitVatMinor = calculateLineTotalMinor({
+                ...lineItem,
+                quantity: 1,
+                discountMinor: Math.round(lineItem.discountMinor / safeQuantity),
+                taxMode,
+              }).tax;
+              const hasPicture = showDescriptionPicture && Boolean(imageSrc);
+              const hasDescription = Boolean(lineItem.description?.trim());
+              const hasDetails = hasPicture || hasDescription;
+
+              return (
+                <article
+                  className="overflow-hidden rounded-lg border border-stone-200 bg-white text-sm"
+                  key={lineItem.id}
+                >
+                  <header className="grid grid-cols-[minmax(2rem,auto)_minmax(0,1fr)_minmax(4rem,auto)] items-center gap-2 border-b border-stone-200 bg-stone-50 px-3 py-3">
+                    {showItemNumber ? (
+                      <p className="min-w-0 text-xs font-semibold uppercase tracking-wide text-stone-500">
+                        #{index + 1}
+                      </p>
+                    ) : (
+                      <span aria-hidden="true" />
+                    )}
+                    <h3 className="min-w-0 break-words text-center font-semibold text-stone-950">
+                      {lineItem.name}
+                    </h3>
+                    {showUnit ? (
+                      <p className="min-w-0 max-w-24 break-words text-right text-xs font-semibold uppercase tracking-wide text-stone-500">
+                        {lineItem.unit || "Unit"}
+                      </p>
+                    ) : (
+                      <span aria-hidden="true" />
+                    )}
+                  </header>
+
+                  <div className="min-w-0 space-y-4 p-4">
+                    {hasDetails ? (
+                      <div className="min-w-0 space-y-3">
+                        {hasPicture && imageSrc ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            alt=""
+                            className="aspect-[16/9] w-full rounded-md object-cover"
+                            src={imageSrc}
+                          />
+                        ) : null}
+                        {hasDescription ? (
+                          <MarkdownText
+                            className="text-sm leading-6 text-stone-600 [&_li]:text-left [&_p]:text-left"
+                            value={lineItem.description}
+                          />
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    <dl className="min-w-0 space-y-2">
+                      {showQuantity ? (
+                        <LineItemMobileMetric label="Qty">
+                          {lineItem.quantity}
+                        </LineItemMobileMetric>
+                      ) : null}
+                      <LineItemMobileMetric label="Unit Price">
+                        {formatMoney(
+                          lineItem.unitPriceMinor,
+                          snapshot.currency,
+                          moneyDisplay,
+                        )}
+                      </LineItemMobileMetric>
+                      {showVat ? (
+                        <LineItemMobileMetric label="VAT">
+                          {formatMoney(unitVatMinor, snapshot.currency, moneyDisplay)}
+                        </LineItemMobileMetric>
+                      ) : null}
+                      <LineItemMobileMetric label="Total" emphasized>
+                        {formatMoney(
+                          lineItem.lineTotalMinor,
+                          snapshot.currency,
+                          moneyDisplay,
+                        )}
+                      </LineItemMobileMetric>
+                    </dl>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : null}
+
+        <div
+          className={cn(
+            "overflow-hidden rounded-lg border border-stone-200",
+            usesClientMobileCards ? "hidden sm:block print:block" : null,
+          )}
+        >
           <div
             className={cn(
               "grid bg-stone-50 text-xs font-semibold uppercase tracking-wide text-stone-500",
@@ -223,7 +323,7 @@ export function QuoteDocument({
                 bordered={usesClientDocumentLayout}
                 className={lineItemHeaderCellClassName}
               >
-                Quantity
+                Qty
               </LineItemCell>
             ) : null}
             {showUnit ? (
@@ -258,9 +358,13 @@ export function QuoteDocument({
           <div className="divide-y divide-stone-200">
             {snapshot.lineItems.map((lineItem, index) => {
               const imageSrc = getLineItemImageSrc(lineItem);
-              const vatLabel = showVat
-                ? `${Math.round(lineItem.taxRate * 10000) / 100}% excl.`
-                : null;
+              const safeQuantity = Math.max(1, lineItem.quantity);
+              const unitVatMinor = calculateLineTotalMinor({
+                ...lineItem,
+                quantity: 1,
+                discountMinor: Math.round(lineItem.discountMinor / safeQuantity),
+                taxMode,
+              }).tax;
 
               return (
                 <div
@@ -329,7 +433,7 @@ export function QuoteDocument({
                       bordered={usesClientDocumentLayout}
                       className={lineItemBodyCellClassName}
                     >
-                      {vatLabel}
+                      {formatMoney(unitVatMinor, snapshot.currency, moneyDisplay)}
                     </LineItemCell>
                   ) : null}
                   <LineItemCell
@@ -462,6 +566,32 @@ export function QuoteDocument({
   );
 }
 
+function LineItemMobileMetric({
+  children,
+  emphasized = false,
+  label,
+}: {
+  children: ReactNode;
+  emphasized?: boolean;
+  label: string;
+}) {
+  return (
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,auto)] items-baseline gap-3 py-1">
+      <dt className="min-w-0 text-xs font-semibold uppercase tracking-wide text-stone-500">
+        {label}
+      </dt>
+      <dd
+        className={cn(
+          "min-w-0 break-words text-right text-sm text-stone-950",
+          emphasized ? "text-base font-semibold" : "font-medium",
+        )}
+      >
+        {children}
+      </dd>
+    </div>
+  );
+}
+
 function LineItemCell({
   bordered = false,
   children,
@@ -474,6 +604,7 @@ function LineItemCell({
   return (
     <div
       className={cn(
+        "min-w-0",
         bordered ? "border-l border-stone-200 px-3 first:border-l-0" : null,
         className,
       )}
