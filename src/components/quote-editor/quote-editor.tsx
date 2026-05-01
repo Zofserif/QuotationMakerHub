@@ -5,7 +5,6 @@ import {
   FileSignature,
   Save,
   Send,
-  Sparkles,
   Trash2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -41,7 +40,6 @@ import type {
   ValidationErrorDetails,
   ValidationIssue,
 } from "@/lib/quotes/validation";
-import { formatQuoteIssuedDate } from "@/lib/utils";
 
 const customerFieldVisibilityOptions = [
   { key: "clientCompany", label: "Client Company" },
@@ -348,79 +346,6 @@ export function QuoteEditor({
                 }
               />
             </Field>
-          </div>
-        </section>
-
-        <section className="rounded-lg border border-stone-200 bg-white p-5">
-          <div className="mb-5 flex items-center gap-2">
-            <Sparkles className="size-4 text-stone-500" />
-            <h2 className="font-semibold text-stone-950">Quotation Designer</h2>
-          </div>
-
-          <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-            <div className="space-y-4">
-              <StaticToggleField
-                enabled={effectiveTemplate.logo.enabled}
-                label="Logo"
-              >
-                {effectiveTemplate.logo.enabled && effectiveTemplate.logo.dataUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    alt="Company logo"
-                    className="h-24 w-full rounded-md border border-stone-200 object-contain"
-                    src={effectiveTemplate.logo.dataUrl}
-                  />
-                ) : (
-                  <ReadOnlyBox value="Hidden" />
-                )}
-              </StaticToggleField>
-              <StaticField label={effectiveTemplate.company.dateLabel || "Date"}>
-                <ReadOnlyBox value={formatQuoteIssuedDate(quote?.sentAt)} />
-              </StaticField>
-              <StaticField label="Quotation Number">
-                <ReadOnlyBox
-                  value={quote?.quoteNumber || "Generated when saved"}
-                />
-              </StaticField>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <StaticToggleField
-                enabled={effectiveTemplate.company.name.enabled}
-                label="Company Name"
-              >
-                <ReadOnlyInput
-                  value={effectiveTemplate.company.name.value}
-                />
-              </StaticToggleField>
-              <StaticField label="Address">
-                <ReadOnlyInput value={effectiveTemplate.company.address} />
-              </StaticField>
-              <StaticToggleField
-                enabled={effectiveTemplate.company.telephone.enabled}
-                label="Telephone"
-              >
-                <ReadOnlyInput value={effectiveTemplate.company.telephone.value} />
-              </StaticToggleField>
-              <StaticToggleField
-                enabled={effectiveTemplate.company.phone.enabled}
-                label="Phone number"
-              >
-                <ReadOnlyInput value={effectiveTemplate.company.phone.value} />
-              </StaticToggleField>
-              <StaticToggleField
-                enabled={effectiveTemplate.company.email.enabled}
-                label="Email"
-              >
-                <ReadOnlyInput value={effectiveTemplate.company.email.value} />
-              </StaticToggleField>
-              <StaticToggleField
-                enabled={effectiveTemplate.company.vatRegTin.enabled}
-                label="VAT Reg TIN"
-              >
-                <ReadOnlyInput value={effectiveTemplate.company.vatRegTin.value} />
-              </StaticToggleField>
-            </div>
           </div>
         </section>
 
@@ -1001,22 +926,6 @@ function FieldLabel({
   );
 }
 
-function StaticToggleField({
-  enabled,
-  label,
-  children,
-}: {
-  enabled: boolean;
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <StaticField label={`${label}${enabled ? "" : " (Hidden)"}`}>
-      {enabled ? children : <ReadOnlyBox value="Hidden" />}
-    </StaticField>
-  );
-}
-
 function CustomerFieldToggle({
   checked,
   label,
@@ -1037,10 +946,6 @@ function CustomerFieldToggle({
       {label}
     </label>
   );
-}
-
-function ReadOnlyInput({ value }: { value: string }) {
-  return <Input readOnly value={value} />;
 }
 
 function ReadOnlyBox({ value }: { value: string }) {
