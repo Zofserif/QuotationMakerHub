@@ -1,11 +1,6 @@
-import {
-  ArrowRight,
-  Camera,
-  CheckCircle2,
-  FileSignature,
-  ShieldCheck,
-} from "lucide-react";
+import { ArrowRight, Camera, CheckCircle2, ShieldCheck } from "lucide-react";
 
+import { BrandLogo } from "@/components/brand-logo";
 import { LinkButton } from "@/components/ui/button";
 import { APP_NAME } from "@/lib/app-config";
 
@@ -17,7 +12,7 @@ export default function Home() {
         <div className="relative mx-auto flex min-h-screen max-w-7xl flex-col justify-between px-6 py-8 sm:px-8 lg:px-10">
           <nav className="flex items-center">
             <div className="flex items-center gap-2 text-lg font-semibold">
-              <FileSignature className="size-5" />
+              <BrandLogo variant="badge" />
               {APP_NAME}
             </div>
           </nav>

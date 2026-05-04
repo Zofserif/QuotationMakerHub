@@ -1,5 +1,7 @@
 export const APP_NAME = "Remote Quote";
 
+export const APP_LOGO_SRC = "/remote-quote-logo.svg";
+
 export const APP_DESCRIPTION =
   "Create, send, sign, and export structured quotations.";
 

@@ -1,13 +1,8 @@
-import {
-  Database,
-  FileSignature,
-  FileText,
-  LayoutDashboard,
-  Plus,
-} from "lucide-react";
+import { Database, FileText, LayoutDashboard, Plus } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { BrandLogo } from "@/components/brand-logo";
 import { AccountIndicator } from "@/components/dashboard/account-indicator";
 import { Badge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/button";
@@ -21,8 +16,11 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     <main className="min-h-screen bg-stone-100">
       <header className="border-b border-stone-200 bg-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-          <Link className="flex items-center gap-2 font-semibold text-stone-950" href="/dashboard">
-            <FileSignature className="size-5" />
+          <Link
+            className="flex items-center gap-2 font-semibold text-stone-950"
+            href="/dashboard"
+          >
+            <BrandLogo className="size-6" />
             {APP_NAME}
           </Link>
           <div className="flex min-w-0 flex-col gap-3 sm:items-end">
