@@ -18,6 +18,13 @@ import {
   type ReactNode,
 } from "react";
 
+import {
+  ImageCropModal,
+  imageCropAccept,
+  isCroppableImageFile,
+  type ImageCropResult,
+  type ImageCropSource,
+} from "@/components/image-upload/image-crop-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,6 +47,10 @@ import {
 import type { QuoteTemplate, ToggleText } from "@/lib/quote-templates/types";
 
 const logoSizeLimitBytes = 1_200_000;
+const logoDataUrlLimitBytes = 1_500_000;
+const logoCropAspectRatio = 2;
+const logoMaxOutputWidth = 1200;
+const logoMaxOutputHeight = 300;
 const selectClassName =
   "h-10 w-full rounded-md border border-stone-200 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-400 focus:ring-4 focus:ring-stone-100";
 
@@ -52,6 +63,8 @@ export function QuoteTemplateDesigner({
   const [isSaving, setIsSaving] = useState(false);
   const [template, setTemplate] = useState(initialTemplate);
   const [message, setMessage] = useState<string | null>(null);
+  const [logoCropSource, setLogoCropSource] =
+    useState<ImageCropSource | null>(null);
 
   function updateCompany(patch: Partial<QuoteTemplate["company"]>) {
     setTemplate((current) => ({
@@ -108,28 +121,54 @@ export function QuoteTemplateDesigner({
 
   function updateLogoFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
+    event.target.value = "";
 
     if (!file) {
       return;
     }
 
-    if (file.size > logoSizeLimitBytes) {
-      setMessage("Logo image must be 1.2 MB or smaller.");
+    if (!isCroppableImageFile(file)) {
+      setMessage("Logo image must be a PNG, JPEG, or WEBP image.");
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setTemplate((current) => ({
-        ...current,
-        logo: {
-          enabled: true,
-          dataUrl: String(reader.result ?? ""),
-        },
-      }));
-      setMessage(null);
-    };
-    reader.readAsDataURL(file);
+    if (logoCropSource) {
+      URL.revokeObjectURL(logoCropSource.objectUrl);
+    }
+
+    setLogoCropSource({
+      file,
+      objectUrl: URL.createObjectURL(file),
+    });
+    setMessage(null);
+  }
+
+  function clearLogoCropSource() {
+    if (logoCropSource) {
+      URL.revokeObjectURL(logoCropSource.objectUrl);
+      setLogoCropSource(null);
+    }
+  }
+
+  function applyCroppedLogo(result: ImageCropResult) {
+    if (
+      result.blob.size > logoSizeLimitBytes ||
+      result.dataUrl.length > logoDataUrlLimitBytes
+    ) {
+      const errorMessage = "Cropped logo image must be 1.2 MB or smaller.";
+      setMessage(errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    setTemplate((current) => ({
+      ...current,
+      logo: {
+        enabled: true,
+        dataUrl: result.dataUrl,
+      },
+    }));
+    clearLogoCropSource();
+    setMessage(null);
   }
 
   async function saveTemplate() {
@@ -183,13 +222,14 @@ export function QuoteTemplateDesigner({
   }
 
   return (
-    <form
-      className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]"
-      onSubmit={(event) => {
-        event.preventDefault();
-        void handleSaveTemplate();
-      }}
-    >
+    <>
+      <form
+        className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void handleSaveTemplate();
+        }}
+      >
       <div className="space-y-6">
         <Section icon={FileImage} title="Branding">
           <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
@@ -226,7 +266,7 @@ export function QuoteTemplateDesigner({
                 </div>
               )}
               <Input
-                accept="image/png,image/jpeg,image/webp"
+                accept={imageCropAccept}
                 type="file"
                 onChange={updateLogoFile}
               />
@@ -628,7 +668,22 @@ export function QuoteTemplateDesigner({
           ) : null}
         </div>
       </aside>
-    </form>
+      </form>
+      {logoCropSource ? (
+        <ImageCropModal
+          key={logoCropSource.objectUrl}
+          aspectRatio={logoCropAspectRatio}
+          file={logoCropSource.file}
+          maxOutputHeight={logoMaxOutputHeight}
+          maxOutputWidth={logoMaxOutputWidth}
+          objectUrl={logoCropSource.objectUrl}
+          open
+          title="Crop logo"
+          onCancel={clearLogoCropSource}
+          onConfirm={applyCroppedLogo}
+        />
+      ) : null}
+    </>
   );
 }
 

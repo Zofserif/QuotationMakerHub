@@ -13,6 +13,13 @@ import {
 } from "lucide-react";
 import { useState, type ChangeEvent, type ReactNode } from "react";
 
+import {
+  ImageCropModal,
+  imageCropAccept,
+  isCroppableImageFile,
+  type ImageCropResult,
+  type ImageCropSource,
+} from "@/components/image-upload/image-crop-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,6 +55,9 @@ type FormState = {
 const selectClassName =
   "h-10 w-full rounded-md border border-stone-200 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-400 focus:ring-4 focus:ring-stone-100";
 
+const descriptionImageCropAspectRatio = 4 / 3;
+const descriptionImageMaxOutputWidth = 1200;
+const descriptionImageMaxOutputHeight = 900;
 const csvTemplateUrl =
   "https://docs.google.com/spreadsheets/d/1YvgP4j9-LlWYzDYHr8oA6BVuLbA_dY_WdR0C5It3rY8/edit?usp=sharing";
 const maxCsvImportRows = 500;
@@ -83,6 +93,8 @@ export function LineItemDataManager({
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [imageCropSource, setImageCropSource] =
+    useState<ImageCropSource | null>(null);
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const unitSelectOptions = includeCurrentOption(unitOptions, form.unit);
   const isPending =
@@ -113,7 +125,7 @@ export function LineItemDataManager({
     setMessage(null);
   }
 
-  async function uploadImage(event: ChangeEvent<HTMLInputElement>) {
+  function selectImageForCrop(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
 
@@ -121,11 +133,35 @@ export function LineItemDataManager({
       return;
     }
 
+    if (!isCroppableImageFile(file)) {
+      setMessage("Description picture must be a PNG, JPEG, or WEBP image.");
+      return;
+    }
+
+    if (imageCropSource) {
+      URL.revokeObjectURL(imageCropSource.objectUrl);
+    }
+
+    setImageCropSource({
+      file,
+      objectUrl: URL.createObjectURL(file),
+    });
+    setMessage(null);
+  }
+
+  function clearImageCropSource() {
+    if (imageCropSource) {
+      URL.revokeObjectURL(imageCropSource.objectUrl);
+      setImageCropSource(null);
+    }
+  }
+
+  async function uploadCroppedImage(result: ImageCropResult) {
     setIsUploading(true);
 
     try {
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", result.file);
       const response = await fetch("/api/line-item-data/image", {
         method: "POST",
         body: formData,
@@ -133,10 +169,9 @@ export function LineItemDataManager({
       const payload = await response.json();
 
       if (!response.ok) {
-        setMessage(
+        throw new Error(
           payload.error?.message ?? "Could not upload description picture.",
         );
-        return;
       }
 
       updateForm({
@@ -144,9 +179,15 @@ export function LineItemDataManager({
         descriptionImageMimeType: payload.upload.mimeType,
         descriptionImageUrl: payload.upload.url ?? "",
       });
+      clearImageCropSource();
       setMessage(null);
-    } catch {
-      setMessage("Could not upload description picture.");
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Could not upload description picture.";
+      setMessage(errorMessage);
+      throw new Error(errorMessage);
     } finally {
       setIsUploading(false);
     }
@@ -292,7 +333,8 @@ export function LineItemDataManager({
   });
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
       <section className="space-y-4">
         {items.length === 0 ? (
           <div className="rounded-lg border border-dashed border-stone-300 bg-white p-8 text-center">
@@ -484,11 +526,11 @@ export function LineItemDataManager({
                     )}
                     {isUploading ? "Uploading..." : "Upload"}
                     <input
-                      accept="image/png,image/jpeg,image/webp"
+                      accept={imageCropAccept}
                       className="sr-only"
                       disabled={isPending}
                       type="file"
-                      onChange={(event) => void uploadImage(event)}
+                      onChange={selectImageForCrop}
                     />
                   </label>
                   {previewImage ? (
@@ -569,7 +611,22 @@ export function LineItemDataManager({
           </div>
         </form>
       </aside>
-    </div>
+      </div>
+      {imageCropSource ? (
+        <ImageCropModal
+          key={imageCropSource.objectUrl}
+          aspectRatio={descriptionImageCropAspectRatio}
+          file={imageCropSource.file}
+          maxOutputHeight={descriptionImageMaxOutputHeight}
+          maxOutputWidth={descriptionImageMaxOutputWidth}
+          objectUrl={imageCropSource.objectUrl}
+          open
+          title="Crop description picture"
+          onCancel={clearImageCropSource}
+          onConfirm={uploadCroppedImage}
+        />
+      ) : null}
+    </>
   );
 }
 

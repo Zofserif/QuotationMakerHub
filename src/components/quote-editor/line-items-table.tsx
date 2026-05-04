@@ -11,6 +11,13 @@ import {
 } from "lucide-react";
 import { useState, type ChangeEvent, type ReactNode } from "react";
 
+import {
+  ImageCropModal,
+  imageCropAccept,
+  isCroppableImageFile,
+  type ImageCropResult,
+  type ImageCropSource,
+} from "@/components/image-upload/image-crop-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -40,6 +47,13 @@ import type { ValidationIssue } from "@/lib/quotes/validation";
 import { cn, formatMoney, majorToMinor, minorToMajorString } from "@/lib/utils";
 
 type LineItemInput = QuoteDraft["lineItems"][number];
+type PendingImageCrop = ImageCropSource & {
+  index: number;
+};
+
+const lineItemImageCropAspectRatio = 4 / 3;
+const lineItemImageMaxOutputWidth = 1200;
+const lineItemImageMaxOutputHeight = 900;
 
 export function LineItemsTable({
   lineItems,
@@ -58,6 +72,12 @@ export function LineItemsTable({
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
+  const [pendingImageCrop, setPendingImageCrop] =
+    useState<PendingImageCrop | null>(null);
+  const [imageUploadError, setImageUploadError] = useState<{
+    index: number;
+    message: string;
+  } | null>(null);
   const [expandedDetailIndexes, setExpandedDetailIndexes] = useState<Set<number>>(
     new Set(),
   );
@@ -118,6 +138,15 @@ export function LineItemsTable({
     onChange(lineItems.filter((_, candidateIndex) => candidateIndex !== index));
     setExpandedDetailIndexes((current) => shiftIndexesAfterRemoval(current, index));
     setCollapsedDetailIndexes((current) => shiftIndexesAfterRemoval(current, index));
+    setImageUploadError((current) => shiftIndexedStateAfterRemoval(current, index));
+
+    if (pendingImageCrop?.index === index) {
+      clearPendingImageCrop();
+    } else {
+      setPendingImageCrop((current) =>
+        shiftIndexedStateAfterRemoval(current, index),
+      );
+    }
   }
 
   function toggleLineItemDetails(index: number, currentlyOpen: boolean) {
@@ -145,7 +174,7 @@ export function LineItemsTable({
     });
   }
 
-  async function uploadImage(index: number, event: ChangeEvent<HTMLInputElement>) {
+  function selectImageForCrop(index: number, event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
 
@@ -153,11 +182,39 @@ export function LineItemsTable({
       return;
     }
 
+    if (!isCroppableImageFile(file)) {
+      setImageUploadError({
+        index,
+        message: "Description picture must be a PNG, JPEG, or WEBP image.",
+      });
+      return;
+    }
+
+    if (pendingImageCrop) {
+      URL.revokeObjectURL(pendingImageCrop.objectUrl);
+    }
+
+    setPendingImageCrop({
+      file,
+      index,
+      objectUrl: URL.createObjectURL(file),
+    });
+    setImageUploadError(null);
+  }
+
+  function clearPendingImageCrop() {
+    if (pendingImageCrop) {
+      URL.revokeObjectURL(pendingImageCrop.objectUrl);
+      setPendingImageCrop(null);
+    }
+  }
+
+  async function uploadCroppedImage(index: number, result: ImageCropResult) {
     setUploadingIndex(index);
 
     try {
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", result.file);
       const response = await fetch("/api/line-item-data/image", {
         method: "POST",
         body: formData,
@@ -165,7 +222,9 @@ export function LineItemsTable({
       const payload = await response.json();
 
       if (!response.ok) {
-        return;
+        throw new Error(
+          payload.error?.message ?? "Could not upload description picture.",
+        );
       }
 
       updateLineItem(index, {
@@ -173,13 +232,23 @@ export function LineItemsTable({
         descriptionImageMimeType: payload.upload.mimeType,
         descriptionImageUrl: payload.upload.url ?? "",
       });
+      clearPendingImageCrop();
+      setImageUploadError(null);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Could not upload description picture.";
+      setImageUploadError({ index, message: errorMessage });
+      throw new Error(errorMessage);
     } finally {
       setUploadingIndex(null);
     }
   }
 
   return (
-    <div className="space-y-4">
+    <>
+      <div className="space-y-4">
       <div className="space-y-4">
         {lineItems.map((lineItem, index) => {
           const total = calculateLineTotalMinor({
@@ -462,11 +531,11 @@ export function LineItemsTable({
                         )}
                         {isUploadingImage ? "Uploading..." : "Upload picture"}
                         <input
-                          accept="image/png,image/jpeg,image/webp"
+                          accept={imageCropAccept}
                           className="sr-only"
                           disabled={uploadingIndex !== null}
                           type="file"
-                          onChange={(event) => void uploadImage(index, event)}
+                          onChange={(event) => selectImageForCrop(index, event)}
                         />
                       </label>
                       {imageSrc ? (
@@ -487,6 +556,11 @@ export function LineItemsTable({
                         </Button>
                       ) : null}
                     </div>
+                    {imageUploadError?.index === index ? (
+                      <p className="text-sm font-medium text-red-600">
+                        {imageUploadError.message}
+                      </p>
+                    ) : null}
                   </div>
 
                   <Field label="Line item description">
@@ -600,7 +674,24 @@ export function LineItemsTable({
           </div>
         </div>
       ) : null}
-    </div>
+      </div>
+      {pendingImageCrop ? (
+        <ImageCropModal
+          key={pendingImageCrop.objectUrl}
+          aspectRatio={lineItemImageCropAspectRatio}
+          file={pendingImageCrop.file}
+          maxOutputHeight={lineItemImageMaxOutputHeight}
+          maxOutputWidth={lineItemImageMaxOutputWidth}
+          objectUrl={pendingImageCrop.objectUrl}
+          open
+          title="Crop line item picture"
+          onCancel={clearPendingImageCrop}
+          onConfirm={(result) =>
+            uploadCroppedImage(pendingImageCrop.index, result)
+          }
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -716,6 +807,24 @@ function shiftIndexesAfterRemoval(indexes: Set<number>, removedIndex: number) {
   });
 
   return next;
+}
+
+function shiftIndexedStateAfterRemoval<T extends { index: number }>(
+  value: T | null,
+  removedIndex: number,
+) {
+  if (!value || value.index === removedIndex) {
+    return null;
+  }
+
+  if (value.index > removedIndex) {
+    return {
+      ...value,
+      index: value.index - 1,
+    };
+  }
+
+  return value;
 }
 
 function hasLineItemDetails(lineItem: LineItemInput) {
