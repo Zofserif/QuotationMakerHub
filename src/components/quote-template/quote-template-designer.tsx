@@ -21,6 +21,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  MarkdownFormatHint,
+  markdownTextareaPlaceholder,
+} from "@/components/ui/markdown-text";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -507,6 +511,7 @@ export function QuoteTemplateDesigner({
             <Field label="Payment terms">
               <Textarea
                 required
+                placeholder={markdownTextareaPlaceholder}
                 value={template.paymentTerms}
                 onChange={(event) =>
                   setTemplate((current) => ({
@@ -515,10 +520,12 @@ export function QuoteTemplateDesigner({
                   }))
                 }
               />
+              <MarkdownFormatHint />
             </Field>
             <Field label="Terms & conditions">
               <Textarea
                 required
+                placeholder={markdownTextareaPlaceholder}
                 value={template.termsAndConditions}
                 onChange={(event) =>
                   setTemplate((current) => ({
@@ -527,6 +534,7 @@ export function QuoteTemplateDesigner({
                   }))
                 }
               />
+              <MarkdownFormatHint />
             </Field>
           </div>
         </Section>
@@ -684,11 +692,13 @@ function ToggleMarkdownField({
           Enabled
         </label>
         <Textarea
+          placeholder={markdownTextareaPlaceholder}
           value={value.value}
           onChange={(event) =>
             onChange(updateToggleText(value, { value: event.target.value }))
           }
         />
+        <MarkdownFormatHint />
       </div>
     </Field>
   );

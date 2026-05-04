@@ -1,13 +1,27 @@
 import { cn } from "@/lib/utils";
 
+export const markdownTextareaPlaceholder =
+  "Markdown supported. Center text with:\n:::center\nCentered text\n:::";
+
+export function MarkdownFormatHint() {
+  return (
+    <p className="text-xs leading-5 text-stone-500">
+      Use Markdown. Center a block with <code>:::center</code> and close it
+      with <code>:::</code>.
+    </p>
+  );
+}
+
 export function MarkdownText({
   value,
   className,
+  defaultAlign = "justify",
 }: {
   value?: string;
   className?: string;
+  defaultAlign?: MarkdownDefaultAlign;
 }) {
-  const blocks = parseBlocks(value ?? "");
+  const blocks = parseBlocks(value ?? "", defaultAlign);
 
   if (blocks.length === 0) {
     return null;
@@ -20,7 +34,10 @@ export function MarkdownText({
           const Heading = `h${block.level}` as "h2" | "h3" | "h4";
 
           return (
-            <Heading className="font-semibold text-stone-950" key={index}>
+            <Heading
+              className={cn("font-semibold text-stone-950", alignClass(block.align))}
+              key={index}
+            >
               <InlineMarkdown value={block.text} />
             </Heading>
           );
@@ -28,9 +45,12 @@ export function MarkdownText({
 
         if (block.type === "unordered-list") {
           return (
-            <ul className="list-disc space-y-1 pl-5" key={index}>
+            <ul
+              className={cn("list-disc space-y-1", listClass(block.align))}
+              key={index}
+            >
               {block.items.map((item, itemIndex) => (
-                <li className="text-justify" key={itemIndex}>
+                <li className={alignClass(block.align)} key={itemIndex}>
                   <InlineMarkdown value={item} />
                 </li>
               ))}
@@ -40,10 +60,13 @@ export function MarkdownText({
 
         if (block.type === "ordered-list") {
           return (
-            <ol className="list-decimal space-y-1 pl-5" key={index}>
+            <ol
+              className={cn("list-decimal space-y-1", listClass(block.align))}
+              key={index}
+            >
               {block.items.map((item, itemIndex) => (
                 <li
-                  className="text-justify"
+                  className={alignClass(block.align)}
                   key={itemIndex}
                   value={item.value}
                 >
@@ -55,7 +78,10 @@ export function MarkdownText({
         }
 
         return (
-          <p className="whitespace-pre-wrap text-justify" key={index}>
+          <p
+            className={cn("whitespace-pre-wrap", alignClass(block.align))}
+            key={index}
+          >
             <InlineMarkdown value={block.text} />
           </p>
         );
@@ -64,25 +90,36 @@ export function MarkdownText({
   );
 }
 
+type MarkdownDefaultAlign = "justify" | "left";
+type MarkdownAlign = MarkdownDefaultAlign | "center";
+
 type MarkdownBlock =
-  | { type: "heading"; level: 2 | 3 | 4; text: string }
-  | { type: "paragraph"; text: string }
-  | { type: "unordered-list"; items: string[] }
-  | { type: "ordered-list"; items: OrderedListItem[] };
+  | { align: MarkdownAlign; type: "heading"; level: 2 | 3 | 4; text: string }
+  | { align: MarkdownAlign; type: "paragraph"; text: string }
+  | { align: MarkdownAlign; type: "unordered-list"; items: string[] }
+  | { align: MarkdownAlign; type: "ordered-list"; items: OrderedListItem[] };
 
 type OrderedListItem = {
   text: string;
   value: number;
 };
 
-function parseBlocks(value: string): MarkdownBlock[] {
+function parseBlocks(
+  value: string,
+  defaultAlign: MarkdownDefaultAlign,
+): MarkdownBlock[] {
   const blocks: MarkdownBlock[] = [];
   const lines = value.replace(/\r\n/g, "\n").split("\n");
   let paragraph: string[] = [];
+  let currentAlign: MarkdownAlign = defaultAlign;
 
   function flushParagraph() {
     if (paragraph.length > 0) {
-      blocks.push({ type: "paragraph", text: paragraph.join("\n") });
+      blocks.push({
+        align: currentAlign,
+        type: "paragraph",
+        text: paragraph.join("\n"),
+      });
       paragraph = [];
     }
   }
@@ -90,6 +127,18 @@ function parseBlocks(value: string): MarkdownBlock[] {
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
     const trimmed = line.trim();
+
+    if (trimmed === ":::center") {
+      flushParagraph();
+      currentAlign = "center";
+      continue;
+    }
+
+    if (trimmed === ":::" && currentAlign === "center") {
+      flushParagraph();
+      currentAlign = defaultAlign;
+      continue;
+    }
 
     if (!trimmed) {
       flushParagraph();
@@ -101,6 +150,7 @@ function parseBlocks(value: string): MarkdownBlock[] {
     if (heading) {
       flushParagraph();
       blocks.push({
+        align: currentAlign,
         type: "heading",
         level: Math.max(2, Math.min(4, heading[1].length)) as 2 | 3 | 4,
         text: heading[2],
@@ -125,7 +175,7 @@ function parseBlocks(value: string): MarkdownBlock[] {
         index += 1;
       }
 
-      blocks.push({ type: "unordered-list", items });
+      blocks.push({ align: currentAlign, type: "unordered-list", items });
       continue;
     }
 
@@ -154,7 +204,7 @@ function parseBlocks(value: string): MarkdownBlock[] {
         index += 1;
       }
 
-      blocks.push({ type: "ordered-list", items });
+      blocks.push({ align: currentAlign, type: "ordered-list", items });
       continue;
     }
 
@@ -164,6 +214,18 @@ function parseBlocks(value: string): MarkdownBlock[] {
   flushParagraph();
 
   return blocks;
+}
+
+function alignClass(align: MarkdownAlign) {
+  if (align === "center") {
+    return "text-center";
+  }
+
+  return align === "left" ? "text-left" : "text-justify";
+}
+
+function listClass(align: MarkdownAlign) {
+  return align === "center" ? "list-inside pl-0" : "pl-5";
 }
 
 function InlineMarkdown({ value }: { value: string }) {

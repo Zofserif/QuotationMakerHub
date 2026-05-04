@@ -380,26 +380,38 @@ export async function createSupabaseLineItemData(
   const now = new Date().toISOString();
   const { data, error } = await db
     .from("line_item_data")
-    .insert({
-      organization_id: organization.id,
-      title: draft.title,
-      detailed_description: draft.detailedDescription,
-      unit: draft.unit,
-      unit_price_minor: draft.unitPriceMinor,
-      description_image_storage_path: emptyToNull(
-        draft.descriptionImageStoragePath,
-      ),
-      description_image_mime_type: draft.descriptionImageMimeType ?? null,
-      created_by_clerk_user_id: quoter.clerkUserId,
-      created_at: now,
-      updated_at: now,
-    })
+    .insert(buildLineItemDataInsert(organization.id, quoter, draft, now))
     .select("*")
     .single();
 
   throwIfError(error, "Create line item data");
 
   return mapLineItemDataRow(db, data as LineItemDataRow);
+}
+
+export async function createSupabaseLineItemDataBatch(
+  quoter: QuoterContext,
+  drafts: LineItemDataDraft[],
+) {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  const now = new Date().toISOString();
+  const { data, error } = await db
+    .from("line_item_data")
+    .insert(
+      drafts.map((draft) =>
+        buildLineItemDataInsert(organization.id, quoter, draft, now),
+      ),
+    )
+    .select("*");
+
+  throwIfError(error, "Create line item data batch");
+
+  return Promise.all(
+    ((data ?? []) as LineItemDataRow[]).map((row) =>
+      mapLineItemDataRow(db, row),
+    ),
+  );
 }
 
 export async function updateSupabaseLineItemData(
@@ -2669,6 +2681,26 @@ async function mapLineItemDataRow(
     createdByClerkUserId: row.created_by_clerk_user_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+function buildLineItemDataInsert(
+  organizationId: string,
+  quoter: QuoterContext,
+  draft: LineItemDataDraft,
+  now: string,
+) {
+  return {
+    organization_id: organizationId,
+    title: draft.title,
+    detailed_description: draft.detailedDescription,
+    unit: draft.unit,
+    unit_price_minor: draft.unitPriceMinor,
+    description_image_storage_path: emptyToNull(draft.descriptionImageStoragePath),
+    description_image_mime_type: draft.descriptionImageMimeType ?? null,
+    created_by_clerk_user_id: quoter.clerkUserId,
+    created_at: now,
+    updated_at: now,
   };
 }
 

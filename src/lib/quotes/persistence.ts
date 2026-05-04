@@ -13,6 +13,7 @@ import {
   listDemoLineItemData,
   getDemoQuoteVersions,
   createDemoLineItemData,
+  createDemoLineItemDataBatch,
   listDemoQuotes,
   deleteDemoLineItemData,
   placeDemoSignature,
@@ -48,6 +49,7 @@ import {
   listSupabaseLineItemData,
   listSupabaseQuoteDocumentSignatures,
   createSupabaseLineItemData,
+  createSupabaseLineItemDataBatch,
   deleteSupabaseLineItemData,
   listSupabaseAuditEvents,
   listSupabaseQuoteVersions,
@@ -145,6 +147,17 @@ export async function createLineItemData(
   }
 
   return createSupabaseLineItemData(quoter, draft);
+}
+
+export async function createLineItemDataBatch(
+  quoter: QuoterContext,
+  drafts: LineItemDataDraft[],
+) {
+  if (shouldUseDemoPersistence()) {
+    return createDemoLineItemDataBatch(drafts);
+  }
+
+  return createSupabaseLineItemDataBatch(quoter, drafts);
 }
 
 export async function updateLineItemData(

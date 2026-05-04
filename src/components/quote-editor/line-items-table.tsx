@@ -13,7 +13,11 @@ import { useState, type ChangeEvent, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MarkdownText } from "@/components/ui/markdown-text";
+import {
+  MarkdownFormatHint,
+  MarkdownText,
+  markdownTextareaPlaceholder,
+} from "@/components/ui/markdown-text";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { Textarea } from "@/components/ui/textarea";
 import { getLineItemImageSrc } from "@/lib/line-item-data/images";
@@ -67,9 +71,10 @@ export function LineItemsTable({
   const defaultTaxRate = getTemplateDefaultLineItemTaxRate(template);
   const taxMode = vatEnabled ? template.lineItems.vat.mode : "exclusive";
   const moneyDisplay = template.lineItems.unitPrice.display;
-  const descriptionPlaceholder =
+  const descriptionLabel =
     template.lineItems.detailedDescriptionLabel.trim() ||
     "Detailed description markdown";
+  const descriptionPlaceholder = `${descriptionLabel}\n\n${markdownTextareaPlaceholder}`;
 
   function updateLineItem(index: number, patch: Partial<LineItemInput>) {
     onChange(
@@ -496,6 +501,7 @@ export function LineItemsTable({
                         })
                       }
                     />
+                    <MarkdownFormatHint />
                   </Field>
                 </div>
               ) : hasLineItemDetails(lineItem) ? (

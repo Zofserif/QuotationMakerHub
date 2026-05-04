@@ -13,6 +13,15 @@ export const lineItemDataDraftSchema = z.object({
   descriptionImageMimeType: z.enum(lineItemImageMimeTypes).optional(),
 });
 
+const lineItemDataBulkItemDraftSchema = lineItemDataDraftSchema.extend({
+  detailedDescription: z.string().trim().max(10000).default(""),
+  unitPriceMinor: z.coerce.number().int().min(0).default(0),
+});
+
+export const lineItemDataBulkDraftSchema = z.object({
+  items: z.array(lineItemDataBulkItemDraftSchema).min(1).max(500),
+});
+
 export function isLineItemImageMimeType(
   value: string,
 ): value is (typeof lineItemImageMimeTypes)[number] {

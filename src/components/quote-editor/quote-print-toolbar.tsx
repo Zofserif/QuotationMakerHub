@@ -1,10 +1,10 @@
 "use client";
 
-import { Printer } from "lucide-react";
+import { LayoutDashboard, Printer } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Button, LinkButton } from "@/components/ui/button";
 import {
   quotePaperSizes,
   quoteSignatureModes,
@@ -108,16 +108,27 @@ export function QuotePrintToolbar({
           ) : null}
         </div>
 
-        <Button
-          disabled={isPending}
-          loading={isPending}
-          loadingText="Updating"
-          type="button"
-          onClick={() => window.print()}
-        >
-          <Printer className="size-4" />
-          Print / Export PDF
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <LinkButton
+            className="w-full sm:w-auto"
+            href="/dashboard"
+            variant="secondary"
+          >
+            <LayoutDashboard className="size-4" />
+            Back to dashboard
+          </LinkButton>
+          <Button
+            className="w-full sm:w-auto"
+            disabled={isPending}
+            loading={isPending}
+            loadingText="Updating"
+            type="button"
+            onClick={() => window.print()}
+          >
+            <Printer className="size-4" />
+            Print / Export PDF
+          </Button>
+        </div>
       </div>
     </section>
   );

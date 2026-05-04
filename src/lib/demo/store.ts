@@ -299,6 +299,30 @@ export function createDemoLineItemData(draft: LineItemDataDraft) {
   return lineItemData;
 }
 
+export function createDemoLineItemDataBatch(drafts: LineItemDataDraft[]) {
+  const now = new Date().toISOString();
+  const lineItemData = drafts.map((draft) => ({
+    id: randomUUID(),
+    organizationId: DEMO_ORG_ID,
+    title: draft.title,
+    detailedDescription: draft.detailedDescription,
+    unit: draft.unit,
+    unitPriceMinor: draft.unitPriceMinor,
+    descriptionImageStoragePath: emptyToUndefined(
+      draft.descriptionImageStoragePath,
+    ),
+    descriptionImageMimeType: draft.descriptionImageMimeType,
+    descriptionImageUrl: draft.descriptionImageStoragePath,
+    createdByClerkUserId: DEMO_USER_ID,
+    createdAt: now,
+    updatedAt: now,
+  }));
+
+  demoState.lineItemData.unshift(...lineItemData);
+
+  return lineItemData;
+}
+
 export function updateDemoLineItemData(
   lineItemDataId: string,
   draft: LineItemDataDraft,

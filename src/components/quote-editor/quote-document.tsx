@@ -249,7 +249,8 @@ export function QuoteDocument({
                         ) : null}
                         {hasDescription ? (
                           <MarkdownText
-                            className="text-sm leading-6 text-stone-600 [&_li]:text-left [&_p]:text-left"
+                            className="text-sm leading-6 text-stone-600"
+                            defaultAlign="left"
                             value={lineItem.description}
                           />
                         ) : null}
@@ -707,9 +708,9 @@ function DocumentTextBlock({
 }) {
   return (
     <div>
-      <h2 className="font-semibold text-stone-950">{title}</h2>
+      <h2 className="text-sm font-semibold text-stone-950">{title}</h2>
       <MarkdownText
-        className="mt-2 text-sm leading-6 text-stone-600"
+        className="mt-1.5 text-xs leading-5 text-stone-600"
         value={value || "Not set"}
       />
     </div>
