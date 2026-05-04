@@ -72,6 +72,7 @@ export default async function PrintQuotePage({
       <div className="mx-auto max-w-5xl space-y-4">
         <QuotePrintToolbar
           allowSignatureModeToggle={allowSignatureModeToggle}
+          markWetSignatureOnPrint={quote.status !== "locked"}
           paperSize={paperSize}
           quoteId={quote.id}
           signatureMode={signatureMode}

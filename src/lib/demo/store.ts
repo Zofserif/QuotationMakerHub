@@ -33,6 +33,8 @@ import type {
   AuditEvent,
   ClientQuoteView,
   DeleteQuoteResult,
+  LockQuoteResult,
+  MarkQuoteForWetSignatureResult,
   Quote,
   QuoteDocumentSignature,
   QuoteDraft,
@@ -569,6 +571,82 @@ export function updateDemoQuote(
   appendAudit(quote.id, "quote.updated", "quoter", DEMO_USER_ID);
 
   return { ok: true, quote };
+}
+
+export function markDemoQuoteForWetSignature(
+  quoteId: string,
+): MarkQuoteForWetSignatureResult {
+  const quote = getDemoQuote(quoteId);
+
+  if (!quote) {
+    return { ok: false, code: "QUOTE_NOT_FOUND" };
+  }
+
+  if (quote.status === "locked") {
+    return { ok: false, code: "QUOTE_LOCKED" };
+  }
+
+  if (quote.status === "for_wet_signature") {
+    return {
+      ok: true,
+      quoteId: quote.id,
+      status: "for_wet_signature",
+      changed: false,
+    };
+  }
+
+  const previousStatus = quote.status;
+  quote.status = "for_wet_signature";
+  quote.updatedAt = new Date().toISOString();
+  appendAudit(quote.id, "quote.for_wet_signature", "quoter", DEMO_USER_ID, {
+    previousStatus,
+  });
+
+  return {
+    ok: true,
+    quoteId: quote.id,
+    status: "for_wet_signature",
+    changed: true,
+  };
+}
+
+export function lockDemoQuote(quoteId: string): LockQuoteResult {
+  const quote = getDemoQuote(quoteId);
+
+  if (!quote) {
+    return { ok: false, code: "QUOTE_NOT_FOUND" };
+  }
+
+  if (quote.status === "locked") {
+    return {
+      ok: true,
+      quoteId: quote.id,
+      status: "locked",
+      lockedAt: quote.lockedAt ?? quote.updatedAt,
+      changed: false,
+    };
+  }
+
+  if (quote.status !== "for_wet_signature") {
+    return { ok: false, code: "QUOTE_NOT_LOCKABLE" };
+  }
+
+  const lockedAt = new Date().toISOString();
+  quote.status = "locked";
+  quote.lockedAt = lockedAt;
+  quote.updatedAt = lockedAt;
+  appendAudit(quote.id, "quote.locked", "quoter", DEMO_USER_ID, {
+    previousStatus: "for_wet_signature",
+    source: "manual_wet_signature_lock",
+  });
+
+  return {
+    ok: true,
+    quoteId: quote.id,
+    status: "locked",
+    lockedAt,
+    changed: true,
+  };
 }
 
 export function updateDemoQuoteVisibility(

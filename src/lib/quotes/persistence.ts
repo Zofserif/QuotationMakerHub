@@ -12,6 +12,8 @@ import {
   listDemoQuoteDocumentSignatures,
   listDemoLineItemData,
   getDemoQuoteVersions,
+  lockDemoQuote,
+  markDemoQuoteForWetSignature,
   createDemoLineItemData,
   createDemoLineItemDataBatch,
   listDemoQuotes,
@@ -54,6 +56,8 @@ import {
   listSupabaseAuditEvents,
   listSupabaseQuoteVersions,
   listSupabaseQuotes,
+  lockSupabaseQuote,
+  markSupabaseQuoteForWetSignature,
   placeSupabaseSignature,
   ensureSupabaseQuoteShareLinks,
   sendSupabaseQuote,
@@ -215,6 +219,25 @@ export async function updateQuote(
   }
 
   return updateSupabaseQuote(quoter, quoteId, draft);
+}
+
+export async function markQuoteForWetSignature(
+  quoter: QuoterContext,
+  quoteId: string,
+) {
+  if (shouldUseDemoPersistence()) {
+    return markDemoQuoteForWetSignature(quoteId);
+  }
+
+  return markSupabaseQuoteForWetSignature(quoter, quoteId);
+}
+
+export async function lockQuote(quoter: QuoterContext, quoteId: string) {
+  if (shouldUseDemoPersistence()) {
+    return lockDemoQuote(quoteId);
+  }
+
+  return lockSupabaseQuote(quoter, quoteId);
 }
 
 export async function updateQuoteVisibility(

@@ -2,7 +2,7 @@
 
 import { LayoutDashboard, Printer } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 
 import { Button, LinkButton } from "@/components/ui/button";
 import {
@@ -18,19 +18,24 @@ const selectClassName =
 
 export function QuotePrintToolbar({
   allowSignatureModeToggle = true,
+  markWetSignatureOnPrint = false,
   quoteId,
   versionNumber,
   paperSize,
   signatureMode,
 }: {
   allowSignatureModeToggle?: boolean;
+  markWetSignatureOnPrint?: boolean;
   quoteId: string;
   versionNumber?: number;
   paperSize: QuotePaperSize;
   signatureMode: QuoteSignatureMode;
 }) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [isUpdatingOptions, startTransition] = useTransition();
+  const [isPrintPending, setIsPrintPending] = useState(false);
+  const [printMessage, setPrintMessage] = useState<string | null>(null);
+  const isBusy = isUpdatingOptions || isPrintPending;
 
   function updatePrintOptions(
     nextPaperSize: QuotePaperSize,
@@ -51,6 +56,41 @@ export function QuotePrintToolbar({
     });
   }
 
+  async function handlePrint() {
+    setPrintMessage(null);
+
+    if (signatureMode === "wet" && markWetSignatureOnPrint) {
+      setIsPrintPending(true);
+
+      try {
+        const response = await fetch(
+          `/api/quotes/${encodeURIComponent(quoteId)}/wet-signature`,
+          {
+            method: "POST",
+          },
+        );
+        const payload = (await response.json()) as WetSignaturePayload;
+
+        if (!response.ok) {
+          setPrintMessage(
+            payload.error?.message ??
+              "Could not prepare this quote for wet signature.",
+          );
+          return;
+        }
+
+        router.refresh();
+      } catch {
+        setPrintMessage("Could not prepare this quote for wet signature.");
+        return;
+      } finally {
+        setIsPrintPending(false);
+      }
+    }
+
+    window.print();
+  }
+
   return (
     <section className="no-print rounded-lg border border-stone-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -59,7 +99,7 @@ export function QuotePrintToolbar({
             Paper size
             <select
               className={selectClassName}
-              disabled={isPending}
+              disabled={isBusy}
               value={paperSize}
               onChange={(event) =>
                 updatePrintOptions(
@@ -95,7 +135,7 @@ export function QuotePrintToolbar({
                         ? "border-stone-950 bg-stone-950 text-white"
                         : "border-stone-200 bg-white text-stone-900 hover:bg-stone-100",
                     )}
-                    disabled={isPending}
+                    disabled={isBusy}
                     key={mode.value}
                     type="button"
                     onClick={() => updatePrintOptions(paperSize, mode.value)}
@@ -119,17 +159,28 @@ export function QuotePrintToolbar({
           </LinkButton>
           <Button
             className="w-full sm:w-auto"
-            disabled={isPending}
-            loading={isPending}
-            loadingText="Updating"
+            disabled={isBusy}
+            loading={isPrintPending}
+            loadingText="Preparing"
             type="button"
-            onClick={() => window.print()}
+            onClick={() => {
+              void handlePrint();
+            }}
           >
             <Printer className="size-4" />
             Print / Export PDF
           </Button>
+          {printMessage ? (
+            <p className="text-sm font-medium text-red-600">{printMessage}</p>
+          ) : null}
         </div>
       </div>
     </section>
   );
 }
+
+type WetSignaturePayload = {
+  error?: {
+    message?: string;
+  };
+};

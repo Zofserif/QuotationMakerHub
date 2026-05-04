@@ -32,6 +32,8 @@ import type {
   ClientInput,
   ClientQuoteView,
   DeleteQuoteResult,
+  LockQuoteResult,
+  MarkQuoteForWetSignatureResult,
   Quote,
   QuoteDocumentSignature,
   QuoteDraft,
@@ -742,6 +744,122 @@ export async function updateSupabaseQuote(
   }
 
   return { ok: true, quote };
+}
+
+export async function markSupabaseQuoteForWetSignature(
+  quoter: QuoterContext,
+  quoteId: string,
+): Promise<MarkQuoteForWetSignatureResult> {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  const existing = await getQuoteRow(db, quoteId, organization.id);
+
+  if (!existing) {
+    return { ok: false, code: "QUOTE_NOT_FOUND" };
+  }
+
+  if (existing.status === "locked") {
+    return { ok: false, code: "QUOTE_LOCKED" };
+  }
+
+  if (existing.status === "for_wet_signature") {
+    return {
+      ok: true,
+      quoteId: existing.id,
+      status: "for_wet_signature",
+      changed: false,
+    };
+  }
+
+  const markedAt = new Date().toISOString();
+  const { error } = await db
+    .from("quotes")
+    .update({
+      status: "for_wet_signature",
+      updated_at: markedAt,
+    })
+    .eq("id", existing.id)
+    .eq("organization_id", organization.id);
+
+  throwIfError(error, "Mark quote for wet signature");
+
+  await appendAuditEvent(db, {
+    organizationId: organization.id,
+    quoteId: existing.id,
+    actorType: "quoter",
+    actorRef: quoter.clerkUserId,
+    eventType: "quote.for_wet_signature",
+    metadata: {
+      previousStatus: existing.status,
+    },
+  });
+
+  return {
+    ok: true,
+    quoteId: existing.id,
+    status: "for_wet_signature",
+    changed: true,
+  };
+}
+
+export async function lockSupabaseQuote(
+  quoter: QuoterContext,
+  quoteId: string,
+): Promise<LockQuoteResult> {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  const existing = await getQuoteRow(db, quoteId, organization.id);
+
+  if (!existing) {
+    return { ok: false, code: "QUOTE_NOT_FOUND" };
+  }
+
+  if (existing.status === "locked") {
+    return {
+      ok: true,
+      quoteId: existing.id,
+      status: "locked",
+      lockedAt: existing.locked_at ?? existing.updated_at,
+      changed: false,
+    };
+  }
+
+  if (existing.status !== "for_wet_signature") {
+    return { ok: false, code: "QUOTE_NOT_LOCKABLE" };
+  }
+
+  const lockedAt = new Date().toISOString();
+  const { error } = await db
+    .from("quotes")
+    .update({
+      status: "locked",
+      locked_at: lockedAt,
+      updated_at: lockedAt,
+    })
+    .eq("id", existing.id)
+    .eq("organization_id", organization.id);
+
+  throwIfError(error, "Lock quote");
+
+  await appendAuditEvent(db, {
+    organizationId: organization.id,
+    quoteId: existing.id,
+    actorType: "quoter",
+    actorRef: quoter.clerkUserId,
+    eventType: "quote.locked",
+    metadata: {
+      previousStatus: "for_wet_signature",
+      source: "manual_wet_signature_lock",
+    },
+  });
+
+  return {
+    ok: true,
+    quoteId: existing.id,
+    status: "locked",
+    lockedAt,
+    changed: true,
+  };
 }
 
 export async function updateSupabaseQuoteVisibility(

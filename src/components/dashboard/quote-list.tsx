@@ -2,6 +2,7 @@ import { Activity, Edit3, Eye, FileText } from "lucide-react";
 
 import { QuoteSharePanel } from "@/components/quote-share/quote-share-panel";
 import { LinkButton } from "@/components/ui/button";
+import { QuoteLockAction } from "@/components/dashboard/quote-lock-action";
 import { QuoteStatusBadge } from "@/components/dashboard/quote-status-badge";
 import { QuoteVisibilityActions } from "@/components/dashboard/quote-visibility-actions";
 import {
@@ -96,6 +97,7 @@ export function QuoteList({
                   quoteId={quote.id}
                   visibility={quote.visibility}
                 />
+                <QuoteLockAction quoteId={quote.id} status={quote.status} />
               </div>
               {quote.visibility === "active" ? (
                 <QuoteSharePanel

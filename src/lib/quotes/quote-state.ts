@@ -3,6 +3,7 @@ import type { Quote, QuoteStatus, RecipientStatus } from "./types";
 const editableStatuses = new Set<QuoteStatus>([
   "draft",
   "sent",
+  "for_wet_signature",
   "viewed",
   "rejected",
   "expired",

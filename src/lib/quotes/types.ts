@@ -4,6 +4,7 @@ import type { LineItemImageMimeType } from "@/lib/line-item-data/types";
 export const quoteStatuses = [
   "draft",
   "sent",
+  "for_wet_signature",
   "viewed",
   "partially_signed",
   "accepted",
@@ -241,6 +242,25 @@ export type UnavailableQuoteShareLink = {
 export type UpdateQuoteResult =
   | { ok: true; quote: Quote }
   | { ok: false; code: "QUOTE_NOT_FOUND" | "QUOTE_LOCKED" };
+
+export type MarkQuoteForWetSignatureResult =
+  | {
+      ok: true;
+      quoteId: string;
+      status: "for_wet_signature";
+      changed: boolean;
+    }
+  | { ok: false; code: "QUOTE_NOT_FOUND" | "QUOTE_LOCKED" };
+
+export type LockQuoteResult =
+  | {
+      ok: true;
+      quoteId: string;
+      status: "locked";
+      lockedAt: string;
+      changed: boolean;
+    }
+  | { ok: false; code: "QUOTE_NOT_FOUND" | "QUOTE_NOT_LOCKABLE" };
 
 export type UpdateQuoteVisibilityResult =
   | { ok: true; quote: Quote }
