@@ -1,6 +1,7 @@
 import { captureServerEvent } from "@/lib/analytics/posthog-server";
 import { errorResponse, readJson } from "@/lib/api/responses";
 import { requireQuoter } from "@/lib/auth/require-quoter";
+import { getWorkspaceEntitlement } from "@/lib/billing/entitlements";
 import { createQuote, listQuotes } from "@/lib/quotes/persistence";
 import { parseJsonBody, quoteDraftSchema } from "@/lib/quotes/validation";
 
@@ -11,6 +12,17 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const quoter = await requireQuoter();
+  const entitlement = await getWorkspaceEntitlement(quoter);
+
+  if (!entitlement.canCreateQuote) {
+    return errorResponse(
+      "TRIAL_EXPIRED",
+      "Your free trial has ended. Upgrade to a partner package to create more quotations.",
+      403,
+      { entitlement },
+    );
+  }
+
   const body = await readJson(request);
   const parsed = parseJsonBody(quoteDraftSchema, body);
 

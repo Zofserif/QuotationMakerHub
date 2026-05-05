@@ -6,6 +6,7 @@ export const dashboardRoutes = [
   "/api/dashboard(.*)",
   "/api/line-item-data(.*)",
   "/api/quote-template(.*)",
+  "/api/quote-templates(.*)",
   "/print/quotes(.*)",
   "/api/quotes(.*)",
   "/api/storage(.*)",

@@ -54,3 +54,14 @@ export type QuoteTemplate = {
   };
   footer: ToggleText;
 };
+
+export type QuoteTemplateRecord = {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  content: QuoteTemplate;
+  archivedAt?: string;
+  deletedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};

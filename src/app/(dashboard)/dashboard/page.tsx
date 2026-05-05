@@ -4,10 +4,12 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
+import { DashboardBillingActions } from "@/components/billing/billing-actions";
 import { DashboardFilters } from "@/components/dashboard/dashboard-filters";
 import { PipelineCurrencyCard } from "@/components/dashboard/pipeline-currency-card";
 import { QuoteList } from "@/components/dashboard/quote-list";
 import { requireQuoter } from "@/lib/auth/require-quoter";
+import { getWorkspaceEntitlement } from "@/lib/billing/entitlements";
 import { resolvePipelineCurrencySummary } from "@/lib/dashboard/pipeline-currency";
 import { getPipelineCurrency, listQuotes } from "@/lib/quotes/persistence";
 import { statusLabel } from "@/lib/quotes/quote-state";
@@ -52,11 +54,13 @@ export default async function DashboardPage({
   const selectedStatus = parseQuoteStatus(statusParam);
   const selectedVisibility = parseQuoteVisibility(visibilityParam);
   const quoter = await requireQuoter();
-  const [pipelineCurrency, activeQuotes, archivedQuotes] = await Promise.all([
-    getPipelineCurrency(quoter),
-    listQuotes(quoter, { visibility: "active" }),
-    listQuotes(quoter, { visibility: "archived" }),
-  ]);
+  const [pipelineCurrency, activeQuotes, archivedQuotes, entitlement] =
+    await Promise.all([
+      getPipelineCurrency(quoter),
+      listQuotes(quoter, { visibility: "active" }),
+      listQuotes(quoter, { visibility: "archived" }),
+      getWorkspaceEntitlement(quoter),
+    ]);
   const quotes =
     selectedVisibility === "archived" ? archivedQuotes : activeQuotes;
   const visibleQuotes = selectedStatus
@@ -99,11 +103,14 @@ export default async function DashboardPage({
   return (
     <div className="space-y-4">
       <section>
-        <div>
-          <p className="text-sm font-medium text-stone-500">Workspace</p>
-          <h1 className="mt-1 text-3xl font-bold text-stone-950">
-            Quote dashboard
-          </h1>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-stone-500">Workspace</p>
+            <h1 className="mt-1 text-3xl font-bold text-stone-950">
+              Quote dashboard
+            </h1>
+          </div>
+          <DashboardBillingActions entitlement={entitlement} />
         </div>
       </section>
 
@@ -209,7 +216,7 @@ function Metric({
       <p className="min-w-0 text-xs leading-tight text-stone-500 sm:text-sm">
         {label}
       </p>
-      <p className="mt-1 break-words text-lg font-bold text-stone-950 sm:text-xl">
+      <p className="mt-1 wrap-break-words text-lg font-bold text-stone-950 sm:text-xl">
         {value}
       </p>
     </div>

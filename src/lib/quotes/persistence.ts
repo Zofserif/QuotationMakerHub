@@ -9,20 +9,25 @@ import {
   getDemoPipelineCurrency,
   getDemoQuote,
   getDemoQuoteTemplate,
+  listDemoQuoteTemplates,
   listDemoQuoteDocumentSignatures,
   listDemoLineItemData,
   getDemoQuoteVersions,
   lockDemoQuote,
   markDemoQuoteForWetSignature,
+  createDemoQuoteTemplate,
   createDemoLineItemData,
   createDemoLineItemDataBatch,
+  deleteDemoQuoteTemplateRecord,
   listDemoQuotes,
   deleteDemoLineItemData,
   placeDemoSignature,
+  setDefaultDemoQuoteTemplate,
   ensureDemoQuoteShareLinks,
   sendDemoQuote,
   updateDemoLineItemData,
   updateDemoPipelineCurrency,
+  updateDemoQuoteTemplateRecord,
   updateDemoQuoteTemplate,
   updateDemoQuote,
   updateDemoQuoteVisibility,
@@ -42,12 +47,15 @@ import {
   acceptSupabaseQuote,
   createSupabasePdfExport,
   createSupabaseQuote,
+  createSupabaseQuoteTemplate,
   deleteSupabaseQuote,
+  deleteSupabaseQuoteTemplateRecord,
   deleteSupabaseQuoteQuoterSignature,
   getSupabaseClientQuoteView,
   getSupabasePipelineCurrency,
   getSupabaseQuote,
   getSupabaseQuoteTemplate,
+  getSupabaseWorkspaceUsage,
   listSupabaseLineItemData,
   listSupabaseQuoteDocumentSignatures,
   createSupabaseLineItemData,
@@ -56,25 +64,35 @@ import {
   listSupabaseAuditEvents,
   listSupabaseQuoteVersions,
   listSupabaseQuotes,
+  listSupabaseQuoteTemplates,
   lockSupabaseQuote,
   markSupabaseQuoteForWetSignature,
   placeSupabaseSignature,
+  recordSupabaseWetSignaturePrint,
+  setSupabaseDefaultQuoteTemplate,
   ensureSupabaseQuoteShareLinks,
   sendSupabaseQuote,
   updateSupabaseLineItemData,
   updateSupabasePipelineCurrency,
+  updateSupabaseQuoteTemplateRecord,
   updateSupabaseQuoteTemplate,
   updateSupabaseQuote,
   updateSupabaseQuoteVisibility,
   updateSupabaseQuoteQuoterSignature,
   uploadSupabaseLineItemDataImage,
   type QuoterContext,
+  type WorkspaceUsageSummary,
 } from "@/lib/quotes/supabase-store";
 
 export type { QuoterContext };
+export type { WorkspaceUsageSummary };
 
 function shouldUseDemoPersistence() {
   return process.env.NODE_ENV !== "production" && !hasSupabaseAdminConfig();
+}
+
+export function usesDemoPersistence() {
+  return shouldUseDemoPersistence();
 }
 
 export async function listQuotes(
@@ -113,6 +131,88 @@ export async function updateQuoteTemplate(
   }
 
   return updateSupabaseQuoteTemplate(quoter, template);
+}
+
+export async function listQuoteTemplates(quoter: QuoterContext) {
+  if (shouldUseDemoPersistence()) {
+    return listDemoQuoteTemplates();
+  }
+
+  return listSupabaseQuoteTemplates(quoter);
+}
+
+export async function createQuoteTemplate(
+  quoter: QuoterContext,
+  input: { name: string; content?: QuoteTemplate },
+) {
+  if (shouldUseDemoPersistence()) {
+    return createDemoQuoteTemplate(input);
+  }
+
+  return createSupabaseQuoteTemplate(quoter, input);
+}
+
+export async function updateQuoteTemplateRecord(
+  quoter: QuoterContext,
+  templateId: string,
+  input: { name?: string; content?: QuoteTemplate },
+) {
+  if (shouldUseDemoPersistence()) {
+    return updateDemoQuoteTemplateRecord(templateId, input);
+  }
+
+  return updateSupabaseQuoteTemplateRecord(quoter, templateId, input);
+}
+
+export async function deleteQuoteTemplateRecord(
+  quoter: QuoterContext,
+  templateId: string,
+) {
+  if (shouldUseDemoPersistence()) {
+    return deleteDemoQuoteTemplateRecord(templateId);
+  }
+
+  return deleteSupabaseQuoteTemplateRecord(quoter, templateId);
+}
+
+export async function setDefaultQuoteTemplate(
+  quoter: QuoterContext,
+  templateId: string,
+) {
+  if (shouldUseDemoPersistence()) {
+    return setDefaultDemoQuoteTemplate(templateId);
+  }
+
+  return setSupabaseDefaultQuoteTemplate(quoter, templateId);
+}
+
+export async function getWorkspaceUsage(
+  quoter: QuoterContext,
+): Promise<WorkspaceUsageSummary> {
+  if (shouldUseDemoPersistence()) {
+    const now = new Date().toISOString();
+
+    return {
+      workspaceId: "demo_org",
+      workspaceRef: quoter.organizationId,
+      workspaceCreatedAt: now,
+      lockedQuoteCount: 0,
+      wetSignaturePrintCount: 0,
+    };
+  }
+
+  return getSupabaseWorkspaceUsage(quoter);
+}
+
+export async function recordWetSignaturePrint(
+  quoter: QuoterContext,
+  quoteId: string,
+) {
+  if (shouldUseDemoPersistence()) {
+    return true;
+  }
+
+  return recordSupabaseWetSignaturePrint(quoter, quoteId);
 }
 
 export async function getPipelineCurrency(quoter: QuoterContext) {

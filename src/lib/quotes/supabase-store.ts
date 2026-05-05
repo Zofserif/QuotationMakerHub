@@ -21,7 +21,10 @@ import type {
 } from "@/lib/line-item-data/types";
 import { mergeQuoteTemplate } from "@/lib/quote-templates/defaults";
 import { formatQuoteNumber } from "@/lib/quote-templates/numbering";
-import type { QuoteTemplate } from "@/lib/quote-templates/types";
+import type {
+  QuoteTemplate,
+  QuoteTemplateRecord,
+} from "@/lib/quote-templates/types";
 import {
   createVersionSnapshot,
   hashSnapshot,
@@ -75,6 +78,24 @@ export type QuoterContext = {
   organizationId: string;
 };
 
+export type WorkspaceUsageSummary = {
+  workspaceId: string;
+  workspaceRef: string;
+  workspaceCreatedAt: string;
+  lockedQuoteCount: number;
+  wetSignaturePrintCount: number;
+};
+
+export type QuoteTemplateMutationResult =
+  | { ok: true; template: QuoteTemplateRecord }
+  | {
+      ok: false;
+      code:
+        | "TEMPLATE_NOT_FOUND"
+        | "TEMPLATE_DELETE_DEFAULT"
+        | "TEMPLATE_NAME_REQUIRED";
+    };
+
 export type PlaceSignatureResult =
   | { ok: true; asset: SignatureAsset; placement: SignaturePlacement }
   | {
@@ -117,6 +138,7 @@ type OrganizationRow = {
   clerk_org_id: string | null;
   name: string;
   pipeline_currency: string | null;
+  created_at: string;
 };
 
 type ClientRow = {
@@ -256,8 +278,12 @@ type AuditEventRow = {
 type QuoteTemplateRow = {
   id: string;
   organization_id: string;
+  name: string;
+  is_default: boolean;
   content: QuoteTemplate;
   created_by_clerk_user_id: string;
+  archived_at: string | null;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -296,19 +322,221 @@ export async function updateSupabaseQuoteTemplate(
   const organization = await ensureWorkspace(db, quoter);
   const now = new Date().toISOString();
   const content = mergeQuoteTemplate(template);
-  const { error } = await db.from("quote_templates").upsert(
-    {
+  const existing = await getDefaultQuoteTemplateRow(db, organization.id);
+
+  if (!existing) {
+    const { error } = await db.from("quote_templates").insert({
       organization_id: organization.id,
+      name: "Default Template",
+      is_default: true,
       content,
       created_by_clerk_user_id: quoter.clerkUserId,
+      created_at: now,
       updated_at: now,
-    },
-    { onConflict: "organization_id" },
-  );
+    });
+
+    throwIfError(error, "Create default quote template");
+
+    return content;
+  }
+
+  const { error } = await db
+    .from("quote_templates")
+    .update({
+      content,
+      updated_at: now,
+    })
+    .eq("id", existing.id)
+    .eq("organization_id", organization.id);
 
   throwIfError(error, "Save quote template");
 
   return content;
+}
+
+export async function listSupabaseQuoteTemplates(
+  quoter: QuoterContext,
+): Promise<QuoteTemplateRecord[]> {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  await ensureDefaultQuoteTemplateRow(db, organization.id, quoter.clerkUserId);
+
+  const { data, error } = await db
+    .from("quote_templates")
+    .select(
+      "id, organization_id, name, is_default, content, created_by_clerk_user_id, archived_at, deleted_at, created_at, updated_at",
+    )
+    .eq("organization_id", organization.id)
+    .is("deleted_at", null)
+    .order("is_default", { ascending: false })
+    .order("updated_at", { ascending: false });
+
+  throwIfError(error, "List quote templates");
+
+  return ((data ?? []) as QuoteTemplateRow[]).map(mapQuoteTemplateRow);
+}
+
+export async function createSupabaseQuoteTemplate(
+  quoter: QuoterContext,
+  input: { name: string; content?: QuoteTemplate },
+): Promise<QuoteTemplateMutationResult> {
+  const name = normalizeTemplateName(input.name);
+
+  if (!name) {
+    return { ok: false, code: "TEMPLATE_NAME_REQUIRED" };
+  }
+
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  const now = new Date().toISOString();
+  const content = mergeQuoteTemplate(
+    input.content ?? (await getQuoteTemplateContent(db, organization.id)),
+  );
+  const id = randomUUID();
+  const { data, error } = await db
+    .from("quote_templates")
+    .insert({
+      id,
+      organization_id: organization.id,
+      name,
+      is_default: false,
+      content,
+      created_by_clerk_user_id: quoter.clerkUserId,
+      created_at: now,
+      updated_at: now,
+    })
+    .select(
+      "id, organization_id, name, is_default, content, created_by_clerk_user_id, archived_at, deleted_at, created_at, updated_at",
+    )
+    .single();
+
+  throwIfError(error, "Create quote template");
+
+  return { ok: true, template: mapQuoteTemplateRow(data as QuoteTemplateRow) };
+}
+
+export async function updateSupabaseQuoteTemplateRecord(
+  quoter: QuoterContext,
+  templateId: string,
+  input: { name?: string; content?: QuoteTemplate },
+): Promise<QuoteTemplateMutationResult> {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  const existing = await getQuoteTemplateRow(db, organization.id, templateId);
+
+  if (!existing) {
+    return { ok: false, code: "TEMPLATE_NOT_FOUND" };
+  }
+
+  const name =
+    typeof input.name === "string" ? normalizeTemplateName(input.name) : undefined;
+
+  if (input.name !== undefined && !name) {
+    return { ok: false, code: "TEMPLATE_NAME_REQUIRED" };
+  }
+
+  const { data, error } = await db
+    .from("quote_templates")
+    .update({
+      ...(name ? { name } : {}),
+      ...(input.content ? { content: mergeQuoteTemplate(input.content) } : {}),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", templateId)
+    .eq("organization_id", organization.id)
+    .is("deleted_at", null)
+    .select(
+      "id, organization_id, name, is_default, content, created_by_clerk_user_id, archived_at, deleted_at, created_at, updated_at",
+    )
+    .maybeSingle();
+
+  throwIfError(error, "Update quote template");
+
+  return data
+    ? { ok: true, template: mapQuoteTemplateRow(data as QuoteTemplateRow) }
+    : { ok: false, code: "TEMPLATE_NOT_FOUND" };
+}
+
+export async function deleteSupabaseQuoteTemplateRecord(
+  quoter: QuoterContext,
+  templateId: string,
+): Promise<QuoteTemplateMutationResult> {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  const existing = await getQuoteTemplateRow(db, organization.id, templateId);
+
+  if (!existing) {
+    return { ok: false, code: "TEMPLATE_NOT_FOUND" };
+  }
+
+  if (existing.is_default) {
+    return { ok: false, code: "TEMPLATE_DELETE_DEFAULT" };
+  }
+
+  const { data, error } = await db
+    .from("quote_templates")
+    .update({
+      deleted_at: new Date().toISOString(),
+      deleted_by_clerk_user_id: quoter.clerkUserId,
+    })
+    .eq("id", templateId)
+    .eq("organization_id", organization.id)
+    .is("deleted_at", null)
+    .select(
+      "id, organization_id, name, is_default, content, created_by_clerk_user_id, archived_at, deleted_at, created_at, updated_at",
+    )
+    .maybeSingle();
+
+  throwIfError(error, "Delete quote template");
+
+  return data
+    ? { ok: true, template: mapQuoteTemplateRow(data as QuoteTemplateRow) }
+    : { ok: false, code: "TEMPLATE_NOT_FOUND" };
+}
+
+export async function setSupabaseDefaultQuoteTemplate(
+  quoter: QuoterContext,
+  templateId: string,
+): Promise<QuoteTemplateMutationResult> {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  const existing = await getQuoteTemplateRow(db, organization.id, templateId);
+
+  if (!existing) {
+    return { ok: false, code: "TEMPLATE_NOT_FOUND" };
+  }
+
+  const now = new Date().toISOString();
+  const { error: clearError } = await db
+    .from("quote_templates")
+    .update({
+      is_default: false,
+      updated_at: now,
+    })
+    .eq("organization_id", organization.id)
+    .is("deleted_at", null);
+
+  throwIfError(clearError, "Clear default quote template");
+
+  const { data, error } = await db
+    .from("quote_templates")
+    .update({
+      is_default: true,
+      updated_at: now,
+    })
+    .eq("id", templateId)
+    .eq("organization_id", organization.id)
+    .is("deleted_at", null)
+    .select(
+      "id, organization_id, name, is_default, content, created_by_clerk_user_id, archived_at, deleted_at, created_at, updated_at",
+    )
+    .maybeSingle();
+
+  throwIfError(error, "Set default quote template");
+
+  return data
+    ? { ok: true, template: mapQuoteTemplateRow(data as QuoteTemplateRow) }
+    : { ok: false, code: "TEMPLATE_NOT_FOUND" };
 }
 
 export async function getSupabasePipelineCurrency(quoter: QuoterContext) {
@@ -353,6 +581,60 @@ export async function updateSupabasePipelineCurrency(
   return normalizeCurrency(
     (data as Pick<OrganizationRow, "pipeline_currency">).pipeline_currency,
   );
+}
+
+export async function getSupabaseWorkspaceUsage(
+  quoter: QuoterContext,
+): Promise<WorkspaceUsageSummary> {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  const { count: lockedQuoteCount, error: lockedQuoteError } = await db
+    .from("quotes")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", organization.id)
+    .eq("status", "locked")
+    .is("deleted_at", null);
+
+  throwIfError(lockedQuoteError, "Count locked quotes");
+
+  const { count: wetSignaturePrintCount, error: wetSignaturePrintError } =
+    await db
+      .from("quote_wet_signature_prints")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organization.id);
+
+  throwIfError(wetSignaturePrintError, "Count wet signature prints");
+
+  return {
+    workspaceId: organization.id,
+    workspaceRef: quoter.organizationId,
+    workspaceCreatedAt: organization.created_at,
+    lockedQuoteCount: lockedQuoteCount ?? 0,
+    wetSignaturePrintCount: wetSignaturePrintCount ?? 0,
+  };
+}
+
+export async function recordSupabaseWetSignaturePrint(
+  quoter: QuoterContext,
+  quoteId: string,
+) {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  const quote = await getQuoteRow(db, quoteId, organization.id);
+
+  if (!quote) {
+    return false;
+  }
+
+  const { error } = await db.from("quote_wet_signature_prints").insert({
+    organization_id: organization.id,
+    quote_id: quoteId,
+    printed_by_clerk_user_id: quoter.clerkUserId,
+  });
+
+  throwIfError(error, "Record wet signature print");
+
+  return true;
 }
 
 export async function listSupabaseLineItemData(quoter: QuoterContext) {
@@ -1847,7 +2129,7 @@ export async function createSupabasePdfExport(
   };
 }
 
-async function ensureWorkspace(
+export async function ensureWorkspace(
   db: SupabaseClient,
   quoter: QuoterContext,
 ): Promise<OrganizationRow> {
@@ -1865,7 +2147,7 @@ async function ensureWorkspace(
       },
       { onConflict: "clerk_org_id" },
     )
-    .select("id, clerk_org_id, name")
+    .select("id, clerk_org_id, name, created_at")
     .single();
 
   throwIfError(error, "Ensure organization");
@@ -1891,17 +2173,132 @@ async function getQuoteTemplateContent(
   db: SupabaseClient,
   organizationId: string,
 ) {
+  const data = await getDefaultQuoteTemplateRow(db, organizationId);
+
+  return mergeQuoteTemplate(data?.content);
+}
+
+async function ensureDefaultQuoteTemplateRow(
+  db: SupabaseClient,
+  organizationId: string,
+  clerkUserId: string,
+) {
+  const defaultRow = await getDefaultQuoteTemplateRow(db, organizationId);
+
+  if (defaultRow) {
+    return defaultRow;
+  }
+
+  const { data: firstRow, error: firstRowError } = await db
+    .from("quote_templates")
+    .select(
+      "id, organization_id, name, is_default, content, created_by_clerk_user_id, archived_at, deleted_at, created_at, updated_at",
+    )
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  throwIfError(firstRowError, "Get first quote template");
+
+  if (firstRow) {
+    const { data, error } = await db
+      .from("quote_templates")
+      .update({
+        is_default: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", (firstRow as QuoteTemplateRow).id)
+      .eq("organization_id", organizationId)
+      .select(
+        "id, organization_id, name, is_default, content, created_by_clerk_user_id, archived_at, deleted_at, created_at, updated_at",
+      )
+      .single();
+
+    throwIfError(error, "Set first quote template as default");
+
+    return data as QuoteTemplateRow;
+  }
+
+  const now = new Date().toISOString();
   const { data, error } = await db
     .from("quote_templates")
-    .select("content")
+    .insert({
+      organization_id: organizationId,
+      name: "Default Template",
+      is_default: true,
+      content: mergeQuoteTemplate(),
+      created_by_clerk_user_id: clerkUserId,
+      created_at: now,
+      updated_at: now,
+    })
+    .select(
+      "id, organization_id, name, is_default, content, created_by_clerk_user_id, archived_at, deleted_at, created_at, updated_at",
+    )
+    .single();
+
+  throwIfError(error, "Create default quote template");
+
+  return data as QuoteTemplateRow;
+}
+
+async function getDefaultQuoteTemplateRow(
+  db: SupabaseClient,
+  organizationId: string,
+) {
+  const { data, error } = await db
+    .from("quote_templates")
+    .select(
+      "id, organization_id, name, is_default, content, created_by_clerk_user_id, archived_at, deleted_at, created_at, updated_at",
+    )
     .eq("organization_id", organizationId)
+    .eq("is_default", true)
+    .is("deleted_at", null)
     .maybeSingle();
 
   throwIfError(error, "Get quote template");
 
-  return mergeQuoteTemplate(
-    (data as Pick<QuoteTemplateRow, "content"> | null)?.content,
-  );
+  return data as QuoteTemplateRow | null;
+}
+
+async function getQuoteTemplateRow(
+  db: SupabaseClient,
+  organizationId: string,
+  templateId: string,
+) {
+  const { data, error } = await db
+    .from("quote_templates")
+    .select(
+      "id, organization_id, name, is_default, content, created_by_clerk_user_id, archived_at, deleted_at, created_at, updated_at",
+    )
+    .eq("id", templateId)
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  throwIfError(error, "Get quote template");
+
+  return data as QuoteTemplateRow | null;
+}
+
+function mapQuoteTemplateRow(row: QuoteTemplateRow): QuoteTemplateRecord {
+  return {
+    id: row.id,
+    name: row.name,
+    isDefault: row.is_default,
+    content: mergeQuoteTemplate(row.content),
+    archivedAt: row.archived_at ?? undefined,
+    deletedAt: row.deleted_at ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function normalizeTemplateName(value: string) {
+  const normalized = value.trim().replace(/\s+/g, " ");
+
+  return normalized || null;
 }
 
 async function upsertClient(

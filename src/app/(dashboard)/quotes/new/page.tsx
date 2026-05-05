@@ -1,14 +1,22 @@
+import { UpgradePanel } from "@/components/billing/upgrade-panel";
 import { QuoteEditor } from "@/components/quote-editor/quote-editor";
 import { requireQuoter } from "@/lib/auth/require-quoter";
-import { getQuoteTemplate, listLineItemData } from "@/lib/quotes/persistence";
+import { getWorkspaceEntitlement } from "@/lib/billing/entitlements";
+import {
+  getQuoteTemplate,
+  listLineItemData,
+  listQuoteTemplates,
+} from "@/lib/quotes/persistence";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewQuotePage() {
   const quoter = await requireQuoter();
-  const [template, lineItemData] = await Promise.all([
+  const [template, lineItemData, entitlement, templates] = await Promise.all([
     getQuoteTemplate(quoter),
     listLineItemData(quoter),
+    getWorkspaceEntitlement(quoter),
+    listQuoteTemplates(quoter),
   ]);
 
   return (
@@ -19,7 +27,20 @@ export default async function NewQuotePage() {
           Create quotation
         </h1>
       </section>
-      <QuoteEditor template={template} lineItemData={lineItemData} />
+      {!entitlement.canCreateQuote ? (
+        <UpgradePanel
+          entitlement={entitlement}
+          title="Free trial ended"
+          message="Upgrade to a partner package to create more quotations in this workspace."
+        />
+      ) : (
+        <QuoteEditor
+          template={template}
+          templates={templates}
+          canManageMultipleTemplates={entitlement.canManageMultipleTemplates}
+          lineItemData={lineItemData}
+        />
+      )}
     </div>
   );
 }
