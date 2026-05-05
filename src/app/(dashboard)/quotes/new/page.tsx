@@ -30,8 +30,16 @@ export default async function NewQuotePage() {
       {!entitlement.canCreateQuote ? (
         <UpgradePanel
           entitlement={entitlement}
-          title="Free trial ended"
-          message="Upgrade to a partner package to create more quotations in this workspace."
+          title={
+            entitlement.paidPlanExpiredAt
+              ? "Plan renewal expired"
+              : "Free trial ended"
+          }
+          message={
+            entitlement.paidPlanExpiredAt
+              ? "Renew your partner plan to create more quotations in this workspace."
+              : "Upgrade to a partner package to create more quotations in this workspace."
+          }
         />
       ) : (
         <QuoteEditor

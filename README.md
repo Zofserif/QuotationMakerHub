@@ -50,7 +50,9 @@ Copy `.env.example` to `.env.local` and fill in Clerk, Supabase, PostHog, and em
 
 Paid plan renewal dates are read from Clerk private metadata at
 `remoteQuote.renewsAt` as an ISO date string, alongside the existing
-`remoteQuote.plan` value.
+`remoteQuote.plan` value. When a Monthly or Yearly Partner renewal date is in
+the past, the workspace is treated like an ended Free Trial until the metadata
+is renewed.
 
 ## Hydration Warning Troubleshooting
 

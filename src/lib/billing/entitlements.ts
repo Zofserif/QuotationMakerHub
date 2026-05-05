@@ -20,10 +20,12 @@ type ClerkMetadata = Record<string, unknown> | null | undefined;
 export type WorkspaceEntitlement = {
   plan: WorkspacePlan;
   planLabel: string;
+  expiredPaidPlanLabel?: string;
   workspaceRef: string;
   requesterUserId: string;
   requesterEmail?: string;
   workspaceCreatedAt: string;
+  paidPlanExpiredAt?: string;
   trialEndsAt?: string;
   renewsAt?: string;
   usage: {
@@ -88,13 +90,22 @@ function buildEntitlement(input: {
   wetSignaturePrintCount: number;
   unrestricted: boolean;
 }): WorkspaceEntitlement {
-  const paid = input.plan === "partner_monthly" || input.plan === "partner_yearly";
+  const renewalExpired =
+    isPaidPlan(input.plan) &&
+    Boolean(input.renewsAt) &&
+    !isNowBeforeOrEqual(input.renewsAt);
+  const effectivePlan: WorkspacePlan = renewalExpired
+    ? "free_trial"
+    : input.plan;
+  const paid = isPaidPlan(effectivePlan);
   const trialEndsAt = paid
     ? undefined
-    : addMonths(
-        new Date(input.workspaceCreatedAt),
-        FREE_TRIAL_DURATION_MONTHS,
-      ).toISOString();
+    : renewalExpired && input.renewsAt
+      ? input.renewsAt
+      : addMonths(
+          new Date(input.workspaceCreatedAt),
+          FREE_TRIAL_DURATION_MONTHS,
+        ).toISOString();
   const trialActive = paid || input.unrestricted || isNowBeforeOrEqual(trialEndsAt);
   const canSendQuote =
     paid ||
@@ -106,12 +117,14 @@ function buildEntitlement(input: {
     input.wetSignaturePrintCount < FREE_TRIAL_WET_SIGNATURE_PRINT_LIMIT;
 
   return {
-    plan: input.plan,
-    planLabel: input.unrestricted ? "Demo account" : planLabel(input.plan),
+    plan: effectivePlan,
+    planLabel: input.unrestricted ? "Demo account" : planLabel(effectivePlan),
+    expiredPaidPlanLabel: renewalExpired ? planLabel(input.plan) : undefined,
     workspaceRef: input.quoter.organizationId,
     requesterUserId: input.quoter.clerkUserId,
     requesterEmail: input.requesterEmail,
     workspaceCreatedAt: input.workspaceCreatedAt,
+    paidPlanExpiredAt: renewalExpired ? input.renewsAt : undefined,
     trialEndsAt,
     renewsAt: paid ? input.renewsAt : undefined,
     usage: {
@@ -140,7 +153,7 @@ function buildEntitlement(input: {
     canCreateQuote: paid || input.unrestricted || trialActive,
     canSendQuote,
     canPrepareWetSignaturePrint,
-    canManageMultipleTemplates: input.plan === "partner_yearly" || input.unrestricted,
+    canManageMultipleTemplates: effectivePlan === "partner_yearly" || input.unrestricted,
     unrestricted: input.unrestricted || paid,
   };
 }
@@ -230,6 +243,10 @@ function parseIsoDate(value: unknown) {
   const date = new Date(value);
 
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function isPaidPlan(plan: WorkspacePlan) {
+  return plan === "partner_monthly" || plan === "partner_yearly";
 }
 
 function isNowBeforeOrEqual(value?: string) {

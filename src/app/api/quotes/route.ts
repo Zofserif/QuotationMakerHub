@@ -17,7 +17,9 @@ export async function POST(request: Request) {
   if (!entitlement.canCreateQuote) {
     return errorResponse(
       "TRIAL_EXPIRED",
-      "Your free trial has ended. Upgrade to a partner package to create more quotations.",
+      entitlement.paidPlanExpiredAt
+        ? "Your partner plan renewal has expired. Renew your plan to create more quotations."
+        : "Your free trial has ended. Upgrade to a partner package to create more quotations.",
       403,
       { entitlement },
     );

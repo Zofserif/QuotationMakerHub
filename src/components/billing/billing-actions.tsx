@@ -17,6 +17,8 @@ import { cn } from "@/lib/utils";
 
 type BillingActionEntitlement = Pick<
   WorkspaceEntitlement,
+  | "expiredPaidPlanLabel"
+  | "paidPlanExpiredAt"
   | "plan"
   | "planLabel"
   | "renewsAt"
@@ -319,6 +321,16 @@ function PlanRenewalMessage({
 }: {
   entitlement: BillingActionEntitlement;
 }) {
+  if (entitlement.paidPlanExpiredAt && entitlement.expiredPaidPlanLabel) {
+    return (
+      <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
+        {entitlement.expiredPaidPlanLabel} renewal expired on{" "}
+        {formatPlanDate(entitlement.paidPlanExpiredAt)}. Upgrade or renew to
+        restore partner access.
+      </p>
+    );
+  }
+
   if (!isPaidPlan(entitlement.plan)) {
     return null;
   }
@@ -345,6 +357,12 @@ function upgradeButtonLabel(plan: WorkspacePlan) {
 }
 
 function planBadgeLabel(entitlement: BillingActionEntitlement) {
+  if (entitlement.paidPlanExpiredAt && entitlement.expiredPaidPlanLabel) {
+    return `${entitlement.expiredPaidPlanLabel} expired ${formatPlanDate(
+      entitlement.paidPlanExpiredAt,
+    )}`;
+  }
+
   if (entitlement.plan === "free_trial" && entitlement.trialEndsAt) {
     return `${entitlement.planLabel} - Expires ${formatPlanDate(
       entitlement.trialEndsAt,
