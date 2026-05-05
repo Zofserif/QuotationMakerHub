@@ -1,6 +1,7 @@
 import { captureServerEvent } from "@/lib/analytics/posthog-server";
 import { errorResponse } from "@/lib/api/responses";
 import { requireQuoter } from "@/lib/auth/require-quoter";
+import { getWorkspaceEntitlement } from "@/lib/billing/entitlements";
 import { sendQuote } from "@/lib/quotes/persistence";
 
 export async function POST(
@@ -9,6 +10,17 @@ export async function POST(
 ) {
   const quoter = await requireQuoter();
   const { quoteId } = await params;
+  const entitlement = await getWorkspaceEntitlement(quoter);
+
+  if (!entitlement.canSendQuote) {
+    return errorResponse(
+      "LOCKED_QUOTE_LIMIT_REACHED",
+      "Your free trial has reached the 5 locked quotation limit. Upgrade to a partner package to send more quotations.",
+      403,
+      { entitlement },
+    );
+  }
+
   const result = await sendQuote(quoter, quoteId);
 
   if (!result.ok) {

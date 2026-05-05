@@ -3,14 +3,23 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
+import { UpgradeLink } from "@/components/billing/upgrade-panel";
 import { AccountIndicator } from "@/components/dashboard/account-indicator";
 import { Badge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/button";
 import { APP_NAME } from "@/lib/app-config";
 import { isClerkConfigured } from "@/lib/auth/clerk";
+import { requireQuoter } from "@/lib/auth/require-quoter";
+import { getWorkspaceEntitlement } from "@/lib/billing/entitlements";
 
-export default function DashboardLayout({ children }: { children: ReactNode }) {
+export default async function DashboardLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const hasClerk = isClerkConfigured();
+  const quoter = await requireQuoter();
+  const entitlement = await getWorkspaceEntitlement(quoter);
 
   return (
     <main className="min-h-screen bg-stone-100">
@@ -31,6 +40,14 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                 Demo account
               </Badge>
             )}
+            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+              <Badge className="w-fit bg-stone-100 text-stone-700">
+                {entitlement.planLabel}
+              </Badge>
+              {entitlement.plan !== "partner_yearly" ? (
+                <UpgradeLink entitlement={entitlement} />
+              ) : null}
+            </div>
             <nav className="flex flex-wrap items-center gap-2">
               <LinkButton href="/dashboard" variant="secondary" size="sm">
                 <LayoutDashboard className="size-4" />

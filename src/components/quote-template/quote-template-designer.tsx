@@ -2,6 +2,7 @@
 
 import {
   Building2,
+  Copy,
   FileImage,
   FileText,
   ListOrdered,
@@ -9,6 +10,7 @@ import {
   Plus,
   ReceiptText,
   Save,
+  Star,
   Trash2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -25,6 +27,8 @@ import {
   type ImageCropResult,
   type ImageCropSource,
 } from "@/components/image-upload/image-crop-modal";
+import { UpgradePanel } from "@/components/billing/upgrade-panel";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,7 +48,12 @@ import {
   normalizePercentInput,
   parseNonNegativeDecimalInput,
 } from "@/lib/number-inputs";
-import type { QuoteTemplate, ToggleText } from "@/lib/quote-templates/types";
+import type { WorkspaceEntitlement } from "@/lib/billing/entitlements";
+import type {
+  QuoteTemplate,
+  QuoteTemplateRecord,
+  ToggleText,
+} from "@/lib/quote-templates/types";
 
 const logoSizeLimitBytes = 1_200_000;
 const logoDataUrlLimitBytes = 1_500_000;
@@ -56,12 +65,32 @@ const selectClassName =
 
 export function QuoteTemplateDesigner({
   template: initialTemplate,
+  templates: initialTemplates = [],
+  canManageMultipleTemplates = false,
+  entitlement,
 }: {
   template: QuoteTemplate;
+  templates?: QuoteTemplateRecord[];
+  canManageMultipleTemplates?: boolean;
+  entitlement?: WorkspaceEntitlement;
 }) {
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [template, setTemplate] = useState(initialTemplate);
+  const [templates, setTemplates] = useState(initialTemplates);
+  const [selectedTemplateId, setSelectedTemplateId] = useState(() => {
+    const defaultTemplate = initialTemplates.find(
+      (candidate) => candidate.isDefault,
+    );
+
+    return defaultTemplate?.id ?? initialTemplates[0]?.id ?? "";
+  });
+  const selectedTemplateRecord = templates.find(
+    (candidate) => candidate.id === selectedTemplateId,
+  );
+  const [templateName, setTemplateName] = useState(
+    selectedTemplateRecord?.name ?? "Default Template",
+  );
   const [message, setMessage] = useState<string | null>(null);
   const [logoCropSource, setLogoCropSource] =
     useState<ImageCropSource | null>(null);
@@ -171,31 +200,55 @@ export function QuoteTemplateDesigner({
     setMessage(null);
   }
 
-  async function saveTemplate() {
+  function getNormalizedTemplate() {
+    return {
+      ...template,
+      lineItems: {
+        ...template.lineItems,
+        unit: {
+          ...template.lineItems.unit,
+          options: normalizeUnitOptions(template.lineItems.unit.options),
+        },
+        unitPrice: {
+          ...template.lineItems.unitPrice,
+          currency: normalizeCurrency(template.lineItems.unitPrice.currency),
+        },
+        vat: {
+          ...template.lineItems.vat,
+          enabled: true,
+        },
+      },
+    };
+  }
+
+  function selectTemplate(templateRecord: QuoteTemplateRecord) {
+    setSelectedTemplateId(templateRecord.id);
+    setTemplateName(templateRecord.name);
+    setTemplate(templateRecord.content);
     setMessage(null);
+  }
+
+  function upsertTemplateRecord(templateRecord: QuoteTemplateRecord) {
+    setTemplates((current) => {
+      const next = current.some((candidate) => candidate.id === templateRecord.id)
+        ? current.map((candidate) =>
+            candidate.id === templateRecord.id ? templateRecord : candidate,
+          )
+        : [...current, templateRecord];
+
+      return next.toSorted((left, right) =>
+        left.name.localeCompare(right.name),
+      );
+    });
+  }
+
+  async function saveDefaultTemplate(normalizedTemplate: QuoteTemplate) {
     const response = await fetch("/api/quote-template", {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        ...template,
-        lineItems: {
-          ...template.lineItems,
-          unit: {
-            ...template.lineItems.unit,
-            options: normalizeUnitOptions(template.lineItems.unit.options),
-          },
-          unitPrice: {
-            ...template.lineItems.unitPrice,
-            currency: normalizeCurrency(template.lineItems.unitPrice.currency),
-          },
-          vat: {
-            ...template.lineItems.vat,
-            enabled: true,
-          },
-        },
-      }),
+      body: JSON.stringify(normalizedTemplate),
     });
     const payload = await response.json();
 
@@ -205,6 +258,51 @@ export function QuoteTemplateDesigner({
     }
 
     setTemplate(payload.template);
+    setTemplates((current) =>
+      current.map((candidate) =>
+        candidate.isDefault
+          ? {
+              ...candidate,
+              content: payload.template,
+              updatedAt: new Date().toISOString(),
+            }
+          : candidate,
+      ),
+    );
+    setMessage("Quote template saved.");
+    router.refresh();
+  }
+
+  async function saveTemplate() {
+    setMessage(null);
+    const normalizedTemplate = getNormalizedTemplate();
+
+    if (!canManageMultipleTemplates || !selectedTemplateId) {
+      await saveDefaultTemplate(normalizedTemplate);
+      return;
+    }
+
+    const response = await fetch(`/api/quote-templates/${selectedTemplateId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: templateName,
+        content: normalizedTemplate,
+      }),
+    });
+    const payload = await response.json();
+
+    if (!response.ok) {
+      setMessage(payload.error?.message ?? "Could not save quote template.");
+      return;
+    }
+
+    upsertTemplateRecord(payload.template);
+    setSelectedTemplateId(payload.template.id);
+    setTemplateName(payload.template.name);
+    setTemplate(payload.template.content);
     setMessage("Quote template saved.");
     router.refresh();
   }
@@ -221,6 +319,136 @@ export function QuoteTemplateDesigner({
     }
   }
 
+  async function createTemplate({
+    duplicateCurrentTemplate,
+  }: {
+    duplicateCurrentTemplate: boolean;
+  }) {
+    setIsSaving(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch("/api/quote-templates", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: duplicateCurrentTemplate
+            ? getDuplicateTemplateName(templateName)
+            : getNewTemplateName(templates),
+          ...(duplicateCurrentTemplate
+            ? { content: getNormalizedTemplate() }
+            : {}),
+        }),
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        setMessage(payload.error?.message ?? "Could not create quote template.");
+        return;
+      }
+
+      upsertTemplateRecord(payload.template);
+      selectTemplate(payload.template);
+      setMessage("Quote template created.");
+      router.refresh();
+    } catch {
+      setMessage("Could not create quote template.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function deleteTemplate() {
+    if (!selectedTemplateId || selectedTemplateRecord?.isDefault) {
+      return;
+    }
+
+    const shouldDelete = window.confirm(
+      `Delete ${templateName || "this quote template"}?`,
+    );
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    setIsSaving(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch(`/api/quote-templates/${selectedTemplateId}`, {
+        method: "DELETE",
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        setMessage(payload.error?.message ?? "Could not delete quote template.");
+        return;
+      }
+
+      const nextTemplates = templates.filter(
+        (candidate) => candidate.id !== selectedTemplateId,
+      );
+      setTemplates(nextTemplates);
+
+      const nextSelected =
+        nextTemplates.find((candidate) => candidate.isDefault) ??
+        nextTemplates[0];
+
+      if (nextSelected) {
+        selectTemplate(nextSelected);
+      }
+
+      setMessage("Quote template deleted.");
+      router.refresh();
+    } catch {
+      setMessage("Could not delete quote template.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function setDefaultTemplate() {
+    if (!selectedTemplateId || selectedTemplateRecord?.isDefault) {
+      return;
+    }
+
+    setIsSaving(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch(
+        `/api/quote-templates/${selectedTemplateId}/default`,
+        {
+          method: "POST",
+        },
+      );
+      const payload = await response.json();
+
+      if (!response.ok) {
+        setMessage(
+          payload.error?.message ?? "Could not set the default quote template.",
+        );
+        return;
+      }
+
+      setTemplates((current) =>
+        current.map((candidate) => ({
+          ...candidate,
+          isDefault: candidate.id === payload.template.id,
+        })),
+      );
+      upsertTemplateRecord(payload.template);
+      setMessage("Default quote template updated.");
+      router.refresh();
+    } catch {
+      setMessage("Could not set the default quote template.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   return (
     <>
       <form
@@ -231,6 +459,95 @@ export function QuoteTemplateDesigner({
         }}
       >
       <div className="space-y-6">
+        {canManageMultipleTemplates ? (
+          <Section icon={FileText} title="Template Library">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+              <Field label="Template name">
+                <Input
+                  required
+                  value={templateName}
+                  onChange={(event) => setTemplateName(event.target.value)}
+                />
+              </Field>
+              <div className="flex flex-wrap items-end gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={isSaving}
+                  onClick={() =>
+                    void createTemplate({ duplicateCurrentTemplate: false })
+                  }
+                >
+                  <Plus className="size-4" />
+                  New
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={isSaving}
+                  onClick={() =>
+                    void createTemplate({ duplicateCurrentTemplate: true })
+                  }
+                >
+                  <Copy className="size-4" />
+                  Duplicate
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={isSaving || selectedTemplateRecord?.isDefault}
+                  onClick={() => void setDefaultTemplate()}
+                >
+                  <Star className="size-4" />
+                  Set default
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={isSaving || selectedTemplateRecord?.isDefault}
+                  onClick={() => void deleteTemplate()}
+                >
+                  <Trash2 className="size-4" />
+                  Delete
+                </Button>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {templates.map((templateRecord) => (
+                <button
+                  className={`rounded-md border p-3 text-left text-sm transition ${
+                    templateRecord.id === selectedTemplateId
+                      ? "border-stone-900 bg-stone-100"
+                      : "border-stone-200 bg-white hover:bg-stone-50"
+                  }`}
+                  key={templateRecord.id}
+                  type="button"
+                  onClick={() => selectTemplate(templateRecord)}
+                >
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="font-medium text-stone-950">
+                      {templateRecord.name}
+                    </span>
+                    {templateRecord.isDefault ? (
+                      <Badge>Default</Badge>
+                    ) : null}
+                  </span>
+                  <span className="mt-1 block text-xs text-stone-500">
+                    Updated {formatTemplateDate(templateRecord.updatedAt)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </Section>
+        ) : entitlement ? (
+          <UpgradePanel
+            entitlement={entitlement}
+            title="Template library"
+            message="Yearly Partner unlocks multiple quotation templates. Free Trial and Monthly Partner accounts can edit the default template."
+          />
+        ) : null}
+
         <Section icon={FileImage} title="Branding">
           <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
             <div className="space-y-3">
@@ -827,6 +1144,39 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
       <dd className="font-medium text-stone-950">{value}</dd>
     </div>
   );
+}
+
+function getDuplicateTemplateName(templateName: string) {
+  const baseName = templateName.trim() || "Quote Template";
+
+  return `${baseName} Copy`;
+}
+
+function getNewTemplateName(templates: QuoteTemplateRecord[]) {
+  const names = new Set(
+    templates.map((templateRecord) => templateRecord.name.toLowerCase()),
+  );
+  let index = templates.length + 1;
+
+  while (names.has(`quote template ${index}`)) {
+    index += 1;
+  }
+
+  return `Quote Template ${index}`;
+}
+
+function formatTemplateDate(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "recently";
+  }
+
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function normalizeUnitOptions(options: string[]) {

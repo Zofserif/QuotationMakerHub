@@ -1,7 +1,11 @@
 import { captureServerEvent } from "@/lib/analytics/posthog-server";
 import { errorResponse } from "@/lib/api/responses";
 import { requireQuoter } from "@/lib/auth/require-quoter";
-import { markQuoteForWetSignature } from "@/lib/quotes/persistence";
+import { getWorkspaceEntitlement } from "@/lib/billing/entitlements";
+import {
+  markQuoteForWetSignature,
+  recordWetSignaturePrint,
+} from "@/lib/quotes/persistence";
 
 export async function POST(
   _request: Request,
@@ -9,6 +13,17 @@ export async function POST(
 ) {
   const quoter = await requireQuoter();
   const { quoteId } = await params;
+  const entitlement = await getWorkspaceEntitlement(quoter);
+
+  if (!entitlement.canPrepareWetSignaturePrint) {
+    return errorResponse(
+      "WET_SIGNATURE_PRINT_LIMIT_REACHED",
+      "Your free trial has reached the 10 wet-signature print limit. Upgrade to a partner package to keep printing.",
+      403,
+      { entitlement },
+    );
+  }
+
   const result = await markQuoteForWetSignature(quoter, quoteId);
 
   if (!result.ok) {
@@ -22,6 +37,8 @@ export async function POST(
       quoteLocked ? 409 : 404,
     );
   }
+
+  await recordWetSignaturePrint(quoter, quoteId);
 
   await captureServerEvent({
     distinctId: quoter.clerkUserId,

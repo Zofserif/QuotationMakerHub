@@ -27,7 +27,10 @@ import {
   mergeQuoteTemplate,
 } from "@/lib/quote-templates/defaults";
 import { formatQuoteNumber } from "@/lib/quote-templates/numbering";
-import type { QuoteTemplate } from "@/lib/quote-templates/types";
+import type {
+  QuoteTemplate,
+  QuoteTemplateRecord,
+} from "@/lib/quote-templates/types";
 import { getAggregateQuoteStatus } from "@/lib/quotes/quote-state";
 import type {
   AuditEvent,
@@ -68,6 +71,7 @@ type DemoState = {
   auditEvents: Record<string, AuditEvent[]>;
   quoteCounter: number;
   quoteTemplate: QuoteTemplate;
+  quoteTemplates: QuoteTemplateRecord[];
   pipelineCurrency: string;
   lineItemData: LineItemData[];
 };
@@ -88,6 +92,14 @@ function seedDemoState(): DemoState {
   const signatureFieldId = randomUUID();
   const now = new Date().toISOString();
   const templateSnapshot = structuredClone(defaultQuoteTemplate);
+  const templateRecord: QuoteTemplateRecord = {
+    id: randomUUID(),
+    name: "Default Template",
+    isDefault: true,
+    content: structuredClone(defaultQuoteTemplate),
+    createdAt: now,
+    updatedAt: now,
+  };
   const lineItems = normalizeLineItems([
     {
       name: "Discovery and Planning",
@@ -182,6 +194,7 @@ function seedDemoState(): DemoState {
     },
     quoteCounter: 2,
     quoteTemplate: structuredClone(defaultQuoteTemplate),
+    quoteTemplates: [templateRecord],
     pipelineCurrency: normalizeCurrency(),
     lineItemData: [
       {
@@ -252,13 +265,115 @@ export function getDemoAuditEvents(quoteId: string) {
 }
 
 export function getDemoQuoteTemplate() {
-  demoState.quoteTemplate = mergeQuoteTemplate(demoState.quoteTemplate);
+  const defaultRecord = getDefaultDemoQuoteTemplateRecord();
+  demoState.quoteTemplate = mergeQuoteTemplate(defaultRecord.content);
   return demoState.quoteTemplate;
 }
 
 export function updateDemoQuoteTemplate(template: QuoteTemplate) {
   demoState.quoteTemplate = mergeQuoteTemplate(template);
+  const defaultRecord = getDefaultDemoQuoteTemplateRecord();
+  defaultRecord.content = demoState.quoteTemplate;
+  defaultRecord.updatedAt = new Date().toISOString();
   return demoState.quoteTemplate;
+}
+
+export function listDemoQuoteTemplates() {
+  return demoState.quoteTemplates
+    .filter((template) => !template.deletedAt)
+    .toSorted((a, b) => Number(b.isDefault) - Number(a.isDefault));
+}
+
+export function createDemoQuoteTemplate(input: {
+  name: string;
+  content?: QuoteTemplate;
+}) {
+  const now = new Date().toISOString();
+  const template: QuoteTemplateRecord = {
+    id: randomUUID(),
+    name: normalizeTemplateName(input.name) ?? "Untitled Template",
+    isDefault: false,
+    content: mergeQuoteTemplate(input.content ?? demoState.quoteTemplate),
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  demoState.quoteTemplates.push(template);
+
+  return { ok: true as const, template };
+}
+
+export function updateDemoQuoteTemplateRecord(
+  templateId: string,
+  input: { name?: string; content?: QuoteTemplate },
+) {
+  const template = demoState.quoteTemplates.find(
+    (candidate) => candidate.id === templateId && !candidate.deletedAt,
+  );
+
+  if (!template) {
+    return { ok: false as const, code: "TEMPLATE_NOT_FOUND" as const };
+  }
+
+  if (input.name !== undefined) {
+    const name = normalizeTemplateName(input.name);
+
+    if (!name) {
+      return { ok: false as const, code: "TEMPLATE_NAME_REQUIRED" as const };
+    }
+
+    template.name = name;
+  }
+
+  if (input.content) {
+    template.content = mergeQuoteTemplate(input.content);
+  }
+
+  template.updatedAt = new Date().toISOString();
+
+  if (template.isDefault) {
+    demoState.quoteTemplate = mergeQuoteTemplate(template.content);
+  }
+
+  return { ok: true as const, template };
+}
+
+export function deleteDemoQuoteTemplateRecord(templateId: string) {
+  const template = demoState.quoteTemplates.find(
+    (candidate) => candidate.id === templateId && !candidate.deletedAt,
+  );
+
+  if (!template) {
+    return { ok: false as const, code: "TEMPLATE_NOT_FOUND" as const };
+  }
+
+  if (template.isDefault) {
+    return { ok: false as const, code: "TEMPLATE_DELETE_DEFAULT" as const };
+  }
+
+  template.deletedAt = new Date().toISOString();
+  template.updatedAt = template.deletedAt;
+
+  return { ok: true as const, template };
+}
+
+export function setDefaultDemoQuoteTemplate(templateId: string) {
+  const template = demoState.quoteTemplates.find(
+    (candidate) => candidate.id === templateId && !candidate.deletedAt,
+  );
+
+  if (!template) {
+    return { ok: false as const, code: "TEMPLATE_NOT_FOUND" as const };
+  }
+
+  for (const candidate of demoState.quoteTemplates) {
+    candidate.isDefault = candidate.id === templateId;
+  }
+
+  template.updatedAt = new Date().toISOString();
+  demoState.quoteTemplate = mergeQuoteTemplate(template.content);
+
+  return { ok: true as const, template };
 }
 
 export function getDemoPipelineCurrency() {
@@ -1278,6 +1393,47 @@ function getTemplateTaxMode(template?: QuoteTemplate): TaxMode {
   return template?.lineItems.vat.enabled
     ? template.lineItems.vat.mode
     : "exclusive";
+}
+
+function getDefaultDemoQuoteTemplateRecord() {
+  const existing = demoState.quoteTemplates.find(
+    (template) => template.isDefault && !template.deletedAt,
+  );
+
+  if (existing) {
+    existing.content = mergeQuoteTemplate(existing.content);
+    return existing;
+  }
+
+  const firstTemplate = demoState.quoteTemplates.find(
+    (template) => !template.deletedAt,
+  );
+
+  if (firstTemplate) {
+    firstTemplate.isDefault = true;
+    firstTemplate.content = mergeQuoteTemplate(firstTemplate.content);
+    return firstTemplate;
+  }
+
+  const now = new Date().toISOString();
+  const template: QuoteTemplateRecord = {
+    id: randomUUID(),
+    name: "Default Template",
+    isDefault: true,
+    content: mergeQuoteTemplate(),
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  demoState.quoteTemplates.push(template);
+
+  return template;
+}
+
+function normalizeTemplateName(value: string) {
+  const normalized = value.trim().replace(/\s+/g, " ");
+
+  return normalized || null;
 }
 
 async function fileToDataUrl(file: File) {

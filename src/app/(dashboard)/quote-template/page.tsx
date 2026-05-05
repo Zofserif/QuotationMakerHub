@@ -1,12 +1,20 @@
 import { QuoteTemplateDesigner } from "@/components/quote-template/quote-template-designer";
 import { requireQuoter } from "@/lib/auth/require-quoter";
-import { getQuoteTemplate } from "@/lib/quotes/persistence";
+import { getWorkspaceEntitlement } from "@/lib/billing/entitlements";
+import {
+  getQuoteTemplate,
+  listQuoteTemplates,
+} from "@/lib/quotes/persistence";
 
 export const dynamic = "force-dynamic";
 
 export default async function QuoteTemplatePage() {
   const quoter = await requireQuoter();
-  const template = await getQuoteTemplate(quoter);
+  const [template, templates, entitlement] = await Promise.all([
+    getQuoteTemplate(quoter),
+    listQuoteTemplates(quoter),
+    getWorkspaceEntitlement(quoter),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -16,7 +24,12 @@ export default async function QuoteTemplatePage() {
           Quote Template
         </h1>
       </section>
-      <QuoteTemplateDesigner template={template} />
+      <QuoteTemplateDesigner
+        template={template}
+        templates={templates}
+        canManageMultipleTemplates={entitlement.canManageMultipleTemplates}
+        entitlement={entitlement}
+      />
     </div>
   );
 }

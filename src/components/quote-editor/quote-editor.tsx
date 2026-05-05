@@ -26,7 +26,10 @@ import {
   createDraftFromTemplate,
   mergeQuoteTemplate,
 } from "@/lib/quote-templates/defaults";
-import type { QuoteTemplate } from "@/lib/quote-templates/types";
+import type {
+  QuoteTemplate,
+  QuoteTemplateRecord,
+} from "@/lib/quote-templates/types";
 import type { LineItemData } from "@/lib/line-item-data/types";
 import { calculateQuoteTotals } from "@/lib/quotes/calculate-totals";
 import {
@@ -67,10 +70,14 @@ type PendingQuoteAction = "save" | "send" | "remove-signature";
 export function QuoteEditor({
   quote,
   template,
+  templates = [],
+  canManageMultipleTemplates = false,
   lineItemData = [],
 }: {
   quote?: Quote;
   template?: QuoteTemplate;
+  templates?: QuoteTemplateRecord[];
+  canManageMultipleTemplates?: boolean;
   lineItemData?: LineItemData[];
 }) {
   const router = useRouter();
@@ -87,6 +94,12 @@ export function QuoteEditor({
   const [unavailableShareLinks, setUnavailableShareLinks] = useState<
     UnavailableQuoteShareLink[]
   >(() => (quote ? buildUnavailableQuoteShareLinks(quote) : []));
+  const [selectedTemplateId, setSelectedTemplateId] = useState(
+    () =>
+      templates.find((candidate) => candidate.isDefault)?.id ??
+      templates[0]?.id ??
+      "",
+  );
   const [shareStatus, setShareStatus] = useState<QuoteStatus>(
     quote?.status ?? "draft",
   );
@@ -167,6 +180,21 @@ export function QuoteEditor({
         },
       };
     });
+  }
+
+  function selectTemplate(templateId: string) {
+    const selectedTemplate = templates.find(
+      (candidate) => candidate.id === templateId,
+    );
+
+    if (!selectedTemplate || quote) {
+      return;
+    }
+
+    setSelectedTemplateId(templateId);
+    setDraft(createDraftFromTemplate(selectedTemplate.content));
+    setValidationIssues([]);
+    setMessage(null);
   }
 
   async function saveDraft() {
@@ -311,6 +339,26 @@ export function QuoteEditor({
           void runPendingAction("save", saveDraft, "Could not save draft.");
         }}
       >
+        {!quote && canManageMultipleTemplates && templates.length > 0 ? (
+          <section className="rounded-lg border border-stone-200 bg-white p-5">
+            <Field label="Quotation template">
+              <select
+                className="h-10 w-full rounded-md border border-stone-200 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-400 focus:ring-4 focus:ring-stone-100"
+                disabled={isPending}
+                value={selectedTemplateId}
+                onChange={(event) => selectTemplate(event.target.value)}
+              >
+                {templates.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>
+                    {candidate.name}
+                    {candidate.isDefault ? " (Default)" : ""}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </section>
+        ) : null}
+
         <section className="rounded-lg border border-stone-200 bg-white p-5">
           <h2 className="mb-5 font-semibold text-stone-950">Quote details</h2>
           <div className="grid gap-4 md:grid-cols-2">
