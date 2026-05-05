@@ -1,5 +1,9 @@
 export const APP_NAME = "Remote Quote";
 
+export const APP_AUTHOR_NAME = APP_NAME;
+
+export const APP_PUBLISHED_DATE = "2026-05-05";
+
 export const APP_LOGO_SRC = "/remote-quote-logo.svg";
 
 export const APP_SOCIAL_PREVIEW_IMAGE_SRC = "/link-preview.jpg";

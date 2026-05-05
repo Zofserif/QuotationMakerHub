@@ -2,7 +2,14 @@ import { ArrowRight, Send, CheckCircle2, Form } from "lucide-react";
 
 import { BrandLogo } from "@/components/brand-logo";
 import { LinkButton } from "@/components/ui/button";
-import { APP_NAME } from "@/lib/app-config";
+import {
+  APP_AUTHOR_NAME,
+  APP_DESCRIPTION,
+  APP_NAME,
+  APP_ORIGIN,
+  APP_PUBLISHED_DATE,
+  APP_SOCIAL_PREVIEW_IMAGE_SRC,
+} from "@/lib/app-config";
 
 const landingSteps = [
   { label: "Create Your Quote", icon: Form },
@@ -37,9 +44,37 @@ function SignatureCue({ className }: { className: string }) {
   );
 }
 
+const homepageJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: APP_NAME,
+  description: APP_DESCRIPTION,
+  ...(APP_ORIGIN
+    ? {
+        url: APP_ORIGIN,
+        image: new URL(APP_SOCIAL_PREVIEW_IMAGE_SRC, APP_ORIGIN).toString(),
+      }
+    : {}),
+  author: {
+    "@type": "Organization",
+    name: APP_AUTHOR_NAME,
+  },
+  publisher: {
+    "@type": "Organization",
+    name: APP_AUTHOR_NAME,
+  },
+  datePublished: APP_PUBLISHED_DATE,
+};
+
 export default function Home() {
   return (
     <main className="min-h-screen bg-stone-950">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(homepageJsonLd).replace(/</g, "\\u003c"),
+        }}
+      />
       <section className="landing-hero relative min-h-screen overflow-hidden text-white">
         <div className="relative mx-auto flex min-h-screen max-w-7xl flex-col justify-between px-6 py-8 sm:px-8 lg:px-10">
           <nav className="flex items-center">

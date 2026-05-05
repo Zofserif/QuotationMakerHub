@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import {
+  APP_AUTHOR_NAME,
   APP_DESCRIPTION,
   APP_NAME,
   APP_ORIGIN,
+  APP_PUBLISHED_DATE,
   APP_SOCIAL_PREVIEW_IMAGE_ALT,
   APP_SOCIAL_PREVIEW_IMAGE_HEIGHT,
   APP_SOCIAL_PREVIEW_IMAGE_SRC,
@@ -36,6 +38,12 @@ const socialPreviewImage = {
 export const metadata: Metadata = {
   title: metadataTitle,
   description: APP_DESCRIPTION,
+  authors: [{ name: APP_AUTHOR_NAME }],
+  creator: APP_AUTHOR_NAME,
+  publisher: APP_AUTHOR_NAME,
+  other: {
+    "publish-date": APP_PUBLISHED_DATE,
+  },
   ...(APP_ORIGIN
     ? {
         metadataBase: new URL(APP_ORIGIN),
