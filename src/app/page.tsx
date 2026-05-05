@@ -1,4 +1,4 @@
-import { ArrowRight, Camera, CheckCircle2, ShieldCheck } from "lucide-react";
+import { ArrowRight, Send, CheckCircle2, Form } from "lucide-react";
 
 import { BrandLogo } from "@/components/brand-logo";
 import { LinkButton } from "@/components/ui/button";
@@ -7,7 +7,10 @@ import { APP_NAME } from "@/lib/app-config";
 export default function Home() {
   return (
     <main className="min-h-screen bg-stone-950">
-      <section className="relative min-h-screen overflow-hidden bg-[url('https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1800&q=80')] bg-cover bg-center text-white">
+      <section
+        className="relative min-h-screen overflow-hidden bg-cover bg-center text-white"
+        style={{ backgroundImage: "url('/Business%20Agreement.jpg')" }}
+      >
         <div className="absolute inset-0 bg-stone-950/70" />
         <div className="relative mx-auto flex min-h-screen max-w-7xl flex-col justify-between px-6 py-8 sm:px-8 lg:px-10">
           <nav className="flex items-center">
@@ -18,27 +21,28 @@ export default function Home() {
           </nav>
           <div className="max-w-3xl py-16">
             <p className="mb-4 inline-flex rounded-md bg-white/10 px-3 py-1 text-sm font-medium ring-1 ring-white/20">
-              Structured quotes, secure links, browser signatures, PDF export
+              For Business that sends custom quotes
             </p>
             <h1 className="text-5xl font-bold leading-tight sm:text-6xl">
-              {APP_NAME}
+              {/* {APP_NAME}  */}
+              Your Business Partner that Converts YES to Signed
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-stone-100">
-              Create polished quotations, send tokenized client links, collect
-              acceptance signatures, and preserve an auditable final version.
+              Create a quotation for your next client for FREE and get a real-time signature and
+              close the sale all in one sitting.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <LinkButton href="/dashboard" size="lg">
-                START NOW
+                CREATE A QUOTE NOW
                 <ArrowRight className="size-5" />
               </LinkButton>
             </div>
           </div>
           <div className="grid gap-3 pb-2 sm:grid-cols-3">
             {[
-              ["Immutable versions", ShieldCheck],
-              ["Camera signature cleanup", Camera],
-              ["Acceptance locking", CheckCircle2],
+              ["Create Your Quote", Form],
+              ["Send to Client", Send],
+              ["Signature in minutes", CheckCircle2],
             ].map(([label, Icon]) => (
               <div
                 className="flex items-center gap-3 border-t border-white/25 pt-3 text-sm font-medium text-stone-100"
