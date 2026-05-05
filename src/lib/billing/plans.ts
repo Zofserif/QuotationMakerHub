@@ -13,6 +13,13 @@ export type PartnerPackage = {
   features: string[];
 };
 
+export type BillingPlanDetails = {
+  plan: WorkspacePlan;
+  name: string;
+  description: string;
+  features: string[];
+};
+
 export const FREE_TRIAL_LOCKED_QUOTE_LIMIT = 5;
 
 export const FREE_TRIAL_WET_SIGNATURE_PRINT_LIMIT = 10;
@@ -22,7 +29,22 @@ export const FREE_TRIAL_DURATION_MONTHS = 1;
 export const UPGRADE_CONTACT_EMAIL =
   process.env.NEXT_PUBLIC_UPGRADE_CONTACT_EMAIL ?? "";
 
-export const partnerPackages: PartnerPackage[] = [
+export const COFFEE_DONATION_URL = normalizeExternalUrl(
+  process.env.NEXT_PUBLIC_COFFEE_DONATION_URL ?? "",
+);
+
+export const billingPlanDetails: BillingPlanDetails[] = [
+  {
+    plan: "free_trial",
+    name: "Free Trial",
+    description: "For evaluating Remote Quote with starter workspace limits.",
+    features: [
+      `${FREE_TRIAL_DURATION_MONTHS} month trial access`,
+      `${FREE_TRIAL_LOCKED_QUOTE_LIMIT} locked or sent quotations`,
+      `${FREE_TRIAL_WET_SIGNATURE_PRINT_LIMIT} wet-signature prints`,
+      "One quotation template",
+    ],
+  },
   {
     plan: "partner_monthly",
     name: "Monthly Partner",
@@ -47,6 +69,10 @@ export const partnerPackages: PartnerPackage[] = [
   },
 ];
 
+export const partnerPackages: PartnerPackage[] = billingPlanDetails.filter(
+  (plan): plan is PartnerPackage => plan.plan !== "free_trial",
+);
+
 export function planLabel(plan: WorkspacePlan) {
   if (plan === "partner_monthly") {
     return "Monthly Partner";
@@ -70,11 +96,15 @@ export function buildUpgradeMailto(input: {
   requesterEmail?: string;
   requesterUserId?: string;
   currentPlan: WorkspacePlan;
+  targetPlan?: WorkspacePlan;
 }) {
   if (!UPGRADE_CONTACT_EMAIL) {
     return null;
   }
 
+  const targetPlanLabel = input.targetPlan
+    ? planLabel(input.targetPlan)
+    : "a partner package";
   const subject = `Upgrade Remote Quote workspace ${input.workspaceRef}`;
   const packageLines = partnerPackages
     .map(
@@ -85,10 +115,11 @@ export function buildUpgradeMailto(input: {
   const body = [
     "Hello,",
     "",
-    "I would like to upgrade this Remote Quote workspace to a partner package.",
+    `I would like to upgrade this Remote Quote workspace to ${targetPlanLabel}.`,
     "",
     `Workspace: ${input.workspaceRef}`,
     `Current plan: ${planLabel(input.currentPlan)}`,
+    input.targetPlan ? `Requested plan: ${planLabel(input.targetPlan)}` : null,
     input.requesterEmail ? `Requester email: ${input.requesterEmail}` : null,
     input.requesterUserId ? `Requester user ID: ${input.requesterUserId}` : null,
     "",
@@ -103,4 +134,16 @@ export function buildUpgradeMailto(input: {
   return `mailto:${encodeURIComponent(UPGRADE_CONTACT_EMAIL)}?subject=${encodeURIComponent(
     subject,
   )}&body=${encodeURIComponent(body)}`;
+}
+
+function normalizeExternalUrl(value: string) {
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return "";
+  }
+
+  return /^https?:\/\//i.test(trimmedValue)
+    ? trimmedValue
+    : `https://${trimmedValue}`;
 }

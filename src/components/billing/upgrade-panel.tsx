@@ -1,13 +1,7 @@
-import { Mail, Sparkles } from "lucide-react";
-
+import { UpgradeModalButton } from "@/components/billing/billing-actions";
 import { Badge } from "@/components/ui/badge";
-import { Button, LinkButton } from "@/components/ui/button";
 import type { WorkspaceEntitlement } from "@/lib/billing/entitlements";
-import {
-  buildUpgradeMailto,
-  partnerPackages,
-  UPGRADE_CONTACT_EMAIL,
-} from "@/lib/billing/plans";
+import { partnerPackages, UPGRADE_CONTACT_EMAIL } from "@/lib/billing/plans";
 import { formatDate } from "@/lib/utils";
 
 export function UpgradeLink({
@@ -17,28 +11,7 @@ export function UpgradeLink({
   entitlement: WorkspaceEntitlement;
   size?: "sm" | "md";
 }) {
-  const href = buildUpgradeMailto({
-    workspaceRef: entitlement.workspaceRef,
-    requesterEmail: entitlement.requesterEmail,
-    requesterUserId: entitlement.requesterUserId,
-    currentPlan: entitlement.plan,
-  });
-
-  if (!href) {
-    return (
-      <Button type="button" variant="secondary" size={size} disabled>
-        <Mail className="size-4" />
-        Upgrade
-      </Button>
-    );
-  }
-
-  return (
-    <LinkButton href={href} variant="primary" size={size}>
-      <Sparkles className="size-4" />
-      Upgrade to partner
-    </LinkButton>
-  );
+  return <UpgradeModalButton entitlement={entitlement} size={size} />;
 }
 
 export function UpgradePanel({

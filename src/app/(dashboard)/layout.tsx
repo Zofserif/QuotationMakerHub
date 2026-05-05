@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
-import { UpgradeLink } from "@/components/billing/upgrade-panel";
+import { PlanBadgeButton } from "@/components/billing/billing-actions";
 import { AccountIndicator } from "@/components/dashboard/account-indicator";
 import { Badge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/button";
@@ -32,22 +32,20 @@ export default async function DashboardLayout({
             <BrandLogo className="size-6" />
             {APP_NAME}
           </Link>
+
           <div className="flex min-w-0 flex-col gap-3 sm:items-end">
-            {hasClerk ? (
-              <AccountIndicator />
-            ) : (
-              <Badge className="w-fit bg-stone-100 text-stone-700">
-                Demo account
-              </Badge>
-            )}
             <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-              <Badge className="w-fit bg-stone-100 text-stone-700">
-                {entitlement.planLabel}
-              </Badge>
-              {entitlement.plan !== "partner_yearly" ? (
-                <UpgradeLink entitlement={entitlement} />
-              ) : null}
+              <PlanBadgeButton entitlement={entitlement} />
+
+              {hasClerk ? (
+                <AccountIndicator />
+              ) : (
+                <Badge className="w-fit bg-stone-100 text-stone-700">
+                  Demo account
+                </Badge>
+              )}
             </div>
+
             <nav className="flex flex-wrap items-center gap-2">
               <LinkButton href="/dashboard" variant="secondary" size="sm">
                 <LayoutDashboard className="size-4" />

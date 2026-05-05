@@ -43,6 +43,7 @@ Copy `.env.example` to `.env.local` and fill in Clerk, Supabase, PostHog, and em
 - `CLERK_SECRET_KEY`
 - `NEXT_PUBLIC_APP_URL` set to the production origin, such as `https://remotequote.example` until the final domain is configured
 - `NEXT_PUBLIC_UPGRADE_CONTACT_EMAIL` for the manual partner-upgrade mail link
+- `NEXT_PUBLIC_COFFEE_DONATION_URL` for the dashboard coffee donation link
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
