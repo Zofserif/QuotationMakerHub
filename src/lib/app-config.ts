@@ -1,4 +1,4 @@
-export const APP_NAME = "Remote Quote - Create Quote and Send to Client";
+export const APP_NAME = "Remote Quote";
 
 export const APP_LOGO_SRC = "/remote-quote-logo.svg";
 

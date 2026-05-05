@@ -15,13 +15,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: APP_NAME,
+  title: "Remote Quote - Create Quote and Send to Client",
   description: APP_DESCRIPTION,
   ...(APP_ORIGIN
     ? {
         metadataBase: new URL(APP_ORIGIN),
         openGraph: {
-          title: APP_NAME,
+          title: "Remote Quote - Create Quote and Send to Client",
           description: APP_DESCRIPTION,
           siteName: APP_NAME,
           url: APP_ORIGIN,
