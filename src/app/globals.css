@@ -25,6 +25,118 @@ textarea {
   letter-spacing: 0;
 }
 
+.landing-hero {
+  background-image:
+    linear-gradient(
+      180deg,
+      rgba(28, 25, 23, 0.82) 0%,
+      rgba(28, 25, 23, 0.5) 38%,
+      rgba(28, 25, 23, 0.2) 58%,
+      rgba(28, 25, 23, 0.82) 100%
+    ),
+    linear-gradient(
+      90deg,
+      rgba(28, 25, 23, 0.68) 0%,
+      rgba(28, 25, 23, 0.34) 48%,
+      rgba(28, 25, 23, 0.18) 100%
+    ),
+    url("/Business%20Agreement%20Mobile%20View.jpg");
+  background-position:
+    center,
+    center,
+    center top;
+  background-repeat: no-repeat;
+  background-size:
+    cover,
+    cover,
+    auto 132%;
+}
+
+@media (min-width: 640px) {
+  .landing-hero {
+    background-image:
+      linear-gradient(
+        90deg,
+        rgba(28, 25, 23, 0.88) 0%,
+        rgba(28, 25, 23, 0.72) 34%,
+        rgba(28, 25, 23, 0.3) 62%,
+        rgba(28, 25, 23, 0.54) 100%
+      ),
+      linear-gradient(
+        180deg,
+        rgba(28, 25, 23, 0.52) 0%,
+        rgba(28, 25, 23, 0.14) 44%,
+        rgba(28, 25, 23, 0.8) 100%
+      ),
+      url("/Business%20Agreement.jpg");
+    background-position:
+      center,
+      center,
+      100% 100%;
+    background-size:
+      cover,
+      cover,
+      118% auto;
+  }
+}
+
+.signature-cue__stroke {
+  animation: signature-draw 3.4s ease-in-out infinite;
+  stroke-dasharray: 230;
+  stroke-dashoffset: 230;
+}
+
+.signature-cue__underline {
+  animation: signature-underline 3.4s ease-in-out infinite;
+  opacity: 0;
+  stroke-dasharray: 140;
+  stroke-dashoffset: 140;
+}
+
+@keyframes signature-draw {
+  0%,
+  12% {
+    stroke-dashoffset: 230;
+  }
+
+  52%,
+  82% {
+    stroke-dashoffset: 0;
+  }
+
+  100% {
+    stroke-dashoffset: 230;
+  }
+}
+
+@keyframes signature-underline {
+  0%,
+  46% {
+    opacity: 0;
+    stroke-dashoffset: 140;
+  }
+
+  62%,
+  82% {
+    opacity: 0.72;
+    stroke-dashoffset: 0;
+  }
+
+  100% {
+    opacity: 0;
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signature-cue__stroke,
+  .signature-cue__underline {
+    animation: none;
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
 @media print {
   body {
     background: white;

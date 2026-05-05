@@ -4,14 +4,43 @@ import { BrandLogo } from "@/components/brand-logo";
 import { LinkButton } from "@/components/ui/button";
 import { APP_NAME } from "@/lib/app-config";
 
+const landingSteps = [
+  { label: "Create Your Quote", icon: Form },
+  { label: "Send to Client", icon: Send },
+  { label: "Signature in minutes", icon: CheckCircle2 },
+];
+
+function SignatureCue({ className }: { className: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 160 40"
+    >
+      <path
+        className="signature-cue__stroke"
+        d="M6 28 C18 12, 28 10, 32 22 C36 35, 46 33, 54 17 C59 7, 63 9, 62 21 C61 35, 72 32, 82 22 C91 13, 98 14, 96 25 C94 35, 108 31, 119 19 C130 8, 143 13, 154 20"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="3"
+      />
+      <path
+        className="signature-cue__underline"
+        d="M18 34 C48 38, 100 38, 145 31"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
 export default function Home() {
   return (
     <main className="min-h-screen bg-stone-950">
-      <section
-        className="relative min-h-screen overflow-hidden bg-cover bg-center text-white"
-        style={{ backgroundImage: "url('/Business%20Agreement.jpg')" }}
-      >
-        <div className="absolute inset-0 bg-stone-950/70" />
+      <section className="landing-hero relative min-h-screen overflow-hidden text-white">
         <div className="relative mx-auto flex min-h-screen max-w-7xl flex-col justify-between px-6 py-8 sm:px-8 lg:px-10">
           <nav className="flex items-center">
             <div className="flex items-center gap-2 text-lg font-semibold">
@@ -23,9 +52,16 @@ export default function Home() {
             <p className="mb-4 inline-flex rounded-md bg-white/10 px-3 py-1 text-sm font-medium ring-1 ring-white/20">
               For Business that sends custom quotes
             </p>
-            <h1 className="text-5xl font-bold leading-tight sm:text-6xl">
-              {/* {APP_NAME}  */}
-              Your Business Partner that Converts YES to Signed
+            <h1 className="text-[2.625rem] font-bold leading-[1.08] sm:text-6xl sm:leading-tight">
+              Your Business Partner that Converts{" "}
+              <span className="inline-block rounded-md bg-emerald-300 px-2 py-0.5 text-stone-950 ring-1 ring-emerald-100/70">
+                YES
+              </span>{" "}
+              to{" "}
+              <span className="inline-flex items-end gap-2 sm:gap-3">
+                Signed
+                <SignatureCue className="signature-cue mb-1 h-6 w-24 shrink-0 overflow-visible text-white/95 sm:mb-2 sm:h-8 sm:w-36" />
+              </span>
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-stone-100">
               Create a quotation for your next client for FREE and get a real-time signature and
@@ -39,17 +75,13 @@ export default function Home() {
             </div>
           </div>
           <div className="grid gap-3 pb-2 sm:grid-cols-3">
-            {[
-              ["Create Your Quote", Form],
-              ["Send to Client", Send],
-              ["Signature in minutes", CheckCircle2],
-            ].map(([label, Icon]) => (
+            {landingSteps.map(({ label, icon: Icon }) => (
               <div
-                className="flex items-center gap-3 border-t border-white/25 pt-3 text-sm font-medium text-stone-100"
-                key={String(label)}
+                className="flex min-h-12 items-end gap-3 border-t border-white/25 pt-3 text-sm font-medium text-stone-100 sm:min-h-20"
+                key={label}
               >
                 <Icon className="size-4" />
-                <span>{String(label)}</span>
+                <span>{label}</span>
               </div>
             ))}
           </div>
