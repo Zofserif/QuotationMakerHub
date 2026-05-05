@@ -268,7 +268,10 @@ export type UpdateQuoteVisibilityResult =
 
 export type DeleteQuoteResult =
   | { ok: true; quoteId: string }
-  | { ok: false; code: "QUOTE_NOT_FOUND" | "QUOTE_NOT_ARCHIVED" };
+  | {
+      ok: false;
+      code: "QUOTE_NOT_FOUND" | "QUOTE_NOT_ARCHIVED" | "QUOTE_LOCKED";
+    };
 
 export type SendQuoteResult =
   | {

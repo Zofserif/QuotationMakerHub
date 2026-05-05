@@ -819,6 +819,10 @@ export function deleteDemoQuote(quoteId: string): DeleteQuoteResult {
     return { ok: false, code: "QUOTE_NOT_ARCHIVED" };
   }
 
+  if (quote.status === "locked") {
+    return { ok: false, code: "QUOTE_LOCKED" };
+  }
+
   demoState.quotes.splice(quoteIndex, 1);
   demoState.versions = demoState.versions.filter(
     (version) => version.quoteId !== quoteId,

@@ -19,6 +19,7 @@ type BillingActionEntitlement = Pick<
   WorkspaceEntitlement,
   | "plan"
   | "planLabel"
+  | "renewsAt"
   | "trialEndsAt"
   | "workspaceRef"
   | "requesterEmail"
@@ -281,6 +282,9 @@ function PlanCard({
           </li>
         ))}
       </ul>
+      {mode === "plan" && isCurrent ? (
+        <PlanRenewalMessage entitlement={entitlement} />
+      ) : null}
 
       {mode === "upgrade" ? (
         <div className="mt-4">
@@ -310,6 +314,24 @@ function PlanCard({
   );
 }
 
+function PlanRenewalMessage({
+  entitlement,
+}: {
+  entitlement: BillingActionEntitlement;
+}) {
+  if (!isPaidPlan(entitlement.plan)) {
+    return null;
+  }
+
+  return (
+    <p className="mt-4 rounded-md border border-stone-200 bg-white p-3 text-sm font-medium text-stone-700">
+      {entitlement.renewsAt
+        ? `Renews on ${formatPlanDate(entitlement.renewsAt)}`
+        : "Renewal date not set. Contact Gmail to confirm renewal."}
+    </p>
+  );
+}
+
 function upgradeButtonLabel(plan: WorkspacePlan) {
   if (plan === "free_trial") {
     return "Upgrade to Partner Plan";
@@ -330,6 +352,10 @@ function planBadgeLabel(entitlement: BillingActionEntitlement) {
   }
 
   return entitlement.planLabel;
+}
+
+function isPaidPlan(plan: WorkspacePlan) {
+  return plan === "partner_monthly" || plan === "partner_yearly";
 }
 
 function formatPlanDate(value: string) {

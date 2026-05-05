@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Archive, RotateCcw, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import type { QuoteVisibility } from "@/lib/quotes/types";
+import type { QuoteStatus, QuoteVisibility } from "@/lib/quotes/types";
 
 type VisibilityPayload = {
   visibility?: QuoteVisibility;
@@ -25,9 +25,11 @@ type VisibilityAction = "archive" | "delete" | "restore";
 
 export function QuoteVisibilityActions({
   quoteId,
+  status,
   visibility,
 }: {
   quoteId: string;
+  status: QuoteStatus;
   visibility: QuoteVisibility;
 }) {
   const router = useRouter();
@@ -36,6 +38,7 @@ export function QuoteVisibilityActions({
     null,
   );
   const isPending = pendingAction !== null;
+  const canDeleteArchivedQuote = visibility !== "active" && status !== "locked";
 
   async function updateVisibility(
     nextVisibility: QuoteVisibility,
@@ -129,18 +132,20 @@ export function QuoteVisibilityActions({
             <RotateCcw className="size-4" />
             Restore
           </Button>
-          <Button
-            type="button"
-            variant="danger"
-            size="sm"
-            disabled={isPending}
-            loading={pendingAction === "delete"}
-            loadingText="Deleting..."
-            onClick={() => void deleteArchivedQuote()}
-          >
-            <Trash2 className="size-4" />
-            Delete
-          </Button>
+          {canDeleteArchivedQuote ? (
+            <Button
+              type="button"
+              variant="danger"
+              size="sm"
+              disabled={isPending}
+              loading={pendingAction === "delete"}
+              loadingText="Deleting..."
+              onClick={() => void deleteArchivedQuote()}
+            >
+              <Trash2 className="size-4" />
+              Delete
+            </Button>
+          ) : null}
         </>
       ) : null}
 

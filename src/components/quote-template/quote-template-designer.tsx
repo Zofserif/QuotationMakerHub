@@ -27,7 +27,6 @@ import {
   type ImageCropResult,
   type ImageCropSource,
 } from "@/components/image-upload/image-crop-modal";
-import { UpgradePanel } from "@/components/billing/upgrade-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,7 +47,6 @@ import {
   normalizePercentInput,
   parseNonNegativeDecimalInput,
 } from "@/lib/number-inputs";
-import type { WorkspaceEntitlement } from "@/lib/billing/entitlements";
 import type {
   QuoteTemplate,
   QuoteTemplateRecord,
@@ -67,12 +65,10 @@ export function QuoteTemplateDesigner({
   template: initialTemplate,
   templates: initialTemplates = [],
   canManageMultipleTemplates = false,
-  entitlement,
 }: {
   template: QuoteTemplate;
   templates?: QuoteTemplateRecord[];
   canManageMultipleTemplates?: boolean;
-  entitlement?: WorkspaceEntitlement;
 }) {
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
@@ -540,12 +536,6 @@ export function QuoteTemplateDesigner({
               ))}
             </div>
           </Section>
-        ) : entitlement ? (
-          <UpgradePanel
-            entitlement={entitlement}
-            title="Template library"
-            message="Yearly Partner unlocks multiple quotation templates. Free Trial and Monthly Partner accounts can edit the default template."
-          />
         ) : null}
 
         <Section icon={FileImage} title="Branding">

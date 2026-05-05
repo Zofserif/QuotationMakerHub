@@ -48,6 +48,10 @@ Copy `.env.example` to `.env.local` and fill in Clerk, Supabase, PostHog, and em
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 
+Paid plan renewal dates are read from Clerk private metadata at
+`remoteQuote.renewsAt` as an ISO date string, alongside the existing
+`remoteQuote.plan` value.
+
 ## Hydration Warning Troubleshooting
 
 If you see a hydration mismatch warning showing attributes like `data-lt-installed` on `<html>`, this is usually caused by a browser extension (commonly LanguageTool) modifying the DOM before React hydration.

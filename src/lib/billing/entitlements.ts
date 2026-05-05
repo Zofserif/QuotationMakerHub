@@ -25,6 +25,7 @@ export type WorkspaceEntitlement = {
   requesterEmail?: string;
   workspaceCreatedAt: string;
   trialEndsAt?: string;
+  renewsAt?: string;
   usage: {
     lockedQuoteCount: number;
     wetSignaturePrintCount: number;
@@ -53,6 +54,7 @@ export async function getWorkspaceEntitlement(
     return buildEntitlement({
       plan: "partner_yearly",
       quoter,
+      renewsAt: undefined,
       requesterEmail: undefined,
       workspaceCreatedAt: usage.workspaceCreatedAt,
       lockedQuoteCount: usage.lockedQuoteCount,
@@ -62,11 +64,12 @@ export async function getWorkspaceEntitlement(
   }
 
   const clerk = await clerkClient();
-  const { plan, requesterEmail } = await readClerkPlan(clerk, quoter);
+  const { plan, renewsAt, requesterEmail } = await readClerkPlan(clerk, quoter);
 
   return buildEntitlement({
     plan,
     quoter,
+    renewsAt,
     requesterEmail,
     workspaceCreatedAt: usage.workspaceCreatedAt,
     lockedQuoteCount: usage.lockedQuoteCount,
@@ -78,6 +81,7 @@ export async function getWorkspaceEntitlement(
 function buildEntitlement(input: {
   plan: WorkspacePlan;
   quoter: QuoterContext;
+  renewsAt?: string;
   requesterEmail?: string;
   workspaceCreatedAt: string;
   lockedQuoteCount: number;
@@ -109,6 +113,7 @@ function buildEntitlement(input: {
     requesterEmail: input.requesterEmail,
     workspaceCreatedAt: input.workspaceCreatedAt,
     trialEndsAt,
+    renewsAt: paid ? input.renewsAt : undefined,
     usage: {
       lockedQuoteCount: input.lockedQuoteCount,
       wetSignaturePrintCount: input.wetSignaturePrintCount,
@@ -149,9 +154,11 @@ async function readClerkPlan(
 
     if (quoter.organizationId.startsWith("personal:")) {
       const user = await userPromise;
+      const { plan, renewsAt } = readRemoteQuoteMetadata(user.privateMetadata);
 
       return {
-        plan: readPlanFromMetadata(user.privateMetadata),
+        plan,
+        renewsAt,
         requesterEmail: getPrimaryEmail(user),
       };
     }
@@ -164,30 +171,37 @@ async function readClerkPlan(
     ]);
 
     return {
-      plan: readPlanFromMetadata(organization.privateMetadata),
+      ...readRemoteQuoteMetadata(organization.privateMetadata),
       requesterEmail: getPrimaryEmail(user),
     };
   } catch {
     return {
       plan: "free_trial" as WorkspacePlan,
+      renewsAt: undefined,
       requesterEmail: undefined,
     };
   }
 }
 
-function readPlanFromMetadata(metadata: ClerkMetadata) {
+function readRemoteQuoteMetadata(metadata: ClerkMetadata) {
   const remoteQuote =
     metadata && typeof metadata === "object"
       ? metadata.remoteQuote
       : undefined;
 
   if (!remoteQuote || typeof remoteQuote !== "object") {
-    return "free_trial";
+    return {
+      plan: "free_trial" as WorkspacePlan,
+      renewsAt: undefined,
+    };
   }
 
-  return parseWorkspacePlan(
-    (remoteQuote as Record<string, unknown>).plan,
-  );
+  const remoteQuoteRecord = remoteQuote as Record<string, unknown>;
+
+  return {
+    plan: parseWorkspacePlan(remoteQuoteRecord.plan),
+    renewsAt: parseIsoDate(remoteQuoteRecord.renewsAt),
+  };
 }
 
 function getPrimaryEmail(user: {
@@ -206,6 +220,16 @@ function addMonths(date: Date, months: number) {
   const nextDate = new Date(date);
   nextDate.setMonth(nextDate.getMonth() + months);
   return nextDate;
+}
+
+function parseIsoDate(value: unknown) {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
 function isNowBeforeOrEqual(value?: string) {

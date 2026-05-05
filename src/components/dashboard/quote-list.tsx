@@ -95,6 +95,7 @@ export function QuoteList({
                 </LinkButton>
                 <QuoteVisibilityActions
                   quoteId={quote.id}
+                  status={quote.status}
                   visibility={quote.visibility}
                 />
                 <QuoteLockAction quoteId={quote.id} status={quote.status} />

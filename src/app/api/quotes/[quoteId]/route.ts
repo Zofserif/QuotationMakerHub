@@ -82,10 +82,8 @@ export async function DELETE(
   if (!result.ok) {
     return errorResponse(
       result.code,
-      result.code === "QUOTE_NOT_ARCHIVED"
-        ? "Only archived quotes can be deleted."
-        : "Quote was not found.",
-      result.code === "QUOTE_NOT_ARCHIVED" ? 409 : 404,
+      deleteQuoteErrorMessage(result.code),
+      result.code === "QUOTE_NOT_FOUND" ? 404 : 409,
     );
   }
 
@@ -102,4 +100,18 @@ export async function DELETE(
     deleted: true,
     quoteId,
   });
+}
+
+function deleteQuoteErrorMessage(
+  code: "QUOTE_NOT_FOUND" | "QUOTE_NOT_ARCHIVED" | "QUOTE_LOCKED",
+) {
+  if (code === "QUOTE_LOCKED") {
+    return "Locked quotes cannot be deleted. Archive them instead.";
+  }
+
+  if (code === "QUOTE_NOT_ARCHIVED") {
+    return "Only archived quotes can be deleted.";
+  }
+
+  return "Quote was not found.";
 }

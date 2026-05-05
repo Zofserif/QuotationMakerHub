@@ -28,7 +28,6 @@ export default async function QuoteTemplatePage() {
         template={template}
         templates={templates}
         canManageMultipleTemplates={entitlement.canManageMultipleTemplates}
-        entitlement={entitlement}
       />
     </div>
   );

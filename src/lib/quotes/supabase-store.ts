@@ -1222,6 +1222,10 @@ export async function deleteSupabaseQuote(
     return { ok: false, code: "QUOTE_NOT_ARCHIVED" };
   }
 
+  if (existing.status === "locked") {
+    return { ok: false, code: "QUOTE_LOCKED" };
+  }
+
   await deleteQuoteChildRows(db, quoteId);
 
   const { data, error } = await db
