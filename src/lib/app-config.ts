@@ -2,6 +2,17 @@ export const APP_NAME = "Remote Quote";
 
 export const APP_LOGO_SRC = "/remote-quote-logo.svg";
 
+export const APP_SOCIAL_PREVIEW_IMAGE_SRC = "/link-preview.jpg";
+
+export const APP_SOCIAL_PREVIEW_IMAGE_ALT =
+  "Remote Quote preview showing a business agreement workflow";
+
+export const APP_SOCIAL_PREVIEW_IMAGE_WIDTH = 1200;
+
+export const APP_SOCIAL_PREVIEW_IMAGE_HEIGHT = 630;
+
+export const APP_SOCIAL_PREVIEW_IMAGE_TYPE = "image/jpeg";
+
 export const APP_DESCRIPTION =
   "Create a quotation for your next client for FREE and get a real-time signature and close the sale all in one sitting";
 
