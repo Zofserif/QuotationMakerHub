@@ -33,6 +33,7 @@ export function QuoteDocument({
   const showQuantity = template?.lineItems.showQuantity ?? true;
   const showUnit = template?.lineItems.unit.enabled ?? true;
   const showQuoteNumber = template?.company.showQuoteNumber ?? true;
+  const businessName = snapshot.business.name.trim();
   const vatEnabled = template?.lineItems.vat.enabled ?? false;
   const taxMode = vatEnabled ? (template?.lineItems.vat.mode ?? "exclusive") : "exclusive";
   const showVat = vatEnabled && taxMode === "exclusive";
@@ -122,8 +123,8 @@ export function QuoteDocument({
                 src={snapshot.business.logoDataUrl}
               />
             ) : null}
-            {snapshot.business.name ? (
-              <p className="font-semibold text-stone-950">{snapshot.business.name}</p>
+            {businessName ? (
+              <p className="font-semibold text-stone-950">{businessName}</p>
             ) : null}
             <p>{snapshot.business.address}</p>
             {snapshot.business.telephone ? <p>{snapshot.business.telephone}</p> : null}
@@ -243,13 +244,13 @@ export function QuoteDocument({
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
                             alt=""
-                            className="aspect-[16/9] w-full rounded-md object-cover"
+                            className="mx-auto aspect-[4/3] w-full max-w-56 rounded-md border border-stone-200 object-contain"
                             src={imageSrc}
                           />
                         ) : null}
                         {hasDescription ? (
                           <MarkdownText
-                            className="text-sm leading-6 text-stone-600"
+                            className="space-y-1 text-[11px] leading-4 text-stone-600 [&_ol]:space-y-0.5 [&_ul]:space-y-0.5"
                             defaultAlign="left"
                             value={lineItem.description}
                           />
@@ -397,13 +398,13 @@ export function QuoteDocument({
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         alt=""
-                        className="mb-3 h-28 w-full rounded-md border border-stone-200 object-cover"
+                        className="mx-auto mb-3 aspect-[4/3] w-full max-w-48 rounded-md border border-stone-200 object-contain"
                         src={imageSrc}
                       />
                     ) : null}
                     <p className="font-medium text-stone-950">{lineItem.name}</p>
                     <MarkdownText
-                      className="mt-1 text-stone-500"
+                      className="mt-1 space-y-1 text-[11px] leading-4 text-stone-500 [&_ol]:space-y-0.5 [&_ul]:space-y-0.5"
                       value={lineItem.description}
                     />
                   </LineItemCell>
@@ -556,7 +557,7 @@ export function QuoteDocument({
           ) : null}
           <MarkdownText
             className={cn(
-              "text-sm leading-6 text-stone-600",
+              "space-y-1 text-[11px] leading-4 text-stone-600 [&_ol]:space-y-0.5 [&_ul]:space-y-0.5",
               !usesClientDocumentLayout ? "mt-3" : null,
             )}
             value={template.footer.value}
@@ -710,7 +711,7 @@ function DocumentTextBlock({
     <div>
       <h2 className="text-sm font-semibold text-stone-950">{title}</h2>
       <MarkdownText
-        className="mt-1.5 text-xs leading-5 text-stone-600"
+        className="mt-1.5 space-y-1 text-[11px] leading-4 text-stone-600 [&_ol]:space-y-0.5 [&_ul]:space-y-0.5"
         value={value || "Not set"}
       />
     </div>

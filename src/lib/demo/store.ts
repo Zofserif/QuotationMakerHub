@@ -650,7 +650,7 @@ export function updateDemoQuote(
   }
 
   const templateSnapshot = mergeQuoteTemplate(
-    quote.templateSnapshot ?? draft.templateSnapshot ?? demoState.quoteTemplate,
+    draft.templateSnapshot ?? quote.templateSnapshot ?? demoState.quoteTemplate,
   );
   const quoteCurrency = normalizeCurrency(
     draft.currency || templateSnapshot.lineItems.unitPrice.currency,

@@ -8,11 +8,13 @@ import { DashboardBillingActions } from "@/components/billing/billing-actions";
 import { DashboardFilters } from "@/components/dashboard/dashboard-filters";
 import { PipelineCurrencyCard } from "@/components/dashboard/pipeline-currency-card";
 import { QuoteList } from "@/components/dashboard/quote-list";
+import { TutorialButton } from "@/components/dashboard/tutorial-button";
 import { requireQuoter } from "@/lib/auth/require-quoter";
 import { getWorkspaceEntitlement } from "@/lib/billing/entitlements";
 import { resolvePipelineCurrencySummary } from "@/lib/dashboard/pipeline-currency";
 import { getPipelineCurrency, listQuotes } from "@/lib/quotes/persistence";
 import { statusLabel } from "@/lib/quotes/quote-state";
+import { tutorialUrls } from "@/lib/tutorials";
 import {
   quoteStatuses,
   type QuoteStatus,
@@ -110,7 +112,10 @@ export default async function DashboardPage({
               Quote dashboard
             </h1>
           </div>
-          <DashboardBillingActions entitlement={entitlement} />
+          <div className="flex flex-wrap items-center gap-2">
+            <TutorialButton href={tutorialUrls.dashboard} />
+            <DashboardBillingActions entitlement={entitlement} />
+          </div>
         </div>
       </section>
 

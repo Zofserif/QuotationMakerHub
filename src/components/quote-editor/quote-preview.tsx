@@ -35,6 +35,7 @@ export function QuotePreview({
   const liveSnapshot = createVersionSnapshot(
     quote,
     mergeQuoteTemplate(quote.templateSnapshot ?? template),
+    { includeDescriptionImageUrls: true },
   );
   const snapshot =
     savedSnapshot ??

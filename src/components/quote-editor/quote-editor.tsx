@@ -182,6 +182,27 @@ export function QuoteEditor({
     });
   }
 
+  function updateLineItemDescriptionPictureVisibility(
+    showDescriptionPicture: boolean,
+  ) {
+    setDraft((current) => {
+      const templateSnapshot = mergeQuoteTemplate(
+        current.templateSnapshot ?? quote?.templateSnapshot ?? template,
+      );
+
+      return {
+        ...current,
+        templateSnapshot: {
+          ...templateSnapshot,
+          lineItems: {
+            ...templateSnapshot.lineItems,
+            showDescriptionPicture,
+          },
+        },
+      };
+    });
+  }
+
   function selectTemplate(templateId: string) {
     const selectedTemplate = templates.find(
       (candidate) => candidate.id === templateId,
@@ -410,7 +431,7 @@ export function QuoteEditor({
               <Label>Visible fields</Label>
               <div className="flex flex-wrap gap-2">
                 {customerFieldVisibilityOptions.map(({ key, label }) => (
-                  <CustomerFieldToggle
+                  <InlineCheckboxToggle
                     checked={effectiveTemplate.customer[key].enabled ?? true}
                     key={key}
                     label={resolvePlaceholder(
@@ -505,7 +526,14 @@ export function QuoteEditor({
         ) : null}
 
         <section className="rounded-lg border border-stone-200 bg-white p-5">
-          <h2 className="mb-5 font-semibold text-stone-950">Line items</h2>
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <h2 className="font-semibold text-stone-950">Line items</h2>
+            <InlineCheckboxToggle
+              checked={effectiveTemplate.lineItems.showDescriptionPicture}
+              label="Show description pictures"
+              onChange={updateLineItemDescriptionPictureVisibility}
+            />
+          </div>
           <LineItemsTable
             currency={draft.currency}
             lineItems={draft.lineItems}
@@ -983,7 +1011,7 @@ function FieldLabel({
   );
 }
 
-function CustomerFieldToggle({
+function InlineCheckboxToggle({
   checked,
   label,
   onChange,

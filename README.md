@@ -44,6 +44,10 @@ Copy `.env.example` to `.env.local` and fill in Clerk, Supabase, PostHog, and em
 - `NEXT_PUBLIC_APP_URL` set to the production origin, such as `https://remotequote.example` until the final domain is configured
 - `NEXT_PUBLIC_UPGRADE_CONTACT_EMAIL` for the manual partner-upgrade mail link
 - `NEXT_PUBLIC_COFFEE_DONATION_URL` for the dashboard coffee donation link
+- `NEXT_PUBLIC_DASHBOARD_TUTORIAL_URL` for the Quote dashboard tutorial video
+- `NEXT_PUBLIC_QUOTE_TEMPLATE_TUTORIAL_URL` for the Quote Template tutorial video
+- `NEXT_PUBLIC_LINE_ITEM_DATA_TUTORIAL_URL` for the Line Item Data tutorial video
+- `NEXT_PUBLIC_NEW_QUOTE_TUTORIAL_URL` for the New Quote tutorial video
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`

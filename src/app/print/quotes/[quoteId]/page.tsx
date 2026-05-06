@@ -49,11 +49,8 @@ export default async function PrintQuotePage({
     createVersionSnapshot(
       quote,
       mergeQuoteTemplate(quote.templateSnapshot ?? template),
+      { includeDescriptionImageUrls: true },
     );
-  const allowSignatureModeToggle = quote.status === "locked";
-  const signatureMode = allowSignatureModeToggle
-    ? parseQuoteSignatureMode(signature)
-    : "wet";
 
   if (!snapshot) {
     notFound();
@@ -62,6 +59,17 @@ export default async function PrintQuotePage({
   const clientSignatures = selectedVersion
     ? await listQuoteDocumentSignatures(quoter, quote.id, selectedVersion.id)
     : undefined;
+  const allowSignatureModeToggle = quote.status === "locked";
+  const hasDigitalSignatures =
+    clientSignatures?.some((clientSignature) =>
+      Boolean(clientSignature.placement && clientSignature.signatureAsset?.dataUrl),
+    ) ?? false;
+  const requestedSignatureMode = isRequestedQuoteSignatureMode(signature)
+    ? parseQuoteSignatureMode(signature)
+    : undefined;
+  const signatureMode = allowSignatureModeToggle
+    ? requestedSignatureMode ?? (hasDigitalSignatures ? "electronic" : "wet")
+    : "wet";
 
   return (
     <main className="bg-stone-100 p-6 text-stone-950 print:bg-white print:p-0">
@@ -98,4 +106,8 @@ export default async function PrintQuotePage({
       </div>
     </main>
   );
+}
+
+function isRequestedQuoteSignatureMode(value?: string) {
+  return value === "electronic" || value === "wet";
 }

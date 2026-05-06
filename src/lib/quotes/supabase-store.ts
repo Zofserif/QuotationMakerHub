@@ -937,7 +937,7 @@ export async function updateSupabaseQuote(
 
   const liveTemplate = await getQuoteTemplateContent(db, organization.id);
   const templateSnapshot = mergeQuoteTemplate(
-    existing.templateSnapshot ?? draft.templateSnapshot ?? liveTemplate,
+    draft.templateSnapshot ?? existing.templateSnapshot ?? liveTemplate,
   );
   const quoteCurrency = normalizeCurrency(
     draft.currency || templateSnapshot.lineItems.unitPrice.currency,

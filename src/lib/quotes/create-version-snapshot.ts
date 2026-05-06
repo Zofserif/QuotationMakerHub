@@ -8,6 +8,7 @@ import type { Quote, QuoteVersionSnapshot } from "./types";
 export function createVersionSnapshot(
   quote: Quote,
   template: QuoteTemplate = defaultQuoteTemplate,
+  options: { includeDescriptionImageUrls?: boolean } = {},
 ): QuoteVersionSnapshot {
   const templateSnapshot = quote.templateSnapshot ?? template;
   const quoterSignatureAsset = quote.quoterSignatureAsset
@@ -51,10 +52,12 @@ export function createVersionSnapshot(
       email: email ?? "",
       role,
     })),
-    lineItems: quote.lineItems.map(({ descriptionImageUrl, ...lineItem }) => {
-      void descriptionImageUrl;
-      return lineItem;
-    }),
+    lineItems: quote.lineItems.map(({ descriptionImageUrl, ...lineItem }) => ({
+      ...lineItem,
+      descriptionImageUrl: options.includeDescriptionImageUrls
+        ? descriptionImageUrl
+        : undefined,
+    })),
     signatureFields: quote.signatureFields,
     subtotalMinor: quote.subtotalMinor,
     discountMinor: quote.discountMinor,
