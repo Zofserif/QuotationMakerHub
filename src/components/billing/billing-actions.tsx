@@ -1,10 +1,12 @@
 "use client";
 
-import { Coffee, Mail, Sparkles, X } from "lucide-react";
-import { useEffect, useId, useState } from "react";
+import { Coffee, Headset, Mail, Sparkles, X } from "lucide-react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button, LinkButton } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import type { WorkspaceEntitlement } from "@/lib/billing/entitlements";
 import {
   billingPlanDetails,
@@ -29,6 +31,13 @@ type BillingActionEntitlement = Pick<
 >;
 
 type ModalMode = "plan" | "upgrade";
+type SupportKind = "request" | "issue";
+type SupportFormStatus = {
+  type: "error" | "success";
+  text: string;
+} | null;
+
+const SUPPORT_MESSAGE_MAX_LENGTH = 4000;
 
 export function PlanBadgeButton({
   className,
@@ -72,7 +81,11 @@ export function DashboardBillingActions({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <UpgradeModalButton entitlement={entitlement} />
-      <CoffeeDonationButton />
+      {isPaidPlan(entitlement.plan) ? (
+        <CustomerSupportButton />
+      ) : (
+        <CoffeeDonationButton />
+      )}
     </div>
   );
 }
@@ -140,6 +153,226 @@ function CoffeeDonationButton() {
     >
       <Coffee className="size-4" />
     </LinkButton>
+  );
+}
+
+function CustomerSupportButton() {
+  const [modalOpen, setModalOpen] = useState(false);
+
+  return (
+    <>
+      <Button
+        aria-haspopup="dialog"
+        aria-label="Contact customer support"
+        size="sm"
+        title="Contact customer support"
+        type="button"
+        variant="secondary"
+        onClick={() => setModalOpen(true)}
+      >
+        <Headset className="size-4" />
+      </Button>
+
+      <CustomerSupportModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+      />
+    </>
+  );
+}
+
+function CustomerSupportModal({
+  onClose,
+  open,
+}: {
+  onClose: () => void;
+  open: boolean;
+}) {
+  const titleId = useId();
+  const descriptionId = useId();
+  const kindId = useId();
+  const messageId = useId();
+  const [kind, setKind] = useState<SupportKind>("request");
+  const [message, setMessage] = useState("");
+  const [status, setStatus] = useState<SupportFormStatus>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [onClose, open]);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const trimmedMessage = message.trim();
+
+    if (!trimmedMessage) {
+      setStatus({
+        type: "error",
+        text: "Enter a message before sending.",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setStatus(null);
+
+    try {
+      const response = await fetch("/api/dashboard/support", {
+        body: JSON.stringify({ kind, message: trimmedMessage }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        setStatus({
+          type: "error",
+          text:
+            payload?.error?.message ??
+            "Could not send your support message.",
+        });
+        return;
+      }
+
+      setMessage("");
+      setKind("request");
+      setStatus({
+        type: "success",
+        text: "Support message sent.",
+      });
+    } catch {
+      setStatus({
+        type: "error",
+        text: "Could not send your support message.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-stone-950/60 p-4">
+      <section
+        aria-describedby={descriptionId}
+        aria-labelledby={titleId}
+        aria-modal="true"
+        className="w-full max-w-lg rounded-lg bg-white shadow-2xl"
+        role="dialog"
+      >
+        <header className="flex items-start justify-between gap-4 border-b border-stone-200 px-5 py-4">
+          <div>
+            <h2 className="font-semibold text-stone-950" id={titleId}>
+              Customer support
+            </h2>
+            <p
+              className="mt-1 text-sm leading-6 text-stone-500"
+              id={descriptionId}
+            >
+              Send a request or report an issue from this workspace.
+            </p>
+          </div>
+          <Button
+            aria-label="Close customer support"
+            disabled={isSubmitting}
+            size="icon"
+            type="button"
+            variant="ghost"
+            onClick={onClose}
+          >
+            <X className="size-5" />
+          </Button>
+        </header>
+
+        <form onSubmit={(event) => void handleSubmit(event)}>
+          <div className="space-y-4 p-5">
+            <div className="space-y-2">
+              <Label htmlFor={kindId}>Type</Label>
+              <select
+                className="h-10 w-full rounded-md border border-stone-200 bg-white px-3 text-sm text-stone-950 outline-none transition focus:border-stone-400 focus:ring-4 focus:ring-stone-100 disabled:cursor-not-allowed disabled:bg-stone-100"
+                disabled={isSubmitting}
+                id={kindId}
+                value={kind}
+                onChange={(event) =>
+                  setKind(event.target.value as SupportKind)
+                }
+              >
+                <option value="request">Request</option>
+                <option value="issue">Issue</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor={messageId}>Message</Label>
+                <span className="text-xs font-medium text-stone-500">
+                  {message.length}/{SUPPORT_MESSAGE_MAX_LENGTH}
+                </span>
+              </div>
+              <Textarea
+                disabled={isSubmitting}
+                id={messageId}
+                maxLength={SUPPORT_MESSAGE_MAX_LENGTH}
+                placeholder="Write your message..."
+                required
+                value={message}
+                onChange={(event) => {
+                  setMessage(event.target.value);
+                  setStatus(null);
+                }}
+              />
+            </div>
+
+            {status ? (
+              <p
+                aria-live="polite"
+                className={cn(
+                  "rounded-md border p-3 text-sm font-medium",
+                  status.type === "success"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                    : "border-red-200 bg-red-50 text-red-700",
+                )}
+              >
+                {status.text}
+              </p>
+            ) : null}
+          </div>
+
+          <footer className="flex justify-end gap-2 border-t border-stone-200 px-5 py-4">
+            <Button
+              disabled={isSubmitting}
+              type="button"
+              variant="ghost"
+              onClick={onClose}
+            >
+              Cancel
+            </Button>
+            <Button loading={isSubmitting} loadingText="Sending..." type="submit">
+              <Mail className="size-4" />
+              Send
+            </Button>
+          </footer>
+        </form>
+      </section>
+    </div>
   );
 }
 
