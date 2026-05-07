@@ -15,13 +15,25 @@ type ApiErrorPayload = {
   };
 };
 
+type TeamMembershipList = {
+  data?: Array<{ organization: { id: string } }>;
+  revalidate?: () => Promise<unknown>;
+};
+
+const MEMBERSHIP_REVALIDATE_ATTEMPTS = 4;
+const MEMBERSHIP_REVALIDATE_DELAY_MS = 350;
+
 export function EnableTeamWorkspaceForm({
   defaultName,
 }: {
   defaultName: string;
 }) {
   const router = useRouter();
-  const { isLoaded, setActive } = useOrganizationList();
+  const { isLoaded, setActive, userMemberships } = useOrganizationList({
+    userMemberships: {
+      pageSize: 20,
+    },
+  });
   const [name, setName] = useState(defaultName);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +42,8 @@ export function EnableTeamWorkspaceForm({
     event.preventDefault();
     setLoading(true);
     setError(null);
+
+    let organizationId: string;
 
     try {
       const response = await fetch("/api/team/workspace", {
@@ -47,12 +61,22 @@ export function EnableTeamWorkspaceForm({
         !payload.organizationId
       ) {
         setError(readApiError(payload, "Team workspace could not be enabled."));
+        setLoading(false);
         return;
       }
 
+      organizationId = payload.organizationId;
+    } catch {
+      setError("Team workspace could not be enabled.");
+      setLoading(false);
+      return;
+    }
+
+    try {
       if (isLoaded && setActive) {
+        await waitForTeamMembership(userMemberships, organizationId);
         await setActive({
-          organization: payload.organizationId,
+          organization: organizationId,
           redirectUrl: "/team",
         });
       } else {
@@ -60,7 +84,8 @@ export function EnableTeamWorkspaceForm({
         router.refresh();
       }
     } catch {
-      setError("Team workspace could not be enabled.");
+      router.push("/team");
+      router.refresh();
     } finally {
       setLoading(false);
     }
@@ -93,6 +118,38 @@ export function EnableTeamWorkspaceForm({
       ) : null}
     </form>
   );
+}
+
+async function waitForTeamMembership(
+  memberships: TeamMembershipList,
+  organizationId: string,
+) {
+  for (let attempt = 0; attempt < MEMBERSHIP_REVALIDATE_ATTEMPTS; attempt += 1) {
+    await memberships.revalidate?.();
+
+    if (hasTeamMembership(memberships, organizationId)) {
+      return;
+    }
+
+    if (attempt < MEMBERSHIP_REVALIDATE_ATTEMPTS - 1) {
+      await delay(MEMBERSHIP_REVALIDATE_DELAY_MS);
+    }
+  }
+}
+
+function hasTeamMembership(
+  memberships: TeamMembershipList,
+  organizationId: string,
+) {
+  return memberships.data?.some(
+    (membership) => membership.organization.id === organizationId,
+  );
+}
+
+function delay(milliseconds: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, milliseconds);
+  });
 }
 
 export function UpdateTeamWorkspaceNameForm({
