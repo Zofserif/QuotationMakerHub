@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { useOrganizationList } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { Send, Trash2, Users } from "lucide-react";
+import { Save, Send, Trash2, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -90,6 +90,88 @@ export function EnableTeamWorkspaceForm({
       </div>
       {error ? (
         <p className="mt-3 text-sm font-medium text-red-700">{error}</p>
+      ) : null}
+    </form>
+  );
+}
+
+export function UpdateTeamWorkspaceNameForm({
+  defaultName,
+}: {
+  defaultName: string;
+}) {
+  const router = useRouter();
+  const [name, setName] = useState(defaultName);
+  const [loading, setLoading] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    setSaved(false);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/team/workspace", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const payload = (await response.json()) as
+        | { organizationName?: string }
+        | ApiErrorPayload;
+
+      if (!response.ok) {
+        setError(readApiError(payload, "Team name could not be updated."));
+        return;
+      }
+
+      if ("organizationName" in payload && payload.organizationName) {
+        setName(payload.organizationName);
+      }
+
+      setSaved(true);
+      router.refresh();
+    } catch {
+      setError("Team name could not be updated.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <form
+      className="rounded-lg border border-stone-200 bg-white p-4"
+      onSubmit={submit}
+    >
+      <label className="text-sm font-medium text-stone-700" htmlFor="team-name">
+        Team workspace name
+      </label>
+      <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+        <Input
+          id="team-name"
+          maxLength={120}
+          minLength={2}
+          required
+          value={name}
+          onChange={(event) => {
+            setName(event.target.value);
+            setSaved(false);
+          }}
+        />
+        <Button loading={loading} loadingText="Saving..." type="submit">
+          <Save className="size-4" />
+          Save name
+        </Button>
+      </div>
+      {error ? (
+        <p className="mt-3 text-sm font-medium text-red-700">{error}</p>
+      ) : null}
+      {saved ? (
+        <p className="mt-3 text-sm font-medium text-emerald-700">
+          Team name updated.
+        </p>
       ) : null}
     </form>
   );

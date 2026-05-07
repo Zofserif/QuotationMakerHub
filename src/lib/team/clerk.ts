@@ -29,8 +29,14 @@ export type TeamInvitationSummary = {
 export type TeamWorkspaceSummary = {
   organizationId: string;
   organizationName: string;
+  isCreatedByCurrentUser: boolean;
   members: TeamMemberSummary[];
   invitations: TeamInvitationSummary[];
+};
+
+export type CreatedTeamWorkspace = {
+  organizationId: string;
+  organizationName: string;
 };
 
 export async function getTeamWorkspaceSummary(
@@ -65,6 +71,7 @@ export async function getTeamWorkspaceSummary(
   return {
     organizationId: organization.id,
     organizationName: organization.name,
+    isCreatedByCurrentUser: organization.createdBy === quoter.clerkUserId,
     members: memberships.data.map((membership) => {
       const userData = membership.publicUserData;
       const name =
@@ -98,6 +105,40 @@ export async function getTeamWorkspaceSummary(
   };
 }
 
+export async function getCreatedTeamWorkspace(
+  clerkUserId: string,
+): Promise<CreatedTeamWorkspace | null> {
+  const clerk = await clerkClient();
+  const limit = 100;
+  let offset = 0;
+
+  while (true) {
+    const memberships = await clerk.users.getOrganizationMembershipList({
+      userId: clerkUserId,
+      limit,
+      offset,
+    });
+    const membership = memberships.data.find(
+      ({ organization }) =>
+        organization.createdBy === clerkUserId &&
+        organization.publicMetadata?.remoteQuoteTeam === true,
+    );
+
+    if (membership) {
+      return {
+        organizationId: membership.organization.id,
+        organizationName: membership.organization.name,
+      };
+    }
+
+    offset += memberships.data.length;
+
+    if (!memberships.data.length || offset >= memberships.totalCount) {
+      return null;
+    }
+  }
+}
+
 export async function createTeamWorkspace(input: {
   name: string;
   quoter: QuoterContext;
@@ -117,6 +158,22 @@ export async function createTeamWorkspace(input: {
       remoteQuoteTeam: true,
     },
   });
+}
+
+export async function updateTeamWorkspaceName(input: {
+  organizationId: string;
+  name: string;
+}) {
+  const clerk = await clerkClient();
+  const organization = await clerk.organizations.updateOrganization(
+    input.organizationId,
+    { name: input.name },
+  );
+
+  return {
+    organizationId: organization.id,
+    organizationName: organization.name,
+  };
 }
 
 export async function createTeamInvitation(input: {

@@ -2,11 +2,10 @@
 
 import { Building2 } from "lucide-react";
 import { useState } from "react";
-import { useAuth, useOrganizationList, useUser } from "@clerk/nextjs";
+import { useAuth, useOrganizationList } from "@clerk/nextjs";
 
 export function WorkspaceSwitcher() {
   const { orgId } = useAuth();
-  const { user } = useUser();
   const { isLoaded, setActive, userMemberships } = useOrganizationList({
     userMemberships: {
       pageSize: 20,
@@ -14,21 +13,17 @@ export function WorkspaceSwitcher() {
   });
   const [switching, setSwitching] = useState(false);
 
-  if (!isLoaded) {
-    return (
-      <div className="flex h-9 w-44 items-center gap-2 rounded-md border border-stone-200 bg-stone-50 px-3">
-        <div className="size-4 animate-pulse rounded bg-stone-200" />
-        <div className="h-3 flex-1 animate-pulse rounded bg-stone-200" />
-      </div>
-    );
+  if (!isLoaded || userMemberships.isLoading) {
+    return null;
   }
 
   const memberships = userMemberships.data ?? [];
+
+  if (!memberships.length) {
+    return null;
+  }
+
   const selectedValue = orgId ?? "personal";
-  const personalLabel =
-    user?.primaryEmailAddress?.emailAddress ??
-    user?.fullName ??
-    "Personal workspace";
 
   async function switchWorkspace(value: string) {
     setSwitching(true);
@@ -57,7 +52,7 @@ export function WorkspaceSwitcher() {
         value={selectedValue}
         onChange={(event) => switchWorkspace(event.target.value)}
       >
-        <option value="personal">{personalLabel}</option>
+        <option value="personal">Personal</option>
         {memberships.map((membership) => (
           <option key={membership.id} value={membership.organization.id}>
             {membership.organization.name}

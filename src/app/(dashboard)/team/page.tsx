@@ -7,11 +7,15 @@ import {
   RemoveMemberButton,
   RevokeInvitationButton,
   TeamInviteForm,
+  UpdateTeamWorkspaceNameForm,
 } from "@/components/team/team-actions";
 import { isClerkConfigured } from "@/lib/auth/clerk";
 import { requireQuoter } from "@/lib/auth/require-quoter";
 import { getWorkspaceEntitlement } from "@/lib/billing/entitlements";
-import { getTeamWorkspaceSummary } from "@/lib/team/clerk";
+import {
+  getCreatedTeamWorkspace,
+  getTeamWorkspaceSummary,
+} from "@/lib/team/clerk";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +23,9 @@ export default async function TeamPage() {
   const hasClerk = isClerkConfigured();
   const quoter = await requireQuoter();
   const entitlement = await getWorkspaceEntitlement(quoter);
+  const createdTeam = hasClerk
+    ? await getCreatedTeamWorkspace(quoter.clerkUserId)
+    : null;
   const team = await getTeamWorkspaceSummary(quoter, entitlement);
 
   return (
@@ -33,7 +40,15 @@ export default async function TeamPage() {
           message="Team access requires Clerk Organizations to be configured."
           title="Clerk is not configured"
         />
-      ) : entitlement.canCreateTeamWorkspace ? (
+      ) : team ? (
+        <TeamWorkspacePanel
+          canManageTeam={entitlement.canManageTeam}
+          canRenameTeam={
+            entitlement.canManageTeam && team.isCreatedByCurrentUser
+          }
+          team={team}
+        />
+      ) : entitlement.canCreateTeamWorkspace && !createdTeam ? (
         <section className="space-y-3">
           <Notice
             message="Create a shared workspace for your team. Existing quotes, templates, and line-item data stay in this dashboard."
@@ -41,11 +56,6 @@ export default async function TeamPage() {
           />
           <EnableTeamWorkspaceForm defaultName="Remote Quote Team" />
         </section>
-      ) : team ? (
-        <TeamWorkspacePanel
-          canManageTeam={entitlement.canManageTeam}
-          team={team}
-        />
       ) : entitlement.isTeamWorkspace ? (
         <Notice
           message={
@@ -55,6 +65,15 @@ export default async function TeamPage() {
           }
           title="Yearly partner required"
         />
+      ) : createdTeam ? (
+        entitlement.isYearlyPartnerWorkspace ? (
+          <CreatedTeamWorkspacePanel team={createdTeam} />
+        ) : (
+          <Notice
+            message="Renew your Yearly Partner plan before updating your team workspace."
+            title="Yearly partner required"
+          />
+        )
       ) : (
         <Notice
           actionHref="/dashboard"
@@ -69,9 +88,11 @@ export default async function TeamPage() {
 
 function TeamWorkspacePanel({
   canManageTeam,
+  canRenameTeam,
   team,
 }: {
   canManageTeam: boolean;
+  canRenameTeam: boolean;
   team: NonNullable<Awaited<ReturnType<typeof getTeamWorkspaceSummary>>>;
 }) {
   return (
@@ -101,6 +122,10 @@ function TeamWorkspacePanel({
           </div>
         ) : null}
       </div>
+
+      {canRenameTeam ? (
+        <UpdateTeamWorkspaceNameForm defaultName={team.organizationName} />
+      ) : null}
 
       <div className="rounded-lg border border-stone-200 bg-white">
         <header className="border-b border-stone-200 px-4 py-3">
@@ -166,6 +191,22 @@ function TeamWorkspacePanel({
           </p>
         )}
       </div>
+    </section>
+  );
+}
+
+function CreatedTeamWorkspacePanel({
+  team,
+}: {
+  team: NonNullable<Awaited<ReturnType<typeof getCreatedTeamWorkspace>>>;
+}) {
+  return (
+    <section className="space-y-3">
+      <Notice
+        message={`You already created ${team.organizationName}. You can update its name here, or open it from the workspace switcher to manage members.`}
+        title="Team workspace created"
+      />
+      <UpdateTeamWorkspaceNameForm defaultName={team.organizationName} />
     </section>
   );
 }

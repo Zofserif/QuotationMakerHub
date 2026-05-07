@@ -5,8 +5,13 @@ import { getWorkspaceEntitlement } from "@/lib/billing/entitlements";
 import {
   createTeamWorkspace,
   deleteClerkOrganization,
+  getCreatedTeamWorkspace,
+  updateTeamWorkspaceName,
 } from "@/lib/team/clerk";
-import { migratePersonalWorkspaceToTeam } from "@/lib/team/supabase";
+import {
+  migratePersonalWorkspaceToTeam,
+  syncClerkOrganization,
+} from "@/lib/team/supabase";
 import { yearlyPartnerRequired } from "@/lib/team/access";
 
 export async function POST(request: Request) {
@@ -23,6 +28,17 @@ export async function POST(request: Request) {
 
   if (!entitlement.canCreateTeamWorkspace) {
     return yearlyPartnerRequired(entitlement);
+  }
+
+  const existingTeam = await getCreatedTeamWorkspace(quoter.clerkUserId);
+
+  if (existingTeam) {
+    return errorResponse(
+      "TEAM_WORKSPACE_LIMIT",
+      "Yearly Partner accounts can create only one team workspace. Update your existing team workspace name instead.",
+      409,
+      { organizationId: existingTeam.organizationId },
+    );
   }
 
   const body = await readJson(request);
@@ -67,6 +83,67 @@ export async function POST(request: Request) {
     organizationId: organization.id,
     organizationName: organization.name,
   });
+}
+
+export async function PATCH(request: Request) {
+  if (!isClerkConfigured()) {
+    return errorResponse(
+      "CLERK_REQUIRED",
+      "Team workspaces require Clerk Organizations to be configured.",
+      503,
+    );
+  }
+
+  const quoter = await requireQuoter();
+  const entitlement = await getWorkspaceEntitlement(quoter);
+
+  if (!entitlement.isYearlyPartnerWorkspace) {
+    return yearlyPartnerRequired(entitlement);
+  }
+
+  const existingTeam = await getCreatedTeamWorkspace(quoter.clerkUserId);
+
+  if (!existingTeam) {
+    return errorResponse(
+      "TEAM_WORKSPACE_NOT_FOUND",
+      "Create a team workspace before updating its name.",
+      404,
+    );
+  }
+
+  if (
+    !quoter.isPersonalWorkspace &&
+    quoter.organizationId !== existingTeam.organizationId
+  ) {
+    return errorResponse(
+      "TEAM_WORKSPACE_MISMATCH",
+      "Select your created team workspace before updating its name.",
+      403,
+    );
+  }
+
+  const body = await readJson(request);
+  const name = parseTeamName(body);
+
+  if (!name) {
+    return errorResponse(
+      "INVALID_TEAM_WORKSPACE",
+      "Enter a team workspace name.",
+      422,
+    );
+  }
+
+  const organization = await updateTeamWorkspaceName({
+    organizationId: existingTeam.organizationId,
+    name,
+  });
+
+  await syncClerkOrganization({
+    workspaceRef: organization.organizationId,
+    name: organization.organizationName,
+  });
+
+  return Response.json(organization);
 }
 
 function parseTeamName(value: unknown) {
