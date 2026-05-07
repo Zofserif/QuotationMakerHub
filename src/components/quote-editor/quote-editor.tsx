@@ -220,12 +220,16 @@ export function QuoteEditor({
 
   async function saveDraft() {
     setMessage(null);
+    const draftToSave: QuoteDraft = {
+      ...draft,
+      templateSnapshot: effectiveTemplate,
+    };
     const response = await fetch(quote ? `/api/quotes/${quote.id}` : "/api/quotes", {
       method: quote ? "PATCH" : "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(draft),
+      body: JSON.stringify(draftToSave),
     });
     const payload = await response.json();
 
