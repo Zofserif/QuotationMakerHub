@@ -3,6 +3,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
+  isPersonalWorkspaceRef,
+  localWorkspaceRoleForClerkOrgRole,
+  parseLocalWorkspaceRole,
+  type LocalWorkspaceRole,
+} from "@/lib/auth/workspaces";
+import {
   createClientAccessToken,
   defaultTokenExpiry,
   hashClientAccessToken,
@@ -76,6 +82,8 @@ const LINE_ITEM_IMAGE_BUCKET = "line-item-images";
 export type QuoterContext = {
   clerkUserId: string;
   organizationId: string;
+  organizationRole?: string | null;
+  isPersonalWorkspace?: boolean;
 };
 
 export type WorkspaceUsageSummary = {
@@ -2138,39 +2146,96 @@ export async function ensureWorkspace(
   quoter: QuoterContext,
 ): Promise<OrganizationRow> {
   const workspaceRef = quoter.organizationId;
+  const isPersonalWorkspace = isPersonalWorkspaceRef(workspaceRef);
   const now = new Date().toISOString();
-  const { data, error } = await db
-    .from("organizations")
-    .upsert(
-      {
-        clerk_org_id: workspaceRef,
-        name: workspaceRef.startsWith("personal:")
-          ? "Personal Workspace"
-          : "Clerk Organization",
-        updated_at: now,
-      },
-      { onConflict: "clerk_org_id" },
-    )
-    .select("id, clerk_org_id, name, created_at")
-    .single();
+  const { data: existingOrganization, error: existingOrganizationError } =
+    await db
+      .from("organizations")
+      .select("id, clerk_org_id, name, created_at")
+      .eq("clerk_org_id", workspaceRef)
+      .maybeSingle();
+
+  throwIfError(existingOrganizationError, "Find organization");
+
+  const { data, error } = existingOrganization
+    ? await db
+        .from("organizations")
+        .update({ updated_at: now })
+        .eq("id", (existingOrganization as OrganizationRow).id)
+        .select("id, clerk_org_id, name, created_at")
+        .single()
+    : await db
+        .from("organizations")
+        .insert({
+          clerk_org_id: workspaceRef,
+          name: isPersonalWorkspace
+            ? "Personal Workspace"
+            : "Clerk Organization",
+          updated_at: now,
+        })
+        .select("id, clerk_org_id, name, created_at")
+        .single();
 
   throwIfError(error, "Ensure organization");
 
   const organization = data as OrganizationRow;
-  const { error: membershipError } = await db
+  const desiredRole = localRoleForQuoter(quoter);
+  const { data: existingMembership, error: existingMembershipError } = await db
     .from("organization_members")
-    .upsert(
-      {
+    .select("role")
+    .eq("organization_id", organization.id)
+    .eq("clerk_user_id", quoter.clerkUserId)
+    .maybeSingle();
+
+  throwIfError(existingMembershipError, "Read organization membership");
+
+  const existingRole = parseLocalWorkspaceRole(
+    (existingMembership as { role?: unknown } | null)?.role,
+  );
+  const membershipMutation = existingRole
+    ? isPersonalWorkspace && existingRole !== "owner"
+      ? db
+          .from("organization_members")
+          .update({ role: "owner" })
+          .eq("organization_id", organization.id)
+          .eq("clerk_user_id", quoter.clerkUserId)
+      : null
+    : db.from("organization_members").insert({
         organization_id: organization.id,
         clerk_user_id: quoter.clerkUserId,
-        role: "owner",
-      },
-      { onConflict: "organization_id,clerk_user_id" },
-    );
+        role: desiredRole,
+      });
+
+  const { error: membershipError } = membershipMutation
+    ? await membershipMutation
+    : { error: null };
 
   throwIfError(membershipError, "Ensure organization membership");
 
   return organization;
+}
+
+export async function getSupabaseWorkspaceMembershipRole(
+  quoter: QuoterContext,
+): Promise<LocalWorkspaceRole | undefined> {
+  const db = createSupabaseAdminClient();
+  const organization = await ensureWorkspace(db, quoter);
+  const { data, error } = await db
+    .from("organization_members")
+    .select("role")
+    .eq("organization_id", organization.id)
+    .eq("clerk_user_id", quoter.clerkUserId)
+    .maybeSingle();
+
+  throwIfError(error, "Read workspace membership role");
+
+  return parseLocalWorkspaceRole((data as { role?: unknown } | null)?.role);
+}
+
+function localRoleForQuoter(quoter: QuoterContext): LocalWorkspaceRole {
+  return isPersonalWorkspaceRef(quoter.organizationId)
+    ? "owner"
+    : localWorkspaceRoleForClerkOrgRole(quoter.organizationRole);
 }
 
 async function getQuoteTemplateContent(

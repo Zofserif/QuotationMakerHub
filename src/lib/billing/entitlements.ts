@@ -1,21 +1,21 @@
 import { clerkClient } from "@clerk/nextjs/server";
 
 import { isClerkConfigured } from "@/lib/auth/clerk";
+import { isPersonalWorkspaceRef } from "@/lib/auth/workspaces";
+import { readRemoteQuoteMetadata } from "@/lib/billing/metadata";
 import {
   FREE_TRIAL_DURATION_MONTHS,
   FREE_TRIAL_LOCKED_QUOTE_LIMIT,
   FREE_TRIAL_WET_SIGNATURE_PRINT_LIMIT,
-  parseWorkspacePlan,
   planLabel,
   type WorkspacePlan,
 } from "@/lib/billing/plans";
 import {
+  getWorkspaceMembershipRole,
   getWorkspaceUsage,
   usesDemoPersistence,
   type QuoterContext,
 } from "@/lib/quotes/persistence";
-
-type ClerkMetadata = Record<string, unknown> | null | undefined;
 
 export type WorkspaceEntitlement = {
   plan: WorkspacePlan;
@@ -44,6 +44,12 @@ export type WorkspaceEntitlement = {
   canSendQuote: boolean;
   canPrepareWetSignaturePrint: boolean;
   canManageMultipleTemplates: boolean;
+  isPersonalWorkspace: boolean;
+  isTeamWorkspace: boolean;
+  isYearlyPartnerWorkspace: boolean;
+  canCreateTeamWorkspace: boolean;
+  canAccessTeamWorkspace: boolean;
+  canManageTeam: boolean;
   unrestricted: boolean;
 };
 
@@ -51,6 +57,7 @@ export async function getWorkspaceEntitlement(
   quoter: QuoterContext,
 ): Promise<WorkspaceEntitlement> {
   const usage = await getWorkspaceUsage(quoter);
+  const membershipRole = await getWorkspaceMembershipRole(quoter);
 
   if (usesDemoPersistence() || !isClerkConfigured()) {
     return buildEntitlement({
@@ -61,6 +68,7 @@ export async function getWorkspaceEntitlement(
       workspaceCreatedAt: usage.workspaceCreatedAt,
       lockedQuoteCount: usage.lockedQuoteCount,
       wetSignaturePrintCount: usage.wetSignaturePrintCount,
+      membershipRole,
       unrestricted: true,
     });
   }
@@ -76,6 +84,7 @@ export async function getWorkspaceEntitlement(
     workspaceCreatedAt: usage.workspaceCreatedAt,
     lockedQuoteCount: usage.lockedQuoteCount,
     wetSignaturePrintCount: usage.wetSignaturePrintCount,
+    membershipRole,
     unrestricted: false,
   });
 }
@@ -88,6 +97,7 @@ function buildEntitlement(input: {
   workspaceCreatedAt: string;
   lockedQuoteCount: number;
   wetSignaturePrintCount: number;
+  membershipRole?: "owner" | "admin" | "quoter";
   unrestricted: boolean;
 }): WorkspaceEntitlement {
   const renewalExpired =
@@ -115,6 +125,11 @@ function buildEntitlement(input: {
     paid ||
     input.unrestricted ||
     input.wetSignaturePrintCount < FREE_TRIAL_WET_SIGNATURE_PRINT_LIMIT;
+  const isPersonalWorkspace =
+    input.unrestricted || isPersonalWorkspaceRef(input.quoter.organizationId);
+  const isTeamWorkspace = !input.unrestricted && !isPersonalWorkspace;
+  const isYearlyPartnerWorkspace = effectivePlan === "partner_yearly";
+  const canAccessTeamWorkspace = isTeamWorkspace && isYearlyPartnerWorkspace;
 
   return {
     plan: effectivePlan,
@@ -154,6 +169,13 @@ function buildEntitlement(input: {
     canSendQuote,
     canPrepareWetSignaturePrint,
     canManageMultipleTemplates: effectivePlan === "partner_yearly" || input.unrestricted,
+    isPersonalWorkspace,
+    isTeamWorkspace,
+    isYearlyPartnerWorkspace,
+    canCreateTeamWorkspace:
+      !input.unrestricted && isPersonalWorkspace && isYearlyPartnerWorkspace,
+    canAccessTeamWorkspace,
+    canManageTeam: canAccessTeamWorkspace && input.membershipRole === "owner",
     unrestricted: input.unrestricted || paid,
   };
 }
@@ -196,27 +218,6 @@ async function readClerkPlan(
   }
 }
 
-function readRemoteQuoteMetadata(metadata: ClerkMetadata) {
-  const remoteQuote =
-    metadata && typeof metadata === "object"
-      ? metadata.remoteQuote
-      : undefined;
-
-  if (!remoteQuote || typeof remoteQuote !== "object") {
-    return {
-      plan: "free_trial" as WorkspacePlan,
-      renewsAt: undefined,
-    };
-  }
-
-  const remoteQuoteRecord = remoteQuote as Record<string, unknown>;
-
-  return {
-    plan: parseWorkspacePlan(remoteQuoteRecord.plan),
-    renewsAt: parseIsoDate(remoteQuoteRecord.renewsAt),
-  };
-}
-
 function getPrimaryEmail(user: {
   primaryEmailAddressId?: string | null;
   emailAddresses?: Array<{ id: string; emailAddress: string }>;
@@ -233,16 +234,6 @@ function addMonths(date: Date, months: number) {
   const nextDate = new Date(date);
   nextDate.setMonth(nextDate.getMonth() + months);
   return nextDate;
-}
-
-function parseIsoDate(value: unknown) {
-  if (typeof value !== "string") {
-    return undefined;
-  }
-
-  const date = new Date(value);
-
-  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
 function isPaidPlan(plan: WorkspacePlan) {

@@ -1,10 +1,13 @@
 import { isClerkConfigured } from "./clerk";
+import { personalWorkspaceRef } from "./workspaces";
 
 export async function requireQuoter() {
   if (!isClerkConfigured()) {
     return {
       clerkUserId: "demo_quoter",
       organizationId: "demo_org",
+      organizationRole: undefined,
+      isPersonalWorkspace: false,
     };
   }
 
@@ -13,6 +16,8 @@ export async function requireQuoter() {
 
   return {
     clerkUserId: session.userId,
-    organizationId: session.orgId ?? `personal:${session.userId}`,
+    organizationId: session.orgId ?? personalWorkspaceRef(session.userId),
+    organizationRole: session.orgRole,
+    isPersonalWorkspace: !session.orgId,
   };
 }

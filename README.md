@@ -26,7 +26,6 @@ The app runs in demo mode during local development when the Supabase service-rol
 
 ## Important Production Work Still Required
 
-- Finish Clerk webhook verification and organization/member synchronization.
 - Add email sending through Resend or another provider.
 - Replace the placeholder PDF bytes with Playwright Chromium rendering.
 - Add rate limiting, MIME sniffing, image dimension validation, RLS tests, and E2E coverage.
@@ -41,6 +40,7 @@ Copy `.env.example` to `.env.local` and fill in Clerk, Supabase, PostHog, and em
 
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
 - `CLERK_SECRET_KEY`
+- `CLERK_WEBHOOK_SIGNING_SECRET` for verified Clerk organization/member webhooks
 - `NEXT_PUBLIC_APP_URL` set to the production origin, such as `https://remotequote.example` until the final domain is configured
 - `NEXT_PUBLIC_UPGRADE_CONTACT_EMAIL` for the manual partner-upgrade mail link
 - `NEXT_PUBLIC_COFFEE_DONATION_URL` for the dashboard coffee donation link
@@ -57,6 +57,11 @@ Paid plan renewal dates are read from Clerk private metadata at
 `remoteQuote.plan` value. When a Monthly or Yearly Partner renewal date is in
 the past, the workspace is treated like an ended Free Trial until the metadata
 is renewed.
+
+Yearly Partner workspaces can enable team access through Clerk Organizations.
+The user who converts a personal yearly workspace becomes the local team owner;
+invited Clerk organization members share the same quote dashboard even if their
+personal workspace is Free Trial or Monthly Partner.
 
 ## Hydration Warning Troubleshooting
 

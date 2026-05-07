@@ -53,6 +53,7 @@ import {
   deleteSupabaseQuoteQuoterSignature,
   getSupabaseClientQuoteView,
   getSupabasePipelineCurrency,
+  getSupabaseWorkspaceMembershipRole,
   getSupabaseQuote,
   getSupabaseQuoteTemplate,
   getSupabaseWorkspaceUsage,
@@ -202,6 +203,14 @@ export async function getWorkspaceUsage(
   }
 
   return getSupabaseWorkspaceUsage(quoter);
+}
+
+export async function getWorkspaceMembershipRole(quoter: QuoterContext) {
+  if (shouldUseDemoPersistence()) {
+    return "owner" as const;
+  }
+
+  return getSupabaseWorkspaceMembershipRole(quoter);
 }
 
 export async function recordWetSignaturePrint(

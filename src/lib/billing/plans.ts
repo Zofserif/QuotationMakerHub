@@ -48,20 +48,23 @@ export const billingPlanDetails: BillingPlanDetails[] = [
   {
     plan: "partner_monthly",
     name: "Monthly Partner",
-    description: "For active teams that need unlimited quotation workflow.",
+    description: "For individual workspaces that need unlimited quotation workflow.",
     features: [
       "Unlimited quotation creation",
       "Unlimited sending and locking",
       "Unlimited wet-signature printing",
       "One quotation template",
+      "Single-user workspace access",
     ],
   },
   {
     plan: "partner_yearly",
     name: "Yearly Partner",
-    description: "For teams that want template libraries and partner access.",
+    description: "For teams that want shared dashboard and template libraries.",
     features: [
       "Everything in Monthly Partner",
+      "Team dashboard access",
+      "Unlimited team members",
       "Unlimited quotation templates",
       "Reusable templates for different quote formats",
       "Best fit for long-term partner workspaces",

@@ -1,10 +1,11 @@
-import { Database, FileText, LayoutDashboard, Plus } from "lucide-react";
+import { Database, FileText, LayoutDashboard, Plus, Users } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
 import { PlanBadgeButton } from "@/components/billing/billing-actions";
 import { AccountIndicator } from "@/components/dashboard/account-indicator";
+import { WorkspaceSwitcher } from "@/components/dashboard/workspace-switcher";
 import { Badge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/button";
 import { APP_NAME } from "@/lib/app-config";
@@ -38,7 +39,10 @@ export default async function DashboardLayout({
               <PlanBadgeButton entitlement={entitlement} />
 
               {hasClerk ? (
-                <AccountIndicator />
+                <>
+                  <WorkspaceSwitcher />
+                  <AccountIndicator />
+                </>
               ) : (
                 <Badge className="w-fit bg-stone-100 text-stone-700">
                   Demo account
@@ -58,6 +62,10 @@ export default async function DashboardLayout({
               <LinkButton href="/line-item-data" variant="secondary" size="sm">
                 <Database className="size-4" />
                 Line Item Data
+              </LinkButton>
+              <LinkButton href="/team" variant="secondary" size="sm">
+                <Users className="size-4" />
+                Team
               </LinkButton>
               <LinkButton href="/quotes/new" size="sm">
                 <Plus className="size-4" />
