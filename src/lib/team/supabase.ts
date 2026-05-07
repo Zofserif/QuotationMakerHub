@@ -40,7 +40,19 @@ export async function migratePersonalWorkspaceToTeam(input: {
   );
 
   if (existingTeamWorkspace && existingTeamWorkspace.id !== personalWorkspace.id) {
-    return { ok: false, code: "TEAM_WORKSPACE_EXISTS" };
+    if (!(await isEmptySyncedWorkspace(db, existingTeamWorkspace.id))) {
+      return { ok: false, code: "TEAM_WORKSPACE_EXISTS" };
+    }
+
+    const { error: deleteSyncedWorkspaceError } = await db
+      .from("organizations")
+      .delete()
+      .eq("id", existingTeamWorkspace.id);
+
+    throwIfError(
+      deleteSyncedWorkspaceError,
+      "Remove blank synced team workspace",
+    );
   }
 
   const { error: workspaceError } = await db
@@ -185,6 +197,35 @@ async function getOrganizationByWorkspaceRef(
   throwIfError(error, "Find organization by workspace reference");
 
   return data as OrganizationLookupRow | null;
+}
+
+async function isEmptySyncedWorkspace(
+  db: SupabaseClient,
+  organizationId: string,
+) {
+  const tables = [
+    "clients",
+    "quotes",
+    "quote_templates",
+    "line_item_data",
+    "signature_assets",
+    "audit_events",
+    "quote_wet_signature_prints",
+  ];
+  const counts = await Promise.all(
+    tables.map(async (table) => {
+      const { count, error } = await db
+        .from(table)
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", organizationId);
+
+      throwIfError(error, `Count ${table} rows`);
+
+      return count ?? 0;
+    }),
+  );
+
+  return counts.every((count) => count === 0);
 }
 
 async function upsertLocalMembership(
