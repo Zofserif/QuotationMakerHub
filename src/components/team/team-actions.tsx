@@ -4,10 +4,19 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { useOrganizationList } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { Save, Send, Trash2, Users } from "lucide-react";
+import {
+  Copy,
+  Link as LinkIcon,
+  RotateCw,
+  Save,
+  Trash2,
+  Unlink,
+  Users,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import type { TeamJoinLinkSummary } from "@/lib/team/join-links";
 
 type ApiErrorPayload = {
   error?: {
@@ -234,72 +243,160 @@ export function UpdateTeamWorkspaceNameForm({
   );
 }
 
-export function TeamInviteForm() {
+export function TeamJoinLinkPanel({
+  initialJoinLink,
+}: {
+  initialJoinLink: TeamJoinLinkSummary | null;
+}) {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [joinLink, setJoinLink] = useState(initialJoinLink);
+  const [loadingAction, setLoadingAction] = useState<
+    "generate" | "rotate" | "revoke" | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setLoading(true);
+  async function saveJoinLink(rotate: boolean) {
+    setLoadingAction(rotate ? "rotate" : "generate");
     setError(null);
+    setCopied(false);
 
     try {
-      const response = await fetch("/api/team/invitations", {
+      const response = await fetch("/api/team/join-link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ rotate }),
       });
-      const payload = (await response.json()) as ApiErrorPayload;
+      const payload = (await readPayload(response)) as
+        | { joinLink?: TeamJoinLinkSummary | null }
+        | ApiErrorPayload;
 
-      if (!response.ok) {
-        setError(readApiError(payload, "Invitation could not be sent."));
+      if (!response.ok || !("joinLink" in payload) || !payload.joinLink) {
+        setError(readApiError(payload, "Team join link could not be updated."));
         return;
       }
 
-      setEmail("");
+      setJoinLink(payload.joinLink);
       router.refresh();
     } catch {
-      setError("Invitation could not be sent.");
+      setError("Team join link could not be updated.");
     } finally {
-      setLoading(false);
+      setLoadingAction(null);
     }
   }
 
-  return (
-    <form className="flex flex-col gap-2 sm:flex-row" onSubmit={submit}>
-      <Input
-        required
-        aria-label="Teammate email"
-        placeholder="teammate@example.com"
-        type="email"
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-      />
-      <Button loading={loading} loadingText="Sending..." type="submit">
-        <Send className="size-4" />
-        Invite
-      </Button>
-      {error ? (
-        <p className="text-sm font-medium text-red-700 sm:basis-full">
-          {error}
-        </p>
-      ) : null}
-    </form>
-  );
-}
+  async function disableJoinLink() {
+    setLoadingAction("revoke");
+    setError(null);
+    setCopied(false);
 
-export function RevokeInvitationButton({
-  invitationId,
-}: {
-  invitationId: string;
-}) {
+    try {
+      const response = await fetch("/api/team/join-link", {
+        method: "DELETE",
+      });
+      const payload = (await readPayload(response)) as ApiErrorPayload;
+
+      if (!response.ok) {
+        setError(readApiError(payload, "Team join link could not be disabled."));
+        return;
+      }
+
+      setJoinLink(null);
+      router.refresh();
+    } catch {
+      setError("Team join link could not be disabled.");
+    } finally {
+      setLoadingAction(null);
+    }
+  }
+
+  async function copyJoinLink() {
+    if (!joinLink) {
+      return;
+    }
+
+    setError(null);
+
+    try {
+      await copyText(toAbsoluteUrl(joinLink.url));
+      setCopied(true);
+    } catch {
+      setError("Team join link could not be copied.");
+    }
+  }
+
+  if (!joinLink) {
+    return (
+      <div className="space-y-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <p className="min-w-0 flex-1 text-sm font-medium text-stone-600">
+            No active join link.
+          </p>
+          <Button
+            loading={loadingAction === "generate"}
+            loadingText="Generating..."
+            type="button"
+            onClick={() => saveJoinLink(false)}
+          >
+            <LinkIcon className="size-4" />
+            Generate link
+          </Button>
+        </div>
+        {error ? (
+          <p className="text-sm font-medium text-red-700">{error}</p>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
-    <TeamDeleteButton
-      actionLabel="Revoke invitation"
-      endpoint={`/api/team/invitations/${encodeURIComponent(invitationId)}`}
-    />
+    <div className="space-y-3">
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Input
+          readOnly
+          aria-label="Team join link"
+          value={joinLink.url}
+          onFocus={(event) => event.currentTarget.select()}
+        />
+        <Button type="button" variant="secondary" onClick={copyJoinLink}>
+          <Copy className="size-4" />
+          {copied ? "Copied" : "Copy"}
+        </Button>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          loading={loadingAction === "rotate"}
+          loadingText="Regenerating..."
+          size="sm"
+          type="button"
+          variant="secondary"
+          onClick={() => saveJoinLink(true)}
+        >
+          <RotateCw className="size-4" />
+          Regenerate
+        </Button>
+        <Button
+          loading={loadingAction === "revoke"}
+          loadingText="Disabling..."
+          size="sm"
+          type="button"
+          variant="ghost"
+          onClick={disableJoinLink}
+        >
+          <Unlink className="size-4" />
+          Disable
+        </Button>
+        <p className="text-xs font-medium text-stone-400">
+          Created {formatShortDate(joinLink.createdAt)}
+          {joinLink.lastUsedAt
+            ? ` · Last used ${formatShortDate(joinLink.lastUsedAt)}`
+            : ""}
+        </p>
+      </div>
+      {error ? (
+        <p className="text-sm font-medium text-red-700">{error}</p>
+      ) : null}
+    </div>
   );
 }
 
@@ -355,4 +452,46 @@ function readApiError(payload: ApiErrorPayload | object, fallback: string) {
   return "error" in payload && payload.error?.message
     ? payload.error.message
     : fallback;
+}
+
+async function readPayload(response: Response) {
+  try {
+    return await response.json();
+  } catch {
+    return {};
+  }
+}
+
+async function copyText(value: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+
+  const copied = document.execCommand("copy");
+  textarea.remove();
+
+  if (!copied) {
+    throw new Error("Copy command failed");
+  }
+}
+
+function toAbsoluteUrl(value: string) {
+  return value.startsWith("/") ? `${window.location.origin}${value}` : value;
+}
+
+function formatShortDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(value));
 }

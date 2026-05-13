@@ -5,8 +5,7 @@ import { LinkButton } from "@/components/ui/button";
 import {
   EnableTeamWorkspaceForm,
   RemoveMemberButton,
-  RevokeInvitationButton,
-  TeamInviteForm,
+  TeamJoinLinkPanel,
   UpdateTeamWorkspaceNameForm,
 } from "@/components/team/team-actions";
 import { isClerkConfigured } from "@/lib/auth/clerk";
@@ -16,6 +15,7 @@ import {
   getCreatedTeamWorkspace,
   getTeamWorkspaceSummary,
 } from "@/lib/team/clerk";
+import { getActiveTeamJoinLink } from "@/lib/team/join-links";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +27,10 @@ export default async function TeamPage() {
     ? await getCreatedTeamWorkspace(quoter.clerkUserId)
     : null;
   const team = await getTeamWorkspaceSummary(quoter, entitlement);
+  const joinLink =
+    team && entitlement.canManageTeam
+      ? await getActiveTeamJoinLink({ workspaceRef: team.organizationId })
+      : null;
 
   return (
     <div className="space-y-4">
@@ -46,6 +50,7 @@ export default async function TeamPage() {
           canRenameTeam={
             entitlement.canManageTeam && team.isCreatedByCurrentUser
           }
+          joinLink={joinLink}
           team={team}
         />
       ) : entitlement.canCreateTeamWorkspace && !createdTeam ? (
@@ -78,7 +83,7 @@ export default async function TeamPage() {
         <Notice
           actionHref="/dashboard"
           actionLabel="Back to dashboard"
-          message="You can join a team dashboard after the Yearly Partner workspace owner invites you. Use the workspace switcher in the header after accepting an invitation."
+          message="You can join a team dashboard from a link shared by the Yearly Partner workspace owner."
           title="No team workspace selected"
         />
       )}
@@ -89,10 +94,12 @@ export default async function TeamPage() {
 function TeamWorkspacePanel({
   canManageTeam,
   canRenameTeam,
+  joinLink,
   team,
 }: {
   canManageTeam: boolean;
   canRenameTeam: boolean;
+  joinLink: Awaited<ReturnType<typeof getActiveTeamJoinLink>>;
   team: NonNullable<Awaited<ReturnType<typeof getTeamWorkspaceSummary>>>;
 }) {
   return (
@@ -118,7 +125,7 @@ function TeamWorkspacePanel({
 
         {canManageTeam ? (
           <div className="mt-4 border-t border-stone-200 pt-4">
-            <TeamInviteForm />
+            <TeamJoinLinkPanel initialJoinLink={joinLink} />
           </div>
         ) : null}
       </div>
@@ -158,38 +165,6 @@ function TeamWorkspacePanel({
             </div>
           ))}
         </div>
-      </div>
-
-      <div className="rounded-lg border border-stone-200 bg-white">
-        <header className="border-b border-stone-200 px-4 py-3">
-          <h2 className="font-semibold text-stone-950">Pending invitations</h2>
-        </header>
-        {team.invitations.length ? (
-          <div className="divide-y divide-stone-200">
-            {team.invitations.map((invitation) => (
-              <div
-                className="grid gap-3 px-4 py-3 sm:grid-cols-[1fr_auto]"
-                key={invitation.id}
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-stone-950">
-                    {invitation.email}
-                  </p>
-                  <p className="mt-1 text-sm text-stone-500">
-                    Expires {formatDate(invitation.expiresAt)}
-                  </p>
-                </div>
-                {canManageTeam ? (
-                  <RevokeInvitationButton invitationId={invitation.id} />
-                ) : null}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="px-4 py-5 text-sm text-stone-500">
-            No pending invitations.
-          </p>
-        )}
       </div>
     </section>
   );

@@ -17,21 +17,11 @@ export type TeamMemberSummary = {
   isOwner: boolean;
 };
 
-export type TeamInvitationSummary = {
-  id: string;
-  email: string;
-  role: string;
-  status: string;
-  createdAt: string;
-  expiresAt: string;
-};
-
 export type TeamWorkspaceSummary = {
   organizationId: string;
   organizationName: string;
   isCreatedByCurrentUser: boolean;
   members: TeamMemberSummary[];
-  invitations: TeamInvitationSummary[];
 };
 
 export type CreatedTeamWorkspace = {
@@ -52,7 +42,7 @@ export async function getTeamWorkspaceSummary(
   }
 
   const clerk = await clerkClient();
-  const [organization, memberships, invitations] = await Promise.all([
+  const [organization, memberships] = await Promise.all([
     clerk.organizations.getOrganization({
       organizationId: quoter.organizationId,
     }),
@@ -60,11 +50,6 @@ export async function getTeamWorkspaceSummary(
       organizationId: quoter.organizationId,
       limit: 100,
       orderBy: "+created_at",
-    }),
-    clerk.organizations.getOrganizationInvitationList({
-      organizationId: quoter.organizationId,
-      status: ["pending"],
-      limit: 100,
     }),
   ]);
 
@@ -94,14 +79,6 @@ export async function getTeamWorkspaceSummary(
         isOwner: entitlement.canManageTeam && isCurrentUser,
       };
     }),
-    invitations: invitations.data.map((invitation) => ({
-      id: invitation.id,
-      email: invitation.emailAddress,
-      role: invitation.role,
-      status: invitation.status ?? "pending",
-      createdAt: formatTimestamp(invitation.createdAt),
-      expiresAt: formatTimestamp(invitation.expiresAt),
-    })),
   };
 }
 
