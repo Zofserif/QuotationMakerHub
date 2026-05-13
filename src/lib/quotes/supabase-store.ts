@@ -25,6 +25,10 @@ import type {
   LineItemImageMimeType,
   LineItemImageUploadResult,
 } from "@/lib/line-item-data/types";
+import {
+  dedupeLineItemDataDraftsByTitle,
+  normalizeLineItemTitleKey,
+} from "@/lib/line-item-data/matching";
 import { mergeQuoteTemplate } from "@/lib/quote-templates/defaults";
 import { formatQuoteNumber } from "@/lib/quote-templates/numbering";
 import type {
@@ -688,21 +692,74 @@ export async function createSupabaseLineItemDataBatch(
   const db = createSupabaseAdminClient();
   const organization = await ensureWorkspace(db, quoter);
   const now = new Date().toISOString();
-  const { data, error } = await db
+  const draftsToProcess = dedupeLineItemDataDraftsByTitle(drafts);
+  const { data: existingData, error: existingError } = await db
     .from("line_item_data")
-    .insert(
-      drafts.map((draft) =>
-        buildLineItemDataInsert(organization.id, quoter, draft, now),
-      ),
-    )
-    .select("*");
+    .select("*")
+    .eq("organization_id", organization.id)
+    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false });
 
-  throwIfError(error, "Create line item data batch");
+  throwIfError(existingError, "List line item data for batch");
+
+  const existingByTitle = mapNewestLineItemDataRowsByTitle(
+    (existingData ?? []) as LineItemDataRow[],
+  );
+  const draftsToCreate: LineItemDataDraft[] = [];
+  const draftsToUpdate: Array<{
+    draft: LineItemDataDraft;
+    row: LineItemDataRow;
+  }> = [];
+
+  for (const draft of draftsToProcess) {
+    const existing = existingByTitle.get(normalizeLineItemTitleKey(draft.title));
+
+    if (existing) {
+      draftsToUpdate.push({ draft, row: existing });
+    } else {
+      draftsToCreate.push(draft);
+    }
+  }
+
+  const processedRows: LineItemDataRow[] = [];
+
+  if (draftsToCreate.length > 0) {
+    const { data, error } = await db
+      .from("line_item_data")
+      .insert(
+        draftsToCreate.map((draft) =>
+          buildLineItemDataInsert(organization.id, quoter, draft, now),
+        ),
+      )
+      .select("*");
+
+    throwIfError(error, "Create line item data batch");
+    processedRows.push(...((data ?? []) as LineItemDataRow[]));
+  }
+
+  const updatedRows = await Promise.all(
+    draftsToUpdate.map(async ({ draft, row }) => {
+      const { data, error } = await db
+        .from("line_item_data")
+        .update({
+          unit_price_minor: draft.unitPriceMinor,
+          updated_at: now,
+        })
+        .eq("id", row.id)
+        .eq("organization_id", organization.id)
+        .select("*")
+        .single();
+
+      throwIfError(error, "Update line item data batch");
+
+      return data as LineItemDataRow;
+    }),
+  );
+
+  processedRows.push(...updatedRows);
 
   return Promise.all(
-    ((data ?? []) as LineItemDataRow[]).map((row) =>
-      mapLineItemDataRow(db, row),
-    ),
+    processedRows.map((row) => mapLineItemDataRow(db, row)),
   );
 }
 
@@ -3266,6 +3323,31 @@ async function mapLineItemDataRow(
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function mapNewestLineItemDataRowsByTitle(rows: LineItemDataRow[]) {
+  const rowsByTitle = new Map<string, LineItemDataRow>();
+
+  for (const row of rows) {
+    const key = normalizeLineItemTitleKey(row.title);
+    const current = rowsByTitle.get(key);
+
+    if (!current || compareLineItemDataRowsByNewest(row, current) > 0) {
+      rowsByTitle.set(key, row);
+    }
+  }
+
+  return rowsByTitle;
+}
+
+function compareLineItemDataRowsByNewest(
+  left: LineItemDataRow,
+  right: LineItemDataRow,
+) {
+  return (
+    left.updated_at.localeCompare(right.updated_at) ||
+    left.created_at.localeCompare(right.created_at)
+  );
 }
 
 function buildLineItemDataInsert(

@@ -19,6 +19,10 @@ import type {
   LineItemImageUploadResult,
 } from "@/lib/line-item-data/types";
 import {
+  dedupeLineItemDataDraftsByTitle,
+  normalizeLineItemTitleKey,
+} from "@/lib/line-item-data/matching";
+import {
   createVersionSnapshot,
   hashSnapshot,
 } from "@/lib/quotes/create-version-snapshot";
@@ -418,26 +422,56 @@ export function createDemoLineItemData(draft: LineItemDataDraft) {
 
 export function createDemoLineItemDataBatch(drafts: LineItemDataDraft[]) {
   const now = new Date().toISOString();
-  const lineItemData = drafts.map((draft) => ({
-    id: randomUUID(),
-    organizationId: DEMO_ORG_ID,
-    title: draft.title,
-    detailedDescription: draft.detailedDescription,
-    unit: draft.unit,
-    unitPriceMinor: draft.unitPriceMinor,
-    descriptionImageStoragePath: emptyToUndefined(
-      draft.descriptionImageStoragePath,
-    ),
-    descriptionImageMimeType: draft.descriptionImageMimeType,
-    descriptionImageUrl: draft.descriptionImageStoragePath,
-    createdByClerkUserId: DEMO_USER_ID,
-    createdAt: now,
-    updatedAt: now,
-  }));
+  const draftsToProcess = dedupeLineItemDataDraftsByTitle(drafts);
+  const existingByTitle = new Map<string, LineItemData>();
 
-  demoState.lineItemData.unshift(...lineItemData);
+  for (const item of demoState.lineItemData.toSorted((a, b) =>
+    b.updatedAt.localeCompare(a.updatedAt),
+  )) {
+    const key = normalizeLineItemTitleKey(item.title);
 
-  return lineItemData;
+    if (!existingByTitle.has(key)) {
+      existingByTitle.set(key, item);
+    }
+  }
+
+  const createdLineItemData: LineItemData[] = [];
+  const processedLineItemData: LineItemData[] = [];
+
+  for (const draft of draftsToProcess) {
+    const existing = existingByTitle.get(normalizeLineItemTitleKey(draft.title));
+
+    if (existing) {
+      existing.unitPriceMinor = draft.unitPriceMinor;
+      existing.updatedAt = now;
+      processedLineItemData.push(existing);
+      continue;
+    }
+
+    const lineItemData: LineItemData = {
+      id: randomUUID(),
+      organizationId: DEMO_ORG_ID,
+      title: draft.title,
+      detailedDescription: draft.detailedDescription,
+      unit: draft.unit,
+      unitPriceMinor: draft.unitPriceMinor,
+      descriptionImageStoragePath: emptyToUndefined(
+        draft.descriptionImageStoragePath,
+      ),
+      descriptionImageMimeType: draft.descriptionImageMimeType,
+      descriptionImageUrl: draft.descriptionImageStoragePath,
+      createdByClerkUserId: DEMO_USER_ID,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    createdLineItemData.push(lineItemData);
+    processedLineItemData.push(lineItemData);
+  }
+
+  demoState.lineItemData.unshift(...createdLineItemData);
+
+  return processedLineItemData;
 }
 
 export function updateDemoLineItemData(
