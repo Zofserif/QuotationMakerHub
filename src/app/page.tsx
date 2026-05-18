@@ -103,8 +103,12 @@ export default function Home() {
               close the sale all in one sitting.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <LinkButton href="/dashboard" size="lg">
-                CREATE A QUOTE NOW
+              <LinkButton
+                className="bg-emerald-300 text-stone-950 ring-1 ring-emerald-100/70 hover:bg-emerald-200"
+                href="/dashboard"
+                size="lg"
+              >
+                <b>CREATE A QUOTE NOW</b>
                 <ArrowRight className="size-5" />
               </LinkButton>
             </div>
