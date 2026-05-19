@@ -1,0 +1,352 @@
+import Link from "next/link";
+import {
+  ArrowRight,
+  BadgeDollarSign,
+  Car,
+  Camera,
+  CheckCircle2,
+  ClockAlert,
+  Form,
+  Laptop,
+  MessageSquareWarning,
+  Send,
+  Wrench,
+  Zap,
+} from "lucide-react";
+
+import { BrandLogo } from "@/components/brand-logo";
+import { LinkButton } from "@/components/ui/button";
+import {
+  APP_AUTHOR_NAME,
+  APP_DESCRIPTION,
+  APP_NAME,
+  APP_ORIGIN,
+  APP_PUBLISHED_DATE,
+  APP_SOCIAL_PREVIEW_IMAGE_SRC,
+} from "@/lib/app-config";
+import type { LandingPageNiche } from "@/lib/landing-pages";
+import { nicheLandingPages } from "@/lib/landing-pages";
+import { cn } from "@/lib/utils";
+
+const landingSteps = [
+  { label: "Create Your Quote", icon: Form },
+  { label: "Send to Client", icon: Send },
+  { label: "Signature in minutes", icon: CheckCircle2 },
+];
+
+const nicheIcons = {
+  "cctv-security-quotes": Camera,
+  "it-solutions-repair-quotes": Laptop,
+  "hvac-electrical-repair-quotes": Zap,
+  "automotive-detailing-repair-quotes": Car,
+};
+
+const painPointCards = [
+  {
+    title: "Delayed quotes kill momentum",
+    description:
+      "When you can’t send a quote right away, the client's buying window is gone.",
+    icon: ClockAlert,
+  },
+  {
+    title: "Unclear pricing creates doubt",
+    description:
+      "Clients want fast answers. If you can’t provide a price range, they may start looking elsewhere.",
+    icon: BadgeDollarSign,
+  },
+  {
+    title: "Slow follow-ups lead to lost deals",
+    description:
+      "The longer it takes to send a quotation, the easier it is for clients to forget, delay, or choose another provider.",
+    icon: MessageSquareWarning,
+  },
+];
+
+function SignatureCue({ className }: { className: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 160 40"
+    >
+      <path
+        className="signature-cue__stroke"
+        d="M6 28 C18 12, 28 10, 32 22 C36 35, 46 33, 54 17 C59 7, 63 9, 62 21 C61 35, 72 32, 82 22 C91 13, 98 14, 96 25 C94 35, 108 31, 119 19 C130 8, 143 13, 154 20"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="3"
+      />
+      <path
+        className="signature-cue__underline"
+        d="M18 34 C48 38, 100 38, 145 31"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
+function LandingHero() {
+  return (
+    <section className="landing-hero relative min-h-screen overflow-hidden text-white">
+      <div className="relative mx-auto flex min-h-screen max-w-7xl flex-col justify-between px-6 py-8 sm:px-8 lg:px-10">
+        <nav className="flex items-center">
+          <div className="flex items-center gap-2 text-lg font-semibold">
+            <BrandLogo variant="badge" />
+            {APP_NAME}
+          </div>
+        </nav>
+        <div className="max-w-3xl py-16">
+          <p className="mb-4 inline-flex rounded-md bg-white/10 px-3 py-1 text-sm font-medium ring-1 ring-white/20">
+            For Business that sends custom quotes
+          </p>
+          <h1 className="text-[2.625rem] font-bold leading-[1.08] sm:text-6xl sm:leading-tight">
+            Your Business Partner that Converts{" "}
+            <span className="inline-block rounded-md bg-emerald-300 px-2 py-0.5 text-stone-950 ring-1 ring-emerald-100/70">
+              YES
+            </span>{" "}
+            to{" "}
+            <span className="inline-flex items-end gap-2 sm:gap-3">
+              Signed
+              <SignatureCue className="signature-cue mb-1 h-6 w-24 shrink-0 overflow-visible text-white/95 sm:mb-2 sm:h-8 sm:w-36" />
+            </span>
+          </h1>
+          <p className="mt-6 max-w-2xl text-lg leading-8 text-stone-100">
+            Create a quotation for your next client for FREE and get a real-time signature and
+            close the sale all in one sitting.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <LinkButton
+              className="bg-emerald-300 text-stone-950 ring-1 ring-emerald-100/70 hover:bg-emerald-200"
+              href="/dashboard"
+              size="lg"
+            >
+              <b>CREATE A QUOTE NOW</b>
+              <ArrowRight className="size-5" />
+            </LinkButton>
+          </div>
+        </div>
+        <div className="grid gap-3 pb-2 sm:grid-cols-3">
+          {landingSteps.map(({ label, icon: Icon }) => (
+            <div
+              className="flex min-h-12 items-end gap-3 border-t border-white/25 pt-3 text-sm font-medium text-stone-100 sm:min-h-20"
+              key={label}
+            >
+              <Icon className="size-4" />
+              <span>{label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PainPointSection() {
+  return (
+    <section className="bg-stone-50 px-6 py-16 text-stone-950 sm:px-8 sm:py-24 lg:px-10">
+      <div className="mx-auto max-w-7xl">
+        <div className="mx-auto max-w-4xl text-center">
+          <h2 className="text-3xl font-bold leading-tight text-stone-900 sm:text-5xl">
+            Your client is ready to buy. Your{" "}
+            <span className="inline-block text-emerald-700 underline decoration-emerald-300 decoration-4 underline-offset-4">
+              quote isn’t.
+            </span>
+          </h2>
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-stone-600 sm:text-lg">
+            That delay can cost you the sale and these are the common symptoms
+          </p>
+        </div>
+        <div className="mx-auto mt-12 grid max-w-5xl gap-5 md:grid-cols-3 lg:mt-16">
+          {painPointCards.map(({ title, description, icon: Icon }) => (
+            <article
+              className="rounded-md border border-stone-200 bg-white p-6 text-stone-900 shadow-sm"
+              key={title}
+            >
+              <div className="mx-auto flex size-14 items-center justify-center rounded-md border border-stone-200 bg-stone-50 text-emerald-700 shadow-sm">
+                <Icon aria-hidden="true" className="size-7" />
+              </div>
+              <h3 className="mt-7 text-lg font-semibold leading-7">{title}</h3>
+              <p className="mt-4 text-sm leading-6 text-stone-600">{description}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function LandingJsonLd({ niche }: { niche?: LandingPageNiche }) {
+  const url = APP_ORIGIN && niche ? `${APP_ORIGIN}/${niche.slug}` : APP_ORIGIN;
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": niche ? "WebPage" : "WebSite",
+    name: niche?.metadataTitle ?? APP_NAME,
+    description: niche?.metadataDescription ?? APP_DESCRIPTION,
+    ...(url
+      ? {
+          url,
+          image: new URL(APP_SOCIAL_PREVIEW_IMAGE_SRC, APP_ORIGIN).toString(),
+        }
+      : {}),
+    author: {
+      "@type": "Organization",
+      name: APP_AUTHOR_NAME,
+    },
+    publisher: {
+      "@type": "Organization",
+      name: APP_AUTHOR_NAME,
+    },
+    datePublished: APP_PUBLISHED_DATE,
+  };
+
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{
+        __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
+      }}
+    />
+  );
+}
+
+function GeneralNicheSelector() {
+  return (
+    <section className="bg-stone-50 px-6 py-16 text-stone-950 sm:px-8 sm:py-24 lg:px-10">
+      <div className="mx-auto max-w-7xl">
+        <div className="max-w-3xl">
+          <p className="text-sm font-semibold uppercase tracking-normal text-emerald-700">
+            Find your quote workflow
+          </p>
+          <h2 className="mt-3 text-3xl font-bold leading-tight sm:text-4xl">
+            Choose the landing page closest to your business.
+          </h2>
+          <p className="mt-4 text-lg leading-8 text-stone-700">
+            Remote Quote works for service businesses that need clear scope, fast client approval,
+            and signed quotations. These focused pages show how it fits specific types of work.
+          </p>
+        </div>
+        <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {nicheLandingPages.map((niche) => {
+            const Icon = nicheIcons[niche.slug as keyof typeof nicheIcons] ?? Wrench;
+
+            return (
+              <Link
+                className="group flex min-h-64 flex-col justify-between rounded-md border border-stone-200 bg-white p-5 text-stone-950 shadow-sm transition-colors hover:border-emerald-300 hover:bg-emerald-50"
+                href={`/${niche.slug}`}
+                key={niche.slug}
+              >
+                <span>
+                  <span className="flex size-10 items-center justify-center rounded-md bg-emerald-100 text-emerald-800">
+                    <Icon className="size-5" />
+                  </span>
+                  <span className="mt-5 block text-lg font-semibold leading-7">{niche.label}</span>
+                  <span className="mt-3 block text-sm leading-6 text-stone-600">
+                    {niche.introTitle}
+                  </span>
+                </span>
+                <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-emerald-800">
+                  See niche message
+                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function MessageList({
+  items,
+  title,
+}: {
+  items: string[];
+  title: string;
+}) {
+  return (
+    <div className="rounded-md border border-stone-200 bg-white p-6 shadow-sm">
+      <h3 className="text-lg font-semibold text-stone-950">{title}</h3>
+      <ul className="mt-5 space-y-4">
+        {items.map((item) => (
+          <li className="flex gap-3 text-sm leading-6 text-stone-700" key={item}>
+            <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-700" />
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function NicheMessage({ niche }: { niche: LandingPageNiche }) {
+  return (
+    <section className="bg-stone-50 px-6 py-16 text-stone-950 sm:px-8 sm:py-24 lg:px-10">
+      <div className="mx-auto max-w-7xl">
+        <div className="grid gap-10 lg:grid-cols-[1fr_0.82fr] lg:items-start">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-normal text-emerald-700">
+              {niche.eyebrow}
+            </p>
+            <h2 className="mt-3 max-w-4xl text-3xl font-bold leading-tight sm:text-5xl">
+              {niche.introTitle}
+            </h2>
+            <p className="mt-6 max-w-3xl text-lg leading-8 text-stone-700">{niche.intro}</p>
+          </div>
+          <div className="rounded-md bg-stone-950 p-6 text-white shadow-sm">
+            <p className="text-sm font-semibold text-emerald-200">Example quote scope</p>
+            <ul className="mt-5 space-y-3">
+              {niche.exampleQuoteItems.map((item) => (
+                <li className="flex gap-3 text-sm leading-6 text-stone-100" key={item}>
+                  <span className="mt-2 size-1.5 shrink-0 rounded-full bg-emerald-300" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        <div className="mt-10 grid gap-4 lg:grid-cols-2">
+          <MessageList items={niche.painPoints} title="Why generic quote tools feel slow" />
+          <MessageList items={niche.workflowBenefits} title="How Remote Quote fits your workflow" />
+        </div>
+        <div className="mt-10 flex flex-wrap items-center gap-4">
+          <LinkButton
+            className={cn(
+              "bg-emerald-300 text-stone-950 ring-1 ring-emerald-100/70 hover:bg-emerald-200",
+              "h-auto min-h-12 px-5 py-3 text-left text-base",
+            )}
+            href="/dashboard"
+            size="lg"
+          >
+            <b>{niche.ctaText}</b>
+            <ArrowRight className="size-5 shrink-0" />
+          </LinkButton>
+          <p className="text-sm leading-6 text-stone-600">
+            Same quote builder, tailored message for {niche.label.toLowerCase()}.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function LandingPage({
+  niche,
+  showHero = true,
+}: {
+  niche?: LandingPageNiche;
+  showHero?: boolean;
+}) {
+  return (
+    <main className="min-h-screen bg-stone-50">
+      <LandingJsonLd niche={niche} />
+      {showHero ? <LandingHero /> : null}
+      {showHero ? <PainPointSection /> : null}
+      {niche ? <NicheMessage niche={niche} /> : <GeneralNicheSelector />}
+    </main>
+  );
+}
