@@ -179,6 +179,61 @@ function PainPointSection() {
   );
 }
 
+function ProductStepsSection() {
+  return (
+    <section className="bg-white px-6 py-16 text-stone-950 sm:px-8 sm:py-24 lg:px-10">
+      <div className="mx-auto max-w-7xl">
+        <div className="mx-auto max-w-4xl text-center">
+          <p className="text-sm font-semibold uppercase tracking-normal text-emerald-700">
+            See the product
+          </p>
+          <h2 className="mt-3 text-3xl font-bold leading-tight text-stone-900 sm:text-5xl">
+            From quote request to signed approval in one simple flow.
+          </h2>
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-stone-600 sm:text-lg">
+            Remote Quote helps you prepare the quotation, send it to your client, and collect a
+            signature while the deal is still fresh.
+          </p>
+        </div>
+        <div className="mx-auto mt-12 max-w-5xl overflow-hidden rounded-md border border-stone-200 bg-stone-950 shadow-sm lg:mt-16">
+          <video
+            aria-label="Remote Quote product walkthrough video"
+            autoPlay
+            className="aspect-video w-full object-cover"
+            loop
+            muted
+            playsInline
+            preload="metadata"
+          >
+            <source src="/product-demo.webm" type="video/webm" />
+            Your browser does not support the product walkthrough video.
+          </video>
+        </div>
+        <div className="mx-auto mt-6 grid max-w-5xl gap-3 md:grid-cols-3">
+          {landingSteps.map(({ label, icon: Icon }, index) => (
+            <div
+              className="flex min-h-24 items-center gap-4 rounded-md border border-stone-200 bg-stone-50 p-5 shadow-sm"
+              key={label}
+            >
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-md bg-emerald-100 text-emerald-800">
+                <Icon aria-hidden="true" className="size-5" />
+              </span>
+              <span>
+                <span className="block text-xs font-semibold uppercase tracking-normal text-stone-500">
+                  Step {index + 1}
+                </span>
+                <span className="mt-1 block text-base font-semibold leading-6 text-stone-900">
+                  {label}
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function LandingJsonLd({ niche }: { niche?: LandingPageNiche }) {
   const url = APP_ORIGIN && niche ? `${APP_ORIGIN}/${niche.slug}` : APP_ORIGIN;
   const jsonLd = {
@@ -346,6 +401,7 @@ export function LandingPage({
       <LandingJsonLd niche={niche} />
       {showHero ? <LandingHero /> : null}
       {showHero ? <PainPointSection /> : null}
+      {showHero ? <ProductStepsSection /> : null}
       {niche ? <NicheMessage niche={niche} /> : <GeneralNicheSelector />}
     </main>
   );
