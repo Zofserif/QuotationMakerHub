@@ -228,7 +228,7 @@ function ProductStepsSection() {
             signature while the deal is still fresh.
           </p>
         </div>
-        <div className="mx-auto mt-12 max-w-5xl overflow-hidden rounded-md border border-stone-200 bg-stone-950 shadow-sm lg:mt-16">
+        <div className="mx-auto mt-12 max-w-5xl overflow-hidden rounded-md border border-emerald-200 bg-stone-950 shadow-sm ring-2 ring-emerald-100/80 lg:mt-16">
           <video
             aria-label="Remote Quote product walkthrough video"
             autoPlay
