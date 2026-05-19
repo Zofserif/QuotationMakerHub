@@ -62,6 +62,39 @@ const painPointCards = [
   },
 ];
 
+const homepageFaqItems = [
+  {
+    question: "What is Remote Quote?",
+    answer:
+      "Remote Quote helps service businesses create structured quotations, share them with clients, and collect client signatures while the deal is still fresh.",
+  },
+  {
+    question: "Who is Remote Quote for?",
+    answer:
+      "It is built for businesses that send custom quotes, including repair teams, installers, service contractors, IT providers, automotive shops, and other service-based teams.",
+  },
+  {
+    question: "Can clients sign quotes online?",
+    answer:
+      "Yes. Remote Quote supports client signing links and browser-based signatures so clients can review and approve a quotation without printing it first.",
+  },
+  {
+    question: "Can I use it for different types of services?",
+    answer:
+      "Yes. You can create itemized quotes for different scopes of work, service packages, materials, labor, notes, terms, and client requirements.",
+  },
+  {
+    question: "Do I need to install anything?",
+    answer:
+      "No. Remote Quote runs in the browser, so you can create and manage quotations from your dashboard without installing desktop software.",
+  },
+  {
+    question: "Can I create a quote for free?",
+    answer:
+      "Yes. You can start by creating a quotation for free, then use partner packages when your workspace needs higher limits or team features.",
+  },
+];
+
 function SignatureCue({ className }: { className: string }) {
   return (
     <svg
@@ -236,8 +269,7 @@ function ProductStepsSection() {
 
 function LandingJsonLd({ niche }: { niche?: LandingPageNiche }) {
   const url = APP_ORIGIN && niche ? `${APP_ORIGIN}/${niche.slug}` : APP_ORIGIN;
-  const jsonLd = {
-    "@context": "https://schema.org",
+  const pageJsonLd = {
     "@type": niche ? "WebPage" : "WebSite",
     name: niche?.metadataTitle ?? APP_NAME,
     description: niche?.metadataDescription ?? APP_DESCRIPTION,
@@ -257,6 +289,28 @@ function LandingJsonLd({ niche }: { niche?: LandingPageNiche }) {
     },
     datePublished: APP_PUBLISHED_DATE,
   };
+  const jsonLd = niche
+    ? {
+        "@context": "https://schema.org",
+        ...pageJsonLd,
+      }
+    : {
+        "@context": "https://schema.org",
+        "@graph": [
+          pageJsonLd,
+          {
+            "@type": "FAQPage",
+            mainEntity: homepageFaqItems.map((item) => ({
+              "@type": "Question",
+              name: item.question,
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: item.answer,
+              },
+            })),
+          },
+        ],
+      };
 
   return (
     <script
@@ -265,6 +319,69 @@ function LandingJsonLd({ niche }: { niche?: LandingPageNiche }) {
         __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
       }}
     />
+  );
+}
+
+function HomepageFaqSection() {
+  return (
+    <section className="bg-white px-6 py-16 text-stone-950 sm:px-8 sm:py-24 lg:px-10">
+      <div className="mx-auto max-w-7xl">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="text-sm font-semibold uppercase tracking-normal text-emerald-700">
+            Questions before you quote
+          </p>
+          <h2 className="mt-3 text-3xl font-bold leading-tight text-stone-900 sm:text-5xl">
+            Frequently asked questions
+          </h2>
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-stone-600 sm:text-lg">
+            Practical answers for teams that need to create, share, and collect approval on
+            quotations faster.
+          </p>
+        </div>
+        <div className="mx-auto mt-12 grid max-w-5xl gap-4 md:grid-cols-2 lg:mt-16">
+          {homepageFaqItems.map((item) => (
+            <article
+              className="rounded-md border border-stone-200 bg-stone-50 p-6 shadow-sm"
+              key={item.question}
+            >
+              <h3 className="text-lg font-semibold leading-7 text-stone-950">
+                {item.question}
+              </h3>
+              <p className="mt-3 text-sm leading-6 text-stone-600">{item.answer}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FinalCtaSection() {
+  return (
+    <section className="bg-stone-950 px-6 py-16 text-white sm:px-8 sm:py-24 lg:px-10">
+      <div className="mx-auto flex max-w-7xl flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
+        <div className="max-w-3xl">
+          <p className="text-sm font-semibold uppercase tracking-normal text-emerald-300">
+            Ready for the next client
+          </p>
+          <h2 className="mt-3 text-3xl font-bold leading-tight sm:text-5xl">
+            Create the quote while the client is ready to say yes.
+          </h2>
+          <p className="mt-5 max-w-2xl text-base leading-7 text-stone-300 sm:text-lg">
+            Build a clear quotation, share it for review, and collect the signature before the
+            conversation goes cold.
+          </p>
+        </div>
+        <LinkButton
+          className="w-fit bg-emerald-300 text-stone-950 ring-1 ring-emerald-100/70 hover:bg-emerald-200"
+          href="/dashboard"
+          size="lg"
+        >
+          <b>Create a quote now</b>
+          <ArrowRight className="size-5" />
+        </LinkButton>
+      </div>
+    </section>
   );
 }
 
@@ -389,6 +506,83 @@ function NicheMessage({ niche }: { niche: LandingPageNiche }) {
   );
 }
 
+function LandingFooter() {
+  const footerColumns = [
+    {
+      title: "Product",
+      links: [
+        { label: "Create a Quote", href: "/dashboard" },
+        { label: "Quote Dashboard", href: "/dashboard" },
+      ],
+    },
+    {
+      title: "Industries",
+      links: nicheLandingPages.map((niche) => ({
+        label: niche.label,
+        href: `/${niche.slug}`,
+      })),
+    },
+    {
+      title: "Company",
+      links: [{ label: "Contact", href: "/contact" }],
+    },
+    {
+      title: "Legal",
+      links: [
+        { label: "Privacy Policy", href: "/privacy" },
+        { label: "Terms of Service", href: "/terms" },
+      ],
+    },
+  ];
+
+  return (
+    <footer className="bg-stone-950 px-6 py-12 text-stone-300 sm:px-8 lg:px-10">
+      <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1.2fr_2fr]">
+        <div>
+          <Link className="inline-flex items-center gap-2 text-white" href="/">
+            <BrandLogo variant="badge" />
+            <span className="text-lg font-semibold">{APP_NAME}</span>
+          </Link>
+          <p className="mt-4 max-w-sm text-sm leading-6 text-stone-400">
+            Create clear quotations, share client-ready approval links, and collect signatures
+            while the deal is still fresh.
+          </p>
+        </div>
+        <nav
+          aria-label="Footer"
+          className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4"
+        >
+          {footerColumns.map((column) => (
+            <div key={column.title}>
+              <h2 className="text-sm font-semibold uppercase tracking-normal text-white">
+                {column.title}
+              </h2>
+              <ul className="mt-4 space-y-3">
+                {column.links.map((link) => (
+                  <li key={`${column.title}-${link.label}`}>
+                    <Link
+                      className="text-sm leading-6 text-stone-400 transition-colors hover:text-emerald-200"
+                      href={link.href}
+                    >
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </nav>
+      </div>
+      <div className="mx-auto mt-10 flex max-w-7xl flex-col gap-3 border-t border-white/10 pt-6 text-sm text-stone-500 sm:flex-row sm:items-center sm:justify-between">
+        <p>
+          &copy; {new Date().getFullYear()} {APP_NAME}. All rights reserved.
+        </p>
+        <p>Built for service businesses that quote, approve, and sign faster.</p>
+      </div>
+    </footer>
+  );
+}
+
 export function LandingPage({
   niche,
   showHero = true,
@@ -403,6 +597,9 @@ export function LandingPage({
       {showHero ? <PainPointSection /> : null}
       {showHero ? <ProductStepsSection /> : null}
       {niche ? <NicheMessage niche={niche} /> : <GeneralNicheSelector />}
+      {showHero ? <HomepageFaqSection /> : null}
+      {showHero ? <FinalCtaSection /> : null}
+      <LandingFooter />
     </main>
   );
 }
