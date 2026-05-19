@@ -391,14 +391,13 @@ function GeneralNicheSelector() {
       <div className="mx-auto max-w-7xl">
         <div className="max-w-3xl">
           <p className="text-sm font-semibold uppercase tracking-normal text-emerald-700">
-            Find your quote workflow
+            Built for service businesses that quote on the go
           </p>
           <h2 className="mt-3 text-3xl font-bold leading-tight sm:text-4xl">
-            Choose the landing page closest to your business.
+            See how Remote Quote fits your business
           </h2>
           <p className="mt-4 text-lg leading-8 text-stone-700">
-            Remote Quote works for service businesses that need clear scope, fast client approval,
-            and signed quotations. These focused pages show how it fits specific types of work.
+            From urgent repairs to technical projects, Remote Quote helps you send quotes before your client moves on.
           </p>
         </div>
         <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
