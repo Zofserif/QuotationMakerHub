@@ -91,7 +91,7 @@ const homepageFaqItems = [
   {
     question: "Can I create a quote for free?",
     answer:
-      "Yes. You can start by creating a quotation for free, then use partner packages when your workspace needs higher limits or team features.",
+      "Yes. You can start by creating a quotation for free, then use partner plans when your workspace needs higher limits or team features.",
   },
 ];
 

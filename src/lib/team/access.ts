@@ -6,8 +6,8 @@ export function yearlyPartnerRequired(entitlement: WorkspaceEntitlement) {
   return errorResponse(
     "YEARLY_PARTNER_REQUIRED",
     entitlement.paidPlanExpiredAt
-      ? "This team workspace's yearly partner renewal has expired. Renew the yearly plan to restore team access."
-      : "Team access is available only for active Yearly Partner workspaces.",
+      ? "This team workspace's Team Partner renewal has expired. Renew the Team Partner plan to restore team access."
+      : "Team access is available only for active Team Partner workspaces.",
     403,
     { entitlement },
   );

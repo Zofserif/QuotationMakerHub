@@ -15,7 +15,7 @@ export async function POST(
   if (!entitlement.canSendQuote) {
     return errorResponse(
       "LOCKED_QUOTE_LIMIT_REACHED",
-      "Your free trial has reached the 5 locked quotation limit. Upgrade to a partner package to send more quotations.",
+      "Your free trial has reached the 5 locked quotation limit. Book an upgrade call to send more quotations.",
       403,
       { entitlement },
     );

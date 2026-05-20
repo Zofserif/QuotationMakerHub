@@ -145,7 +145,7 @@ function templateMutationError(code: string) {
 function yearlyPlanRequired(entitlement: unknown) {
   return errorResponse(
     "YEARLY_PLAN_REQUIRED",
-    "Unlimited quotation templates are available on the Yearly Partner package.",
+    "Unlimited quotation templates are available on the Team Partner plan.",
     403,
     { entitlement },
   );

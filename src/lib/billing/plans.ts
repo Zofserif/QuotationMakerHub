@@ -9,6 +9,7 @@ export type WorkspacePlan = (typeof workspacePlans)[number];
 export type PartnerPackage = {
   plan: Exclude<WorkspacePlan, "free_trial">;
   name: string;
+  price?: string;
   description: string;
   features: string[];
 };
@@ -16,6 +17,7 @@ export type PartnerPackage = {
 export type BillingPlanDetails = {
   plan: WorkspacePlan;
   name: string;
+  price?: string;
   description: string;
   features: string[];
 };
@@ -37,37 +39,47 @@ export const billingPlanDetails: BillingPlanDetails[] = [
   {
     plan: "free_trial",
     name: "Free Trial",
-    description: "For evaluating Remote Quote with starter workspace limits.",
+    description:
+      "For individuals or teams evaluating Remote Quote before upgrading.",
     features: [
-      `${FREE_TRIAL_DURATION_MONTHS} month trial access`,
-      `${FREE_TRIAL_LOCKED_QUOTE_LIMIT} locked or sent quotations`,
-      `${FREE_TRIAL_WET_SIGNATURE_PRINT_LIMIT} wet-signature prints`,
-      "One quotation template",
+      "30-day trial access",
+      `Up to ${FREE_TRIAL_LOCKED_QUOTE_LIMIT} locked quotes`,
+      `Up to ${FREE_TRIAL_WET_SIGNATURE_PRINT_LIMIT} wet-signature prints`,
+      "1 quotation template",
+      "1 workspace user",
     ],
   },
   {
     plan: "partner_monthly",
-    name: "Monthly Partner",
-    description: "For individual workspaces that need unlimited quotation workflow.",
+    name: "Solo Partner",
+    price: "₱1,499/month",
+    description:
+      "For individual users who need an unlimited quotation workflow.",
     features: [
-      "Unlimited quotation creation",
+      "Unlimited quote creation",
       "Unlimited sending and locking",
       "Unlimited wet-signature printing",
-      "One quotation template",
-      "Single-user workspace access",
+      "1 quotation template",
+      "1 workspace user",
+      "Email support",
+      "Free onboarding training",
     ],
   },
   {
     plan: "partner_yearly",
-    name: "Yearly Partner",
-    description: "For teams that want shared dashboard and template libraries.",
+    name: "Team Partner",
+    price: "₱29,990/year",
+    description:
+      "For sales teams that need shared templates, team visibility, and faster quote management.",
     features: [
-      "Everything in Monthly Partner",
+      "Everything in Solo Partner",
       "Team dashboard access",
-      "Unlimited team members",
+      "Up to 5 team members",
       "Unlimited quotation templates",
-      "Reusable templates for different quote formats",
-      "Best fit for long-term partner workspaces",
+      "Reusable quote formats",
+      "Team onboarding training",
+      "Sales follow-up workflow support",
+      "Priority feature request consideration",
     ],
   },
 ];
@@ -78,11 +90,11 @@ export const partnerPackages: PartnerPackage[] = billingPlanDetails.filter(
 
 export function planLabel(plan: WorkspacePlan) {
   if (plan === "partner_monthly") {
-    return "Monthly Partner";
+    return "Solo Partner";
   }
 
   if (plan === "partner_yearly") {
-    return "Yearly Partner";
+    return "Team Partner";
   }
 
   return "Free Trial";
@@ -106,30 +118,30 @@ export function buildUpgradeMailto(input: {
   }
 
   const targetPlanLabel = input.targetPlan
-    ? planLabel(input.targetPlan)
-    : "a partner package";
-  const subject = `Upgrade Remote Quote workspace ${input.workspaceRef}`;
+    ? planBookingLabel(input.targetPlan)
+    : "a partner plan";
+  const subject = `Book an upgrade call for Remote Quote workspace ${input.workspaceRef}`;
   const packageLines = partnerPackages
     .map(
       (partnerPackage) =>
-        `${partnerPackage.name}: ${partnerPackage.features.join(", ")}`,
+        `${planBookingLabel(partnerPackage.plan)}: ${partnerPackage.features.join(", ")}`,
     )
     .join("\n");
   const body = [
     "Hello,",
     "",
-    `I would like to upgrade this Remote Quote workspace to ${targetPlanLabel}.`,
+    `I would like to book an upgrade call for this Remote Quote workspace and discuss ${targetPlanLabel}.`,
     "",
     `Workspace: ${input.workspaceRef}`,
     `Current plan: ${planLabel(input.currentPlan)}`,
-    input.targetPlan ? `Requested plan: ${planLabel(input.targetPlan)}` : null,
+    input.targetPlan ? `Requested plan: ${targetPlanLabel}` : null,
     input.requesterEmail ? `Requester email: ${input.requesterEmail}` : null,
     input.requesterUserId ? `Requester user ID: ${input.requesterUserId}` : null,
     "",
-    "Available packages:",
+    "Available plans:",
     packageLines,
     "",
-    "Please send the payment method and package details.",
+    "Please share available times for the upgrade call.",
   ]
     .filter((line): line is string => line !== null)
     .join("\n");
@@ -137,6 +149,13 @@ export function buildUpgradeMailto(input: {
   return `mailto:${encodeURIComponent(UPGRADE_CONTACT_EMAIL)}?subject=${encodeURIComponent(
     subject,
   )}&body=${encodeURIComponent(body)}`;
+}
+
+function planBookingLabel(plan: WorkspacePlan) {
+  const details = billingPlanDetails.find((candidate) => candidate.plan === plan);
+  const label = planLabel(plan);
+
+  return details?.price ? `${label} - ${details.price}` : label;
 }
 
 function normalizeExternalUrl(value: string) {

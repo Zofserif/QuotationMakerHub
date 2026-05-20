@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 export const metadata: Metadata = {
   title: `Contact | ${APP_NAME}`,
   description:
-    "Contact Remote Quote for product questions, partner package inquiries, and quotation workflow support.",
+    "Contact Remote Quote for product questions, partner plan inquiries, and quotation workflow support.",
   alternates: {
     canonical: "/contact",
   },
@@ -42,7 +42,7 @@ export default function ContactPage() {
             Talk to Remote Quote
           </h1>
           <p className="mt-5 max-w-2xl text-base leading-7 text-stone-600">
-            For product questions, partner package inquiries, or help choosing the right quotation
+            For product questions, partner plan inquiries, or help choosing the right quotation
             workflow, contact the Remote Quote team.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">

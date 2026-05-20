@@ -45,7 +45,7 @@ export default async function NewQuotePage() {
           message={
             entitlement.paidPlanExpiredAt
               ? "Renew your partner plan to create more quotations in this workspace."
-              : "Upgrade to a partner package to create more quotations in this workspace."
+              : "Book an upgrade call to create more quotations in this workspace."
           }
         />
       ) : (

@@ -16,8 +16,8 @@ export function UpgradeLink({
 
 export function UpgradePanel({
   entitlement,
-  title = "Upgrade to partner",
-  message = "Choose a partner package to remove free-trial limits.",
+  title = "Book an upgrade call",
+  message = "Choose a partner plan to remove free-trial limits.",
 }: {
   entitlement: WorkspaceEntitlement;
   title?: string;
@@ -50,6 +50,11 @@ export function UpgradePanel({
             <h3 className="font-semibold text-stone-950">
               {partnerPackage.name}
             </h3>
+            {partnerPackage.price ? (
+              <p className="mt-1 text-xl font-bold text-stone-950">
+                {partnerPackage.price}
+              </p>
+            ) : null}
             <p className="mt-1 text-sm leading-6 text-stone-600">
               {partnerPackage.description}
             </p>
@@ -69,8 +74,8 @@ export function UpgradePanel({
 
       {!UPGRADE_CONTACT_EMAIL ? (
         <p className="mt-3 text-sm font-medium text-amber-700">
-          Configure NEXT_PUBLIC_UPGRADE_CONTACT_EMAIL to enable the upgrade
-          email button.
+          Configure NEXT_PUBLIC_UPGRADE_CONTACT_EMAIL to enable the Book an
+          upgrade call button.
         </p>
       ) : null}
     </section>

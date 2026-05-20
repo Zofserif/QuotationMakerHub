@@ -65,25 +65,25 @@ export default async function TeamPage() {
         <Notice
           message={
             entitlement.paidPlanExpiredAt
-              ? "This team workspace's yearly partner renewal has expired."
-              : "This workspace needs an active Yearly Partner plan before team access is available."
+              ? "This team workspace's Team Partner renewal has expired."
+              : "This workspace needs an active Team Partner plan before team access is available."
           }
-          title="Yearly partner required"
+          title="Team Partner required"
         />
       ) : createdTeam ? (
         entitlement.isYearlyPartnerWorkspace ? (
           <CreatedTeamWorkspacePanel team={createdTeam} />
         ) : (
           <Notice
-            message="Renew your Yearly Partner plan before updating your team workspace."
-            title="Yearly partner required"
+            message="Renew your Team Partner plan before updating your team workspace."
+            title="Team Partner required"
           />
         )
       ) : (
         <Notice
           actionHref="/dashboard"
           actionLabel="Back to dashboard"
-          message="You can join a team dashboard from a link shared by the Yearly Partner workspace owner."
+          message="You can join a team dashboard from a link shared by the Team Partner workspace owner."
           title="No team workspace selected"
         />
       )}
@@ -111,7 +111,7 @@ function TeamWorkspacePanel({
               <h2 className="text-lg font-semibold text-stone-950">
                 {team.organizationName}
               </h2>
-              <Badge>Yearly team workspace</Badge>
+              <Badge>Team Partner workspace</Badge>
             </div>
             <p className="mt-1 text-sm leading-6 text-stone-600">
               Members share the same quote dashboard, templates, and line-item

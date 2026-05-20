@@ -55,14 +55,14 @@ Copy `.env.example` to `.env.local` and fill in Clerk, Supabase, PostHog, and em
 
 Paid plan renewal dates are read from Clerk private metadata at
 `remoteQuote.renewsAt` as an ISO date string, alongside the existing
-`remoteQuote.plan` value. When a Monthly or Yearly Partner renewal date is in
+`remoteQuote.plan` value. When a Solo Partner or Team Partner renewal date is in
 the past, the workspace is treated like an ended Free Trial until the metadata
 is renewed.
 
-Yearly Partner workspaces can enable team access through Clerk Organizations.
+Team Partner workspaces can enable team access through Clerk Organizations.
 The user who converts a personal yearly workspace becomes the local team owner;
 invited Clerk organization members share the same quote dashboard even if their
-personal workspace is Free Trial or Monthly Partner.
+personal workspace is Free Trial or Solo Partner.
 
 ## Hydration Warning Troubleshooting
 

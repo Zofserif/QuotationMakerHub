@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   if (existingTeam) {
     return errorResponse(
       "TEAM_WORKSPACE_LIMIT",
-      "Yearly Partner accounts can create only one team workspace. Update your existing team workspace name instead.",
+      "Team Partner accounts can create only one team workspace. Update your existing team workspace name instead.",
       409,
       { organizationId: existingTeam.organizationId },
     );

@@ -44,10 +44,10 @@ const termsSections = [
     ],
   },
   {
-    title: "Trials and partner packages",
+    title: "Trials and partner plans",
     body: [
-      "Free trial and partner package limits may apply to quotations, locked records, wet-signature printing, templates, teams, and related workspace features.",
-      "Package details can change as the product evolves. Any paid upgrade terms should be confirmed through the official Remote Quote payment or contact process.",
+      "Free trial and partner plan limits may apply to quotations, locked records, wet-signature printing, templates, teams, and related workspace features.",
+      "Plan details can change as the product evolves. Any paid upgrade terms should be confirmed through the official Remote Quote payment or contact process.",
     ],
   },
   {

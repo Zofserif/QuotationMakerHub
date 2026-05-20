@@ -431,7 +431,7 @@ function BillingPlanModal({
               id={descriptionId}
             >
               {isUpgradeMode
-                ? "Compare plans and contact Gmail for partner upgrade inquiries."
+                ? "Compare plans and book an upgrade call for your workspace."
                 : "Review each plan and see which one your workspace is currently using."}
             </p>
           </div>
@@ -460,8 +460,8 @@ function BillingPlanModal({
 
         {isUpgradeMode && !UPGRADE_CONTACT_EMAIL ? (
           <p className="border-t border-stone-200 px-5 py-4 text-sm font-medium text-amber-700">
-            Configure NEXT_PUBLIC_UPGRADE_CONTACT_EMAIL to enable the upgrade
-            email buttons.
+            Configure NEXT_PUBLIC_UPGRADE_CONTACT_EMAIL to enable the Book an
+            upgrade call buttons.
           </p>
         ) : null}
       </section>
@@ -501,7 +501,14 @@ function PlanCard({
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <h3 className="font-semibold text-stone-950">{plan.name}</h3>
+        <div>
+          <h3 className="font-semibold text-stone-950">{plan.name}</h3>
+          {plan.price ? (
+            <p className="mt-1 text-xl font-bold text-stone-950">
+              {plan.price}
+            </p>
+          ) : null}
+        </div>
         {isCurrent ? <Badge>Current plan</Badge> : null}
       </div>
       <p className="mt-2 text-sm leading-6 text-stone-600">
@@ -535,12 +542,12 @@ function PlanCard({
           ) : inquiryHref ? (
             <LinkButton className="w-full" href={inquiryHref} size="sm">
               <Mail className="size-4" />
-              Contact Gmail for inquiry
+              Book an upgrade call
             </LinkButton>
           ) : shouldShowInquiryAction(currentPlan, plan.plan) ? (
             <Button className="w-full" disabled size="sm" type="button">
               <Mail className="size-4" />
-              Contact Gmail for inquiry
+              Book an upgrade call
             </Button>
           ) : null}
         </div>
@@ -558,8 +565,8 @@ function PlanRenewalMessage({
     return (
       <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
         {entitlement.expiredPaidPlanLabel} renewal expired on{" "}
-        {formatPlanDate(entitlement.paidPlanExpiredAt)}. Upgrade or renew to
-        restore partner access.
+        {formatPlanDate(entitlement.paidPlanExpiredAt)}. Book an upgrade call or
+        renew to restore partner access.
       </p>
     );
   }
@@ -572,18 +579,18 @@ function PlanRenewalMessage({
     <p className="mt-4 rounded-md border border-stone-200 bg-white p-3 text-sm font-medium text-stone-700">
       {entitlement.renewsAt
         ? `Renews on ${formatPlanDate(entitlement.renewsAt)}`
-        : "Renewal date not set. Contact Gmail to confirm renewal."}
+        : "Renewal date not set. Book an upgrade call to confirm renewal."}
     </p>
   );
 }
 
 function upgradeButtonLabel(plan: WorkspacePlan) {
   if (plan === "free_trial") {
-    return "Upgrade to Partner Plan";
+    return "Book an upgrade call";
   }
 
   if (plan === "partner_monthly") {
-    return "Upgrade to Yearly Plan";
+    return "Book an upgrade call";
   }
 
   return null;

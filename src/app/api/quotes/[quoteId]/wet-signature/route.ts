@@ -18,7 +18,7 @@ export async function POST(
   if (!entitlement.canPrepareWetSignaturePrint) {
     return errorResponse(
       "WET_SIGNATURE_PRINT_LIMIT_REACHED",
-      "Your free trial has reached the 10 wet-signature print limit. Upgrade to a partner package to keep printing.",
+      "Your free trial has reached the 10 wet-signature print limit. Book an upgrade call to keep printing.",
       403,
       { entitlement },
     );
