@@ -84,6 +84,10 @@ export const acceptQuoteSchema = z.object({
   confirmationChecked: z.literal(true),
 });
 
+export const rejectQuoteSchema = z.object({
+  comment: z.string().trim().min(1).max(4000),
+});
+
 export function parseJsonBody<T extends z.ZodType>(schema: T, data: unknown) {
   const parsed = schema.safeParse(data);
 

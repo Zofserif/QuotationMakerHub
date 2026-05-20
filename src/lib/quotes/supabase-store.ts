@@ -39,7 +39,10 @@ import {
   createVersionSnapshot,
   hashSnapshot,
 } from "@/lib/quotes/create-version-snapshot";
-import { getAggregateQuoteStatus } from "@/lib/quotes/quote-state";
+import {
+  canRecipientMutate,
+  getAggregateQuoteStatus,
+} from "@/lib/quotes/quote-state";
 import type {
   AuditEvent,
   ClientInput,
@@ -135,6 +138,19 @@ export type AcceptQuoteResult =
       code: "TOKEN_INVALID" | "RECIPIENT_LOCKED" | "QUOTE_NOT_FOUND" | "SIGNATURE_REQUIRED";
     };
 
+export type RejectQuoteResult =
+  | {
+      ok: true;
+      quote: Quote;
+      recipient: QuoteRecipient;
+      rejectedAt: string;
+      rejectionComment: string;
+    }
+  | {
+      ok: false;
+      code: "TOKEN_INVALID" | "RECIPIENT_LOCKED" | "QUOTE_NOT_FOUND";
+    };
+
 export type PdfExportResult = {
   exportRecord: {
     pdfExportId: string;
@@ -226,6 +242,7 @@ type QuoteRecipientRow = {
   signed_at: string | null;
   accepted_at: string | null;
   rejected_at: string | null;
+  rejection_comment: string | null;
   locked_at: string | null;
 };
 
@@ -1389,6 +1406,7 @@ export async function sendSupabaseQuote(
           signed_at: null,
           accepted_at: null,
           rejected_at: null,
+          rejection_comment: null,
           locked_at: null,
         })
         .eq("id", recipient.id)
@@ -1658,7 +1676,7 @@ export async function placeSupabaseSignature(input: {
 
   const { quoteRow, recipientRow } = match;
 
-  if (recipientRow.locked_at || recipientRow.status === "accepted") {
+  if (recipientRow.locked_at || !canRecipientMutate(recipientRow.status)) {
     return { ok: false, code: "RECIPIENT_LOCKED" };
   }
 
@@ -1959,7 +1977,7 @@ export async function acceptSupabaseQuote(input: {
 
   const { quoteRow, recipientRow } = match;
 
-  if (recipientRow.locked_at || recipientRow.status === "accepted") {
+  if (recipientRow.locked_at || !canRecipientMutate(recipientRow.status)) {
     return { ok: false, code: "RECIPIENT_LOCKED" };
   }
 
@@ -2039,6 +2057,90 @@ export async function acceptSupabaseQuote(input: {
     recipient,
     acceptedAt,
     locked: Boolean(recipient.lockedAt),
+  };
+}
+
+export async function rejectSupabaseQuote(input: {
+  token: string;
+  comment: string;
+  ipAddress?: string;
+  userAgent?: string;
+}): Promise<RejectQuoteResult> {
+  const db = createSupabaseAdminClient();
+  const match = await findRecipientByToken(db, input.token);
+
+  if (!match) {
+    return { ok: false, code: "TOKEN_INVALID" };
+  }
+
+  const { quoteRow, recipientRow } = match;
+
+  if (recipientRow.locked_at || !canRecipientMutate(recipientRow.status)) {
+    return { ok: false, code: "RECIPIENT_LOCKED" };
+  }
+
+  const version = await getLatestVersion(db, quoteRow.id);
+
+  if (!version) {
+    return { ok: false, code: "QUOTE_NOT_FOUND" };
+  }
+
+  const rejectedAt = new Date().toISOString();
+  const { error: recipientError } = await db
+    .from("quote_recipients")
+    .update({
+      status: "rejected",
+      rejected_at: rejectedAt,
+      rejection_comment: input.comment,
+      locked_at: null,
+    })
+    .eq("id", recipientRow.id);
+
+  throwIfError(recipientError, "Reject quote");
+
+  await updateQuoteAggregateStatus(
+    db,
+    quoteRow.id,
+    quoteRow.organization_id,
+  );
+
+  await appendAuditEvent(db, {
+    organizationId: quoteRow.organization_id,
+    quoteId: quoteRow.id,
+    quoteVersionId: version.id,
+    actorType: "client",
+    actorRef: recipientRow.id,
+    eventType: "quote.rejected",
+    ipAddress: input.ipAddress,
+    userAgent: input.userAgent,
+    metadata: {
+      comment: input.comment,
+      versionNumber: version.versionNumber,
+      clientName: recipientRow.name,
+      clientEmail: recipientRow.email,
+    },
+  });
+
+  const quote = await loadQuote(db, quoteRow.id, quoteRow.organization_id);
+
+  if (!quote) {
+    return { ok: false, code: "QUOTE_NOT_FOUND" };
+  }
+
+  const recipient = quote.recipients.find(
+    (candidate) => candidate.id === recipientRow.id,
+  );
+
+  if (!recipient) {
+    return { ok: false, code: "QUOTE_NOT_FOUND" };
+  }
+
+  return {
+    ok: true,
+    quote,
+    recipient,
+    rejectedAt,
+    rejectionComment: input.comment,
   };
 }
 
@@ -2981,6 +3083,8 @@ async function buildClientView(
       email: recipient.email,
       status: recipient.status,
       acceptedAt: recipient.acceptedAt,
+      rejectedAt: recipient.rejectedAt,
+      rejectionComment: recipient.rejectionComment,
       lockedAt: recipient.lockedAt,
     },
     quote: signedVersion.snapshot,
@@ -3219,6 +3323,7 @@ function mapRecipientRow(row: QuoteRecipientRow): QuoteRecipient {
     signedAt: row.signed_at ?? undefined,
     acceptedAt: row.accepted_at ?? undefined,
     rejectedAt: row.rejected_at ?? undefined,
+    rejectionComment: row.rejection_comment ?? undefined,
     lockedAt: row.locked_at ?? undefined,
   };
 }

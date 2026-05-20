@@ -2,19 +2,16 @@ import Link from "next/link";
 import {
   ArrowRight,
   BadgeDollarSign,
-  Car,
-  Camera,
   CheckCircle2,
   ClockAlert,
   Form,
-  Laptop,
   MessageSquareWarning,
   Send,
-  Wrench,
-  Zap,
 } from "lucide-react";
 
 import { BrandLogo } from "@/components/brand-logo";
+import { LandingScrollbarHider } from "@/components/landing/landing-scrollbar-hider";
+import { UseCaseCarousel } from "@/components/landing/use-case-carousel";
 import { LinkButton } from "@/components/ui/button";
 import {
   APP_AUTHOR_NAME,
@@ -33,13 +30,6 @@ const landingSteps = [
   { label: "Send to Client", icon: Send },
   { label: "Signature in minutes", icon: CheckCircle2 },
 ];
-
-const nicheIcons = {
-  "cctv-security-quotes": Camera,
-  "it-solutions-repair-quotes": Laptop,
-  "hvac-electrical-repair-quotes": Zap,
-  "automotive-detailing-repair-quotes": Car,
-};
 
 const painPointCards = [
   {
@@ -400,33 +390,7 @@ function GeneralNicheSelector() {
             From urgent repairs to technical projects, Remote Quote helps you send quotes before your client moves on.
           </p>
         </div>
-        <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {nicheLandingPages.map((niche) => {
-            const Icon = nicheIcons[niche.slug as keyof typeof nicheIcons] ?? Wrench;
-
-            return (
-              <Link
-                className="group flex min-h-64 flex-col justify-between rounded-md border border-stone-200 bg-white p-5 text-stone-950 shadow-sm transition-colors hover:border-emerald-300 hover:bg-emerald-50"
-                href={`/${niche.slug}`}
-                key={niche.slug}
-              >
-                <span>
-                  <span className="flex size-10 items-center justify-center rounded-md bg-emerald-100 text-emerald-800">
-                    <Icon className="size-5" />
-                  </span>
-                  <span className="mt-5 block text-lg font-semibold leading-7">{niche.label}</span>
-                  <span className="mt-3 block text-sm leading-6 text-stone-600">
-                    {niche.introTitle}
-                  </span>
-                </span>
-                <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-emerald-800">
-                  See niche message
-                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
-                </span>
-              </Link>
-            );
-          })}
-        </div>
+        <UseCaseCarousel niches={nicheLandingPages} />
       </div>
     </section>
   );
@@ -591,6 +555,7 @@ export function LandingPage({
 }) {
   return (
     <main className="min-h-screen bg-stone-50">
+      <LandingScrollbarHider />
       <LandingJsonLd niche={niche} />
       {showHero ? <LandingHero /> : null}
       {showHero ? <PainPointSection /> : null}

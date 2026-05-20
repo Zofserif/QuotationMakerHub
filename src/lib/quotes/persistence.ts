@@ -22,6 +22,7 @@ import {
   listDemoQuotes,
   deleteDemoLineItemData,
   placeDemoSignature,
+  rejectDemoQuote,
   setDefaultDemoQuoteTemplate,
   ensureDemoQuoteShareLinks,
   sendDemoQuote,
@@ -70,6 +71,7 @@ import {
   markSupabaseQuoteForWetSignature,
   placeSupabaseSignature,
   recordSupabaseWetSignaturePrint,
+  rejectSupabaseQuote,
   setSupabaseDefaultQuoteTemplate,
   ensureSupabaseQuoteShareLinks,
   sendSupabaseQuote,
@@ -448,6 +450,19 @@ export async function acceptQuote(input: {
   }
 
   return acceptSupabaseQuote(input);
+}
+
+export async function rejectQuote(input: {
+  token: string;
+  comment: string;
+  ipAddress?: string;
+  userAgent?: string;
+}) {
+  if (shouldUseDemoPersistence()) {
+    return rejectDemoQuote(input);
+  }
+
+  return rejectSupabaseQuote(input);
 }
 
 export async function listQuoteVersions(

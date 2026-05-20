@@ -6,7 +6,6 @@ export const quoteStatuses = [
   "sent",
   "for_wet_signature",
   "viewed",
-  "partially_signed",
   "accepted",
   "rejected",
   "expired",
@@ -89,6 +88,7 @@ export type QuoteRecipient = {
   signedAt?: string;
   acceptedAt?: string;
   rejectedAt?: string;
+  rejectionComment?: string;
   lockedAt?: string;
 };
 
@@ -306,7 +306,14 @@ export type ClientQuoteView = {
   versionNumber: number;
   recipient: Pick<
     QuoteRecipient,
-    "id" | "name" | "email" | "status" | "acceptedAt" | "lockedAt"
+    | "id"
+    | "name"
+    | "email"
+    | "status"
+    | "acceptedAt"
+    | "rejectedAt"
+    | "rejectionComment"
+    | "lockedAt"
   >;
   quote: QuoteVersionSnapshot;
   requiredSignatureFields: Array<

@@ -32,10 +32,13 @@ export function QuoteAcceptanceMetadata({
                 Status: {formatRecipientStatus(recipient.status)}
               </dd>
               <dd className="text-stone-600">
-                {recipient.acceptedAt
-                  ? `Accepted ${formatDate(recipient.acceptedAt)}`
-                  : "Not accepted"}
+                {formatRecipientDecision(recipient)}
               </dd>
+              {recipient.rejectionComment ? (
+                <dd className="mt-2 whitespace-pre-wrap rounded-md border border-red-100 bg-red-50 p-2 text-red-800">
+                  {recipient.rejectionComment}
+                </dd>
+              ) : null}
             </div>
           ))}
         </dl>
@@ -59,4 +62,16 @@ function formatRecipientStatus(status: string) {
   return status
     .replaceAll("_", " ")
     .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function formatRecipientDecision(recipient: Quote["recipients"][number]) {
+  if (recipient.rejectedAt) {
+    return `Rejected ${formatDate(recipient.rejectedAt)}`;
+  }
+
+  if (recipient.acceptedAt) {
+    return `Accepted ${formatDate(recipient.acceptedAt)}`;
+  }
+
+  return "Not accepted";
 }

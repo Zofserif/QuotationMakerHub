@@ -1,6 +1,10 @@
 export type LandingPageNiche = {
   slug: string;
   label: string;
+  image?: {
+    src: string;
+    alt?: string;
+  };
   eyebrow: string;
   metadataTitle: string;
   metadataDescription: string;

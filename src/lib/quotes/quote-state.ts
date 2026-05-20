@@ -20,24 +20,24 @@ export function getAggregateQuoteStatus(quote: Pick<Quote, "recipients">) {
     return "draft" satisfies QuoteStatus;
   }
 
-  if (statuses.every((status) => status === "accepted")) {
-    return "locked" satisfies QuoteStatus;
-  }
-
-  if (statuses.some((status) => status === "accepted" || status === "signed")) {
-    return "partially_signed" satisfies QuoteStatus;
-  }
-
-  if (statuses.some((status) => status === "viewed")) {
-    return "viewed" satisfies QuoteStatus;
-  }
-
   if (statuses.some((status) => status === "rejected")) {
     return "rejected" satisfies QuoteStatus;
   }
 
+  if (statuses.every((status) => status === "accepted")) {
+    return "locked" satisfies QuoteStatus;
+  }
+
   if (statuses.every((status) => status === "expired")) {
     return "expired" satisfies QuoteStatus;
+  }
+
+  if (
+    statuses.some((status) =>
+      ["accepted", "signed", "viewed"].includes(status),
+    )
+  ) {
+    return "viewed" satisfies QuoteStatus;
   }
 
   return "sent" satisfies QuoteStatus;

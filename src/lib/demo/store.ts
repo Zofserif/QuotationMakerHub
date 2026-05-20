@@ -35,7 +35,10 @@ import type {
   QuoteTemplate,
   QuoteTemplateRecord,
 } from "@/lib/quote-templates/types";
-import { getAggregateQuoteStatus } from "@/lib/quotes/quote-state";
+import {
+  canRecipientMutate,
+  getAggregateQuoteStatus,
+} from "@/lib/quotes/quote-state";
 import type {
   AuditEvent,
   ClientQuoteView,
@@ -911,6 +914,12 @@ export function sendDemoQuote(quoteId: string): SendQuoteResult {
         ...recipient,
         accessTokenExpiresAt: undefined,
         status: "pending",
+        viewedAt: undefined,
+        signedAt: undefined,
+        acceptedAt: undefined,
+        rejectedAt: undefined,
+        rejectionComment: undefined,
+        lockedAt: undefined,
       };
     }
 
@@ -923,6 +932,12 @@ export function sendDemoQuote(quoteId: string): SendQuoteResult {
       accessTokenExpiresAt: undefined,
       shareLinkIssued: true,
       status: "pending",
+      viewedAt: undefined,
+      signedAt: undefined,
+      acceptedAt: undefined,
+      rejectedAt: undefined,
+      rejectionComment: undefined,
+      lockedAt: undefined,
     };
   });
   quote.status = "sent";
@@ -1062,7 +1077,7 @@ export function placeDemoSignature(input: {
 
   const { quote, recipient } = match;
 
-  if (recipient.lockedAt || recipient.status === "accepted") {
+  if (recipient.lockedAt || !canRecipientMutate(recipient.status)) {
     return { ok: false as const, code: "RECIPIENT_LOCKED" };
   }
 
@@ -1142,7 +1157,7 @@ export function acceptDemoQuote(input: {
 
   const { quote, recipient } = match;
 
-  if (recipient.lockedAt || recipient.status === "accepted") {
+  if (recipient.lockedAt || !canRecipientMutate(recipient.status)) {
     return { ok: false as const, code: "RECIPIENT_LOCKED" };
   }
 
@@ -1195,6 +1210,55 @@ export function acceptDemoQuote(input: {
     recipient,
     acceptedAt,
     locked: Boolean(recipient.lockedAt),
+  };
+}
+
+export function rejectDemoQuote(input: {
+  token: string;
+  comment: string;
+  ipAddress?: string;
+  userAgent?: string;
+}) {
+  const match = findRecipientByToken(input.token);
+
+  if (!match) {
+    return { ok: false as const, code: "TOKEN_INVALID" };
+  }
+
+  const { quote, recipient } = match;
+
+  if (recipient.lockedAt || !canRecipientMutate(recipient.status)) {
+    return { ok: false as const, code: "RECIPIENT_LOCKED" };
+  }
+
+  const version = getLatestVersion(quote.id);
+
+  if (!version) {
+    return { ok: false as const, code: "QUOTE_NOT_FOUND" };
+  }
+
+  const rejectedAt = new Date().toISOString();
+  recipient.status = "rejected";
+  recipient.rejectedAt = rejectedAt;
+  recipient.rejectionComment = input.comment;
+  recipient.lockedAt = undefined;
+  quote.status = getAggregateQuoteStatus(quote);
+
+  appendAudit(quote.id, "quote.rejected", "client", recipient.id, {
+    comment: input.comment,
+    versionNumber: version.versionNumber,
+    clientName: recipient.name,
+    clientEmail: recipient.email,
+    ipAddress: input.ipAddress,
+    userAgent: input.userAgent,
+  });
+
+  return {
+    ok: true as const,
+    quote,
+    recipient,
+    rejectedAt,
+    rejectionComment: input.comment,
   };
 }
 
@@ -1394,6 +1458,8 @@ function buildClientView(
       email: recipient.email,
       status: recipient.status,
       acceptedAt: recipient.acceptedAt,
+      rejectedAt: recipient.rejectedAt,
+      rejectionComment: recipient.rejectionComment,
       lockedAt: recipient.lockedAt,
     },
     quote: version.snapshot,

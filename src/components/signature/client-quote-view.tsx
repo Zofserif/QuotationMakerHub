@@ -1,11 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import { CheckCircle2, FileSignature, Lock, RefreshCw } from "lucide-react";
+import { useId, useState } from "react";
+import {
+  CheckCircle2,
+  CircleX,
+  FileSignature,
+  Lock,
+  MessageSquareWarning,
+  RefreshCw,
+  X,
+} from "lucide-react";
 
 import { QuoteDocument } from "@/components/quote-editor/quote-document";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { SignatureModal } from "@/components/signature/signature-modal";
 import type { ClientQuoteView } from "@/lib/quotes/types";
 import { formatDate } from "@/lib/utils";
@@ -19,21 +28,40 @@ export function ClientQuoteViewComponent({
   initialView: ClientQuoteView;
   initialSignatureFieldId: string | null;
 }) {
+  const initialRecipientTerminal =
+    Boolean(initialView.recipient.lockedAt) ||
+    ["accepted", "rejected", "expired"].includes(
+      initialView.recipient.status,
+    );
   const [view, setView] = useState(initialView);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(
-    initialSignatureFieldId,
+    initialRecipientTerminal ? null : initialSignatureFieldId,
   );
   const [typedName, setTypedName] = useState(initialView.recipient.name);
+  const [rejectionComment, setRejectionComment] = useState(
+    initialView.recipient.rejectionComment ?? "",
+  );
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<
-    "accept" | "refresh" | null
+    "accept" | "reject" | "refresh" | null
   >(null);
   const isPending = pendingAction !== null;
   const allSigned = view.requiredSignatureFields.every(
     (field) => field.status === "signed",
   );
   const locked = Boolean(view.recipient.lockedAt);
+  const accepted = view.recipient.status === "accepted";
+  const rejected = view.recipient.status === "rejected";
+  const terminal =
+    locked ||
+    rejected ||
+    accepted ||
+    view.recipient.status === "expired";
+  const trimmedRejectionComment = rejectionComment.trim();
+  const rejectDialogTitleId = useId();
+  const rejectDialogDescriptionId = useId();
   const clientSignatures = view.requiredSignatureFields.map((field) => ({
     field,
     recipient: view.recipient,
@@ -42,7 +70,7 @@ export function ClientQuoteViewComponent({
   }));
 
   function openSignatureField(signatureFieldId: string) {
-    if (locked) {
+    if (terminal) {
       return;
     }
 
@@ -68,6 +96,7 @@ export function ClientQuoteViewComponent({
 
     if (response.ok) {
       setView(payload);
+      setRejectionComment(payload.recipient?.rejectionComment ?? "");
     }
   }
 
@@ -94,8 +123,32 @@ export function ClientQuoteViewComponent({
     await refreshView();
   }
 
+  async function rejectQuote() {
+    setMessage(null);
+    const response = await fetch(`/api/client-link/${token}/reject`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        comment: trimmedRejectionComment,
+      }),
+    });
+    const payload = await response.json();
+
+    if (!response.ok) {
+      setMessage(payload.error?.message ?? "Could not reject quotation.");
+      return;
+    }
+
+    setRejectionComment(payload.rejectionComment ?? trimmedRejectionComment);
+    setMessage(`Rejected at ${formatDate(payload.rejectedAt)}.`);
+    setRejectDialogOpen(false);
+    await refreshView();
+  }
+
   async function runPendingAction(
-    action: "accept" | "refresh",
+    action: "accept" | "reject" | "refresh",
     task: () => Promise<void>,
     fallbackMessage?: string,
   ) {
@@ -125,8 +178,18 @@ export function ClientQuoteViewComponent({
             </h1>
           </div>
           <div className="flex items-center gap-2 rounded-md bg-stone-950 px-3 py-2 text-sm font-medium text-white">
-            {locked ? <Lock className="size-4" /> : <FileSignature className="size-4" />}
-            {locked ? "Accepted and locked" : "Awaiting signature"}
+            {locked || accepted ? (
+              <Lock className="size-4" />
+            ) : rejected ? (
+              <CircleX className="size-4" />
+            ) : (
+              <FileSignature className="size-4" />
+            )}
+            {locked || accepted
+              ? "Accepted and locked"
+              : rejected
+                ? "Rejected"
+                : "Awaiting signature"}
           </div>
         </div>
 
@@ -143,7 +206,7 @@ export function ClientQuoteViewComponent({
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               {view.requiredSignatureFields.map((field) => (
                 <a
-                  aria-disabled={locked}
+                  aria-disabled={terminal}
                   aria-label={`${field.label}. ${
                     field.status === "signed"
                       ? "Signature placed"
@@ -182,7 +245,7 @@ export function ClientQuoteViewComponent({
                       Click to place signature
                     </span>
                   )}
-                  {!locked && field.status !== "signed" ? (
+                  {!terminal && field.status !== "signed" ? (
                     <span className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-stone-200 bg-white px-4 text-sm font-medium text-stone-900">
                       <FileSignature className="size-4" />
                       Use signature pad
@@ -200,33 +263,48 @@ export function ClientQuoteViewComponent({
                   Typed name
                 </span>
                 <Input
-                  disabled={locked}
+                  disabled={terminal}
                   value={typedName}
                   onChange={(event) => setTypedName(event.target.value)}
                 />
               </label>
-              <Button
-                type="button"
-                disabled={!allSigned || !confirmed || locked || isPending}
-                loading={pendingAction === "accept"}
-                loadingText="Accepting..."
-                onClick={() =>
-                  void runPendingAction(
-                    "accept",
-                    acceptQuote,
-                    "Could not accept quote.",
-                  )
-                }
-              >
-                <Lock className="size-4" />
-                Confirm acceptance
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  type="button"
+                  disabled={!allSigned || !confirmed || terminal || isPending}
+                  loading={pendingAction === "accept"}
+                  loadingText="Accepting..."
+                  onClick={() =>
+                    void runPendingAction(
+                      "accept",
+                      acceptQuote,
+                      "Could not accept quote.",
+                    )
+                  }
+                >
+                  <Lock className="size-4" />
+                  Confirm acceptance
+                </Button>
+                <Button
+                  aria-haspopup="dialog"
+                  type="button"
+                  variant="danger"
+                  disabled={terminal || isPending}
+                  onClick={() => {
+                    setMessage(null);
+                    setRejectDialogOpen(true);
+                  }}
+                >
+                  <CircleX className="size-4" />
+                  Reject quotation
+                </Button>
+              </div>
             </div>
             <label className="mt-4 flex items-start gap-3 text-sm text-stone-700">
               <input
                 checked={confirmed}
                 className="mt-1 size-4"
-                disabled={locked}
+                disabled={terminal}
                 type="checkbox"
                 onChange={(event) => setConfirmed(event.target.checked)}
               />
@@ -235,6 +313,18 @@ export function ClientQuoteViewComponent({
                 version.
               </span>
             </label>
+            {rejected ? (
+              <p className="mt-4 whitespace-pre-wrap rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                Rejected
+                {view.recipient.rejectedAt
+                  ? ` ${formatDate(view.recipient.rejectedAt)}`
+                  : ""}
+                {view.recipient.rejectionComment
+                  ? `: ${view.recipient.rejectionComment}`
+                  : ""}
+              </p>
+            ) : null}
+
             <div className="mt-4 flex items-center gap-3">
               <Button
                 type="button"
@@ -273,6 +363,99 @@ export function ClientQuoteViewComponent({
             )
           }
         />
+      ) : null}
+
+      {rejectDialogOpen ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-stone-950/60 p-4">
+          <section
+            aria-describedby={rejectDialogDescriptionId}
+            aria-labelledby={rejectDialogTitleId}
+            aria-modal="true"
+            className="w-full max-w-lg rounded-lg bg-white shadow-2xl"
+            role="dialog"
+          >
+            <header className="flex items-start justify-between gap-4 border-b border-stone-200 px-5 py-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <MessageSquareWarning className="size-4 text-stone-500" />
+                  <h2
+                    className="font-semibold text-stone-950"
+                    id={rejectDialogTitleId}
+                  >
+                    Reject quotation
+                  </h2>
+                </div>
+                <p
+                  className="mt-1 text-sm leading-6 text-stone-500"
+                  id={rejectDialogDescriptionId}
+                >
+                  Send the changes needed before this quotation can be accepted.
+                </p>
+              </div>
+              <Button
+                aria-label="Close rejection dialog"
+                disabled={pendingAction === "reject"}
+                size="icon"
+                type="button"
+                variant="ghost"
+                onClick={() => setRejectDialogOpen(false)}
+              >
+                <X className="size-5" />
+              </Button>
+            </header>
+
+            <div className="space-y-4 p-5">
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-stone-800">
+                  What needs to be changed?
+                </span>
+                <Textarea
+                  autoFocus
+                  disabled={pendingAction === "reject"}
+                  maxLength={4000}
+                  value={rejectionComment}
+                  onChange={(event) =>
+                    setRejectionComment(event.target.value)
+                  }
+                />
+              </label>
+              {message ? (
+                <p className="text-sm text-stone-600">{message}</p>
+              ) : null}
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={pendingAction === "reject"}
+                  onClick={() => setRejectDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="danger"
+                  disabled={
+                    terminal ||
+                    pendingAction === "reject" ||
+                    trimmedRejectionComment.length === 0
+                  }
+                  loading={pendingAction === "reject"}
+                  loadingText="Sending..."
+                  onClick={() =>
+                    void runPendingAction(
+                      "reject",
+                      rejectQuote,
+                      "Could not reject quotation.",
+                    )
+                  }
+                >
+                  <CircleX className="size-4" />
+                  Send changes
+                </Button>
+              </div>
+            </div>
+          </section>
+        </div>
       ) : null}
     </main>
   );
