@@ -1,7 +1,11 @@
 import { UpgradeModalButton } from "@/components/billing/billing-actions";
+import {
+  PaidPlanSupportBlock,
+  PricingPlanSections,
+} from "@/components/billing/pricing-plan-sections";
 import { Badge } from "@/components/ui/badge";
 import type { WorkspaceEntitlement } from "@/lib/billing/entitlements";
-import { partnerPackages, UPGRADE_CONTACT_EMAIL } from "@/lib/billing/plans";
+import { paidPlanSupportDetails, partnerPackages } from "@/lib/billing/plans";
 import { formatDate } from "@/lib/utils";
 
 export function UpgradeLink({
@@ -44,7 +48,7 @@ export function UpgradePanel({
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         {partnerPackages.map((partnerPackage) => (
           <article
-            className="rounded-lg border border-stone-200 bg-stone-50 p-4"
+            className="flex min-w-0 flex-col rounded-lg border border-stone-200 bg-stone-50 p-4"
             key={partnerPackage.plan}
           >
             <h3 className="font-semibold text-stone-950">
@@ -58,26 +62,12 @@ export function UpgradePanel({
             <p className="mt-1 text-sm leading-6 text-stone-600">
               {partnerPackage.description}
             </p>
-            <ul className="mt-3 space-y-2 text-sm text-stone-700">
-              {partnerPackage.features.map((feature) => (
-                <li className="flex gap-2" key={feature}>
-                  <span aria-hidden="true" className="text-stone-400">
-                    -
-                  </span>
-                  <span>{feature}</span>
-                </li>
-              ))}
-            </ul>
+            <PricingPlanSections className="flex-1" plan={partnerPackage} />
           </article>
         ))}
       </div>
 
-      {!UPGRADE_CONTACT_EMAIL ? (
-        <p className="mt-3 text-sm font-medium text-amber-700">
-          Configure NEXT_PUBLIC_UPGRADE_CONTACT_EMAIL to enable the Book an
-          upgrade call button.
-        </p>
-      ) : null}
+      <PaidPlanSupportBlock className="mt-4" support={paidPlanSupportDetails} />
     </section>
   );
 }

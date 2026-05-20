@@ -12,6 +12,8 @@ export type PartnerPackage = {
   price?: string;
   description: string;
   features: string[];
+  setupSupport?: string[];
+  details?: string[];
 };
 
 export type BillingPlanDetails = {
@@ -20,6 +22,8 @@ export type BillingPlanDetails = {
   price?: string;
   description: string;
   features: string[];
+  setupSupport?: string[];
+  details?: string[];
 };
 
 export const FREE_TRIAL_LOCKED_QUOTE_LIMIT = 5;
@@ -39,8 +43,9 @@ export const billingPlanDetails: BillingPlanDetails[] = [
   {
     plan: "free_trial",
     name: "Free Trial",
+    price: "Free",
     description:
-      "For individuals or teams evaluating Remote Quote before upgrading.",
+      "A low-risk way for individuals or teams to test Remote Quote before choosing a partner plan.",
     features: [
       "30-day trial access",
       `Up to ${FREE_TRIAL_LOCKED_QUOTE_LIMIT} locked quotes`,
@@ -54,15 +59,28 @@ export const billingPlanDetails: BillingPlanDetails[] = [
     name: "Solo Partner",
     price: "₱1,499/month",
     description:
-      "For individual users who need an unlimited quotation workflow.",
+      "For individual users who want a faster, more professional quotation workflow and help improving quote-to-close follow-up.",
     features: [
       "Unlimited quote creation",
       "Unlimited sending and locking",
       "Unlimited wet-signature printing",
       "1 quotation template",
       "1 workspace user",
-      "Email support",
-      "Free onboarding training",
+      "Email/chat support",
+      "Onboarding training",
+      "First quotation template setup assistance",
+      "Basic sales process consultation",
+      "Quote message templates",
+      "Monthly quote process review",
+    ],
+    details: [
+      "Sales quote workflow guide",
+      "Quote follow-up script pack",
+      "Sales call-to-quote checklist",
+      "Price objection response templates",
+      "1-2 onboarding/training sessions",
+      "14-day post-setup support",
+      "Guidance to implement Remote Quote into current sales workflow",
     ],
   },
   {
@@ -70,19 +88,44 @@ export const billingPlanDetails: BillingPlanDetails[] = [
     name: "Team Partner",
     price: "₱29,990/year",
     description:
-      "For sales teams that need shared templates, team visibility, and faster quote management.",
+      "For sales teams that need shared standards, team visibility, faster quote management, and a consistent quote-to-close process.",
     features: [
-      "Everything in Solo Partner",
+      "Everything in Solo Partner, plus",
       "Team dashboard access",
       "Up to 5 team members",
       "Unlimited quotation templates",
       "Reusable quote formats",
+      "Shared product/service line item setup",
       "Team onboarding training",
-      "Sales follow-up workflow support",
+      "Manager/admin training",
+      "1 monthly 30-minute consultation call",
+    ],
+    details: [
+      "Team quotation workflow guide",
+      "Team follow-up script pack",
+      "Quote ownership and follow-up process setup",
+      "Team sales call-to-quote checklist",
+      "Standard operating procedure for quoting",
+      "Recommendations to improve quote-to-close process",
+      "Priority support",
       "Priority feature request consideration",
     ],
   },
 ];
+
+export const paidPlanSupportDetails = {
+  title: "Included with every paid plan",
+  description:
+    "Remote Quote is more than quotation software. Every paid plan includes implementation support to help you improve your quote-to-close process.",
+  items: [
+    "Set up your quotation workflow",
+    "Create a more professional quote format",
+    "Improve customer follow-up",
+    "Reduce manual quotation work",
+    "Organize your quote process",
+    "Use Remote Quote inside your actual sales process",
+  ],
+};
 
 export const partnerPackages: PartnerPackage[] = billingPlanDetails.filter(
   (plan): plan is PartnerPackage => plan.plan !== "free_trial",
@@ -104,58 +147,6 @@ export function parseWorkspacePlan(value: unknown): WorkspacePlan {
   return workspacePlans.includes(value as WorkspacePlan)
     ? (value as WorkspacePlan)
     : "free_trial";
-}
-
-export function buildUpgradeMailto(input: {
-  workspaceRef: string;
-  requesterEmail?: string;
-  requesterUserId?: string;
-  currentPlan: WorkspacePlan;
-  targetPlan?: WorkspacePlan;
-}) {
-  if (!UPGRADE_CONTACT_EMAIL) {
-    return null;
-  }
-
-  const targetPlanLabel = input.targetPlan
-    ? planBookingLabel(input.targetPlan)
-    : "a partner plan";
-  const subject = `Book an upgrade call for Remote Quote workspace ${input.workspaceRef}`;
-  const packageLines = partnerPackages
-    .map(
-      (partnerPackage) =>
-        `${planBookingLabel(partnerPackage.plan)}: ${partnerPackage.features.join(", ")}`,
-    )
-    .join("\n");
-  const body = [
-    "Hello,",
-    "",
-    `I would like to book an upgrade call for this Remote Quote workspace and discuss ${targetPlanLabel}.`,
-    "",
-    `Workspace: ${input.workspaceRef}`,
-    `Current plan: ${planLabel(input.currentPlan)}`,
-    input.targetPlan ? `Requested plan: ${targetPlanLabel}` : null,
-    input.requesterEmail ? `Requester email: ${input.requesterEmail}` : null,
-    input.requesterUserId ? `Requester user ID: ${input.requesterUserId}` : null,
-    "",
-    "Available plans:",
-    packageLines,
-    "",
-    "Please share available times for the upgrade call.",
-  ]
-    .filter((line): line is string => line !== null)
-    .join("\n");
-
-  return `mailto:${encodeURIComponent(UPGRADE_CONTACT_EMAIL)}?subject=${encodeURIComponent(
-    subject,
-  )}&body=${encodeURIComponent(body)}`;
-}
-
-function planBookingLabel(plan: WorkspacePlan) {
-  const details = billingPlanDetails.find((candidate) => candidate.plan === plan);
-  const label = planLabel(plan);
-
-  return details?.price ? `${label} - ${details.price}` : label;
 }
 
 function normalizeExternalUrl(value: string) {

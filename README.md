@@ -42,9 +42,9 @@ Copy `.env.example` to `.env.local` and fill in Clerk, Supabase, PostHog, and em
 - `CLERK_SECRET_KEY`
 - `CLERK_WEBHOOK_SIGNING_SECRET` for verified Clerk organization/member webhooks
 - `NEXT_PUBLIC_APP_URL` set to the production origin, such as `https://remotequote.example` until the final domain is configured
-- `NEXT_PUBLIC_UPGRADE_CONTACT_EMAIL` for the manual partner-upgrade mail link
+- `NEXT_PUBLIC_UPGRADE_CONTACT_EMAIL` for public contact, privacy, and terms mail links
 - `NEXT_PUBLIC_COFFEE_DONATION_URL` for the dashboard coffee donation link
-- `NTFY_SUPPORT_TOPIC_URL` for active partner customer support notifications
+- `NTFY_SUPPORT_TOPIC_URL` for customer support and upgrade-call request notifications
 - `NEXT_PUBLIC_DASHBOARD_TUTORIAL_URL` for the Quote dashboard tutorial video
 - `NEXT_PUBLIC_QUOTE_TEMPLATE_TUTORIAL_URL` for the Quote Template tutorial video
 - `NEXT_PUBLIC_LINE_ITEM_DATA_TUTORIAL_URL` for the Line Item Data tutorial video

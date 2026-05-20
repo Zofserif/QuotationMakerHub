@@ -3,16 +3,20 @@
 import { Coffee, Headset, Mail, Sparkles, X } from "lucide-react";
 import { useEffect, useId, useState, type FormEvent } from "react";
 
+import {
+  PaidPlanSupportBlock,
+  PricingPlanSections,
+} from "@/components/billing/pricing-plan-sections";
 import { Badge } from "@/components/ui/badge";
 import { Button, LinkButton } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { WorkspaceEntitlement } from "@/lib/billing/entitlements";
 import {
   billingPlanDetails,
-  buildUpgradeMailto,
   COFFEE_DONATION_URL,
-  UPGRADE_CONTACT_EMAIL,
+  paidPlanSupportDetails,
   type WorkspacePlan,
 } from "@/lib/billing/plans";
 import { cn } from "@/lib/utils";
@@ -32,12 +36,18 @@ type BillingActionEntitlement = Pick<
 
 type ModalMode = "plan" | "upgrade";
 type SupportKind = "request" | "issue";
-type SupportFormStatus = {
+type FormStatus = {
   type: "error" | "success";
   text: string;
 } | null;
+type UpgradeTargetPlan = Extract<
+  WorkspacePlan,
+  "partner_monthly" | "partner_yearly"
+>;
 
 const SUPPORT_MESSAGE_MAX_LENGTH = 4000;
+const UPGRADE_COMMENT_MAX_LENGTH = 4000;
+const UPGRADE_CONTACT_NUMBER_MAX_LENGTH = 80;
 
 export function PlanBadgeButton({
   className,
@@ -194,7 +204,7 @@ function CustomerSupportModal({
   const messageId = useId();
   const [kind, setKind] = useState<SupportKind>("request");
   const [message, setMessage] = useState("");
-  const [status, setStatus] = useState<SupportFormStatus>(null);
+  const [status, setStatus] = useState<FormStatus>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -389,6 +399,13 @@ function BillingPlanModal({
 }) {
   const titleId = useId();
   const descriptionId = useId();
+  const [upgradeCallPlan, setUpgradeCallPlan] =
+    useState<UpgradeTargetPlan | null>(null);
+
+  function closePlanModal() {
+    setUpgradeCallPlan(null);
+    onClose();
+  }
 
   useEffect(() => {
     if (!open) {
@@ -396,7 +413,8 @@ function BillingPlanModal({
     }
 
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !upgradeCallPlan) {
+        setUpgradeCallPlan(null);
         onClose();
       }
     }
@@ -404,7 +422,7 @@ function BillingPlanModal({
     document.addEventListener("keydown", closeOnEscape);
 
     return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [onClose, open]);
+  }, [onClose, open, upgradeCallPlan]);
 
   if (!open) {
     return null;
@@ -440,7 +458,7 @@ function BillingPlanModal({
             size="icon"
             type="button"
             variant="ghost"
-            onClick={onClose}
+            onClick={closePlanModal}
           >
             <X className="size-5" />
           </Button>
@@ -454,17 +472,24 @@ function BillingPlanModal({
               key={plan.plan}
               mode={mode}
               plan={plan}
+              onRequestUpgrade={setUpgradeCallPlan}
             />
           ))}
         </div>
 
-        {isUpgradeMode && !UPGRADE_CONTACT_EMAIL ? (
-          <p className="border-t border-stone-200 px-5 py-4 text-sm font-medium text-amber-700">
-            Configure NEXT_PUBLIC_UPGRADE_CONTACT_EMAIL to enable the Book an
-            upgrade call buttons.
-          </p>
-        ) : null}
+        <div className="border-t border-stone-200 px-5 py-5">
+          <PaidPlanSupportBlock support={paidPlanSupportDetails} />
+        </div>
       </section>
+
+      {isUpgradeMode && upgradeCallPlan ? (
+        <UpgradeCallRequestModal
+          open
+          targetPlan={upgradeCallPlan}
+          onClose={() => setUpgradeCallPlan(null)}
+          onDone={closePlanModal}
+        />
+      ) : null}
     </div>
   );
 }
@@ -474,22 +499,19 @@ function PlanCard({
   entitlement,
   mode,
   plan,
+  onRequestUpgrade,
 }: {
   currentPlan: WorkspacePlan;
   entitlement: BillingActionEntitlement;
   mode: ModalMode;
   plan: (typeof billingPlanDetails)[number];
+  onRequestUpgrade: (plan: UpgradeTargetPlan) => void;
 }) {
   const isCurrent = plan.plan === currentPlan;
-  const inquiryHref = shouldShowInquiryAction(currentPlan, plan.plan)
-    ? buildUpgradeMailto({
-        currentPlan,
-        requesterEmail: entitlement.requesterEmail,
-        requesterUserId: entitlement.requesterUserId,
-        targetPlan: plan.plan,
-        workspaceRef: entitlement.workspaceRef,
-      })
-    : null;
+  const upgradeTargetPlan = isUpgradeTargetPlan(plan.plan) ? plan.plan : null;
+  const canRequestUpgrade =
+    upgradeTargetPlan !== null &&
+    shouldShowInquiryAction(currentPlan, upgradeTargetPlan);
 
   return (
     <article
@@ -514,16 +536,7 @@ function PlanCard({
       <p className="mt-2 text-sm leading-6 text-stone-600">
         {plan.description}
       </p>
-      <ul className="mt-3 flex-1 space-y-2 text-sm text-stone-700">
-        {plan.features.map((feature) => (
-          <li className="flex gap-2" key={feature}>
-            <span aria-hidden="true" className="text-stone-400">
-              -
-            </span>
-            <span>{feature}</span>
-          </li>
-        ))}
-      </ul>
+      <PricingPlanSections className="flex-1" plan={plan} />
       {mode === "plan" && isCurrent ? (
         <PlanRenewalMessage entitlement={entitlement} />
       ) : null}
@@ -539,13 +552,17 @@ function PlanCard({
             >
               Current plan
             </Button>
-          ) : inquiryHref ? (
-            <LinkButton className="w-full" href={inquiryHref} size="sm">
-              <Mail className="size-4" />
-              Book an upgrade call
-            </LinkButton>
-          ) : shouldShowInquiryAction(currentPlan, plan.plan) ? (
-            <Button className="w-full" disabled size="sm" type="button">
+          ) : canRequestUpgrade ? (
+            <Button
+              className="w-full"
+              size="sm"
+              type="button"
+              onClick={() => {
+                if (upgradeTargetPlan) {
+                  onRequestUpgrade(upgradeTargetPlan);
+                }
+              }}
+            >
               <Mail className="size-4" />
               Book an upgrade call
             </Button>
@@ -553,6 +570,245 @@ function PlanCard({
         </div>
       ) : null}
     </article>
+  );
+}
+
+function UpgradeCallRequestModal({
+  onClose,
+  onDone,
+  open,
+  targetPlan,
+}: {
+  onClose: () => void;
+  onDone: () => void;
+  open: boolean;
+  targetPlan: UpgradeTargetPlan;
+}) {
+  const titleId = useId();
+  const descriptionId = useId();
+  const contactNumberId = useId();
+  const commentId = useId();
+  const [contactNumber, setContactNumber] = useState("");
+  const [comment, setComment] = useState("");
+  const [status, setStatus] = useState<FormStatus>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sent, setSent] = useState(false);
+  const targetPlanLabel = upgradeRequestPlanLabel(targetPlan);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape" && !isSubmitting) {
+        if (sent) {
+          onDone();
+        } else {
+          onClose();
+        }
+      }
+    }
+
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [isSubmitting, onClose, onDone, open, sent]);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const trimmedContactNumber = contactNumber.trim();
+    const trimmedComment = comment.trim();
+
+    if (!trimmedComment) {
+      setStatus({
+        type: "error",
+        text: "Enter a comment before sending.",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setStatus(null);
+
+    try {
+      const response = await fetch("/api/dashboard/upgrade-call", {
+        body: JSON.stringify({
+          contactNumber: trimmedContactNumber || undefined,
+          comment: trimmedComment,
+          targetPlan,
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        setStatus({
+          type: "error",
+          text:
+            payload?.error?.message ??
+            "Could not send your upgrade call request.",
+        });
+        return;
+      }
+
+      setSent(true);
+      setContactNumber("");
+      setComment("");
+      setStatus({
+        type: "success",
+        text: "Upgrade call request sent.",
+      });
+    } catch {
+      setStatus({
+        type: "error",
+        text: "Could not send your upgrade call request.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  if (!open) {
+    return null;
+  }
+
+  const closeAction = sent ? onDone : onClose;
+
+  return (
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-stone-950/60 p-4">
+      <section
+        aria-describedby={descriptionId}
+        aria-labelledby={titleId}
+        aria-modal="true"
+        className="w-full max-w-lg rounded-lg bg-white shadow-2xl"
+        role="dialog"
+      >
+        <header className="flex items-start justify-between gap-4 border-b border-stone-200 px-5 py-4">
+          <div>
+            <h2 className="font-semibold text-stone-950" id={titleId}>
+              Book an upgrade call
+            </h2>
+            <p
+              className="mt-1 text-sm leading-6 text-stone-500"
+              id={descriptionId}
+            >
+              Tell us what you want to discuss for {targetPlanLabel}. We will
+              use your account email to follow up.
+            </p>
+          </div>
+          <Button
+            aria-label="Close upgrade call request"
+            disabled={isSubmitting}
+            size="icon"
+            type="button"
+            variant="ghost"
+            onClick={closeAction}
+          >
+            <X className="size-5" />
+          </Button>
+        </header>
+
+        {sent ? (
+          <div className="space-y-4 p-5">
+            {status ? (
+              <p
+                aria-live="polite"
+                className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-800"
+              >
+                {status.text}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <form onSubmit={(event) => void handleSubmit(event)}>
+            <div className="space-y-4 p-5">
+              <div className="space-y-2">
+                <Label htmlFor={contactNumberId}>Contact number (optional)</Label>
+                <Input
+                  disabled={isSubmitting}
+                  id={contactNumberId}
+                  maxLength={UPGRADE_CONTACT_NUMBER_MAX_LENGTH}
+                  placeholder="Phone or mobile number"
+                  type="tel"
+                  value={contactNumber}
+                  onChange={(event) => {
+                    setContactNumber(event.target.value);
+                    setStatus(null);
+                  }}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor={commentId}>Comment</Label>
+                  <span className="text-xs font-medium text-stone-500">
+                    {comment.length}/{UPGRADE_COMMENT_MAX_LENGTH}
+                  </span>
+                </div>
+                <Textarea
+                  disabled={isSubmitting}
+                  id={commentId}
+                  maxLength={UPGRADE_COMMENT_MAX_LENGTH}
+                  placeholder="Tell us why you want the upgrade call..."
+                  required
+                  value={comment}
+                  onChange={(event) => {
+                    setComment(event.target.value);
+                    setStatus(null);
+                  }}
+                />
+              </div>
+
+              {status ? (
+                <p
+                  aria-live="polite"
+                  className={cn(
+                    "rounded-md border p-3 text-sm font-medium",
+                    status.type === "success"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                      : "border-red-200 bg-red-50 text-red-700",
+                  )}
+                >
+                  {status.text}
+                </p>
+              ) : null}
+            </div>
+
+            <footer className="flex justify-end gap-2 border-t border-stone-200 px-5 py-4">
+              <Button
+                disabled={isSubmitting}
+                type="button"
+                variant="ghost"
+                onClick={onClose}
+              >
+                Cancel
+              </Button>
+              <Button
+                loading={isSubmitting}
+                loadingText="Sending..."
+                type="submit"
+              >
+                <Mail className="size-4" />
+                Send request
+              </Button>
+            </footer>
+          </form>
+        )}
+
+        {sent ? (
+          <footer className="flex justify-end gap-2 border-t border-stone-200 px-5 py-4">
+            <Button type="button" onClick={onDone}>
+              Done
+            </Button>
+          </footer>
+        ) : null}
+      </section>
+    </div>
   );
 }
 
@@ -610,6 +866,18 @@ function planBadgeLabel(entitlement: BillingActionEntitlement) {
   }
 
   return entitlement.planLabel;
+}
+
+function upgradeRequestPlanLabel(plan: UpgradeTargetPlan) {
+  const details = billingPlanDetails.find((candidate) => candidate.plan === plan);
+
+  return details?.price
+    ? `${details.name} - ${details.price}`
+    : (details?.name ?? "selected plan");
+}
+
+function isUpgradeTargetPlan(plan: WorkspacePlan): plan is UpgradeTargetPlan {
+  return plan === "partner_monthly" || plan === "partner_yearly";
 }
 
 function isPaidPlan(plan: WorkspacePlan) {
