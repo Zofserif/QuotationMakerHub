@@ -606,7 +606,6 @@ export function QuoteTemplateDesigner({
               />
               <Field label="Address">
                 <Input
-                  required
                   value={template.company.address}
                   onChange={(event) =>
                     updateCompany({ address: event.target.value })

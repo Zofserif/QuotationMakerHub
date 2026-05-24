@@ -126,7 +126,9 @@ export function QuoteDocument({
             {businessName ? (
               <p className="font-semibold text-stone-950">{businessName}</p>
             ) : null}
-            <p>{snapshot.business.address}</p>
+            {snapshot.business.address.trim() ? (
+              <p>{snapshot.business.address}</p>
+            ) : null}
             {snapshot.business.telephone ? <p>{snapshot.business.telephone}</p> : null}
             {snapshot.business.phone ? <p>{snapshot.business.phone}</p> : null}
             {snapshot.business.email ? <p>{snapshot.business.email}</p> : null}

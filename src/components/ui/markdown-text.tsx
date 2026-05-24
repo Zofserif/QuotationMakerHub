@@ -43,38 +43,8 @@ export function MarkdownText({
           );
         }
 
-        if (block.type === "unordered-list") {
-          return (
-            <ul
-              className={cn("list-disc space-y-1", listClass(block.align))}
-              key={index}
-            >
-              {block.items.map((item, itemIndex) => (
-                <li className={alignClass(block.align)} key={itemIndex}>
-                  <InlineMarkdown value={item} />
-                </li>
-              ))}
-            </ul>
-          );
-        }
-
-        if (block.type === "ordered-list") {
-          return (
-            <ol
-              className={cn("list-decimal space-y-1", listClass(block.align))}
-              key={index}
-            >
-              {block.items.map((item, itemIndex) => (
-                <li
-                  className={alignClass(block.align)}
-                  key={itemIndex}
-                  value={item.value}
-                >
-                  <InlineMarkdown value={item.text} />
-                </li>
-              ))}
-            </ol>
-          );
+        if (isListBlock(block)) {
+          return <MarkdownList align={block.align} key={index} list={block} />;
         }
 
         return (
@@ -96,12 +66,32 @@ type MarkdownAlign = MarkdownDefaultAlign | "center";
 type MarkdownBlock =
   | { align: MarkdownAlign; type: "heading"; level: 2 | 3 | 4; text: string }
   | { align: MarkdownAlign; type: "paragraph"; text: string }
-  | { align: MarkdownAlign; type: "unordered-list"; items: string[] }
-  | { align: MarkdownAlign; type: "ordered-list"; items: OrderedListItem[] };
+  | (MarkdownListBlock & { align: MarkdownAlign });
 
-type OrderedListItem = {
+type MarkdownListType = "ordered-list" | "unordered-list";
+
+type MarkdownListBlock = {
+  items: MarkdownListItem[];
+  type: MarkdownListType;
+};
+
+type MarkdownListItem = {
+  children: MarkdownListBlock[];
   text: string;
-  value: number;
+  value?: number;
+};
+
+type ParsedListItem = {
+  indent: number;
+  text: string;
+  type: MarkdownListType;
+  value?: number;
+};
+
+type ListStackEntry = {
+  block: MarkdownListBlock;
+  indent: number;
+  parentItem: MarkdownListItem | null;
 };
 
 function parseBlocks(
@@ -158,53 +148,29 @@ function parseBlocks(
       continue;
     }
 
-    const unordered = /^[-*]\s+(.+)$/.exec(trimmed);
+    const listItem = parseListItem(line);
 
-    if (unordered) {
+    if (listItem) {
       flushParagraph();
-      const items = [unordered[1]];
+      const items = [listItem];
 
       while (index + 1 < lines.length) {
-        const next = /^[-*]\s+(.+)$/.exec(lines[index + 1].trim());
+        const next = parseListItem(lines[index + 1]);
 
         if (!next) {
           break;
         }
 
-        items.push(next[1]);
+        items.push(next);
         index += 1;
       }
 
-      blocks.push({ align: currentAlign, type: "unordered-list", items });
-      continue;
-    }
-
-    const ordered = /^(\d+)\.\s+(.+)$/.exec(trimmed);
-
-    if (ordered) {
-      flushParagraph();
-      const items = [
-        {
-          text: ordered[2],
-          value: Number.parseInt(ordered[1], 10),
-        },
-      ];
-
-      while (index + 1 < lines.length) {
-        const next = /^(\d+)\.\s+(.+)$/.exec(lines[index + 1].trim());
-
-        if (!next) {
-          break;
-        }
-
-        items.push({
-          text: next[2],
-          value: Number.parseInt(next[1], 10),
-        });
-        index += 1;
-      }
-
-      blocks.push({ align: currentAlign, type: "ordered-list", items });
+      blocks.push(
+        ...parseListBlocks(items).map((block) => ({
+          ...block,
+          align: currentAlign,
+        })),
+      );
       continue;
     }
 
@@ -214,6 +180,116 @@ function parseBlocks(
   flushParagraph();
 
   return blocks;
+}
+
+function parseListItem(line: string): ParsedListItem | null {
+  const unordered = /^([ \t]*)[-*]\s+(.+)$/.exec(line);
+
+  if (unordered) {
+    return {
+      indent: getIndentColumns(unordered[1]),
+      text: unordered[2].trimEnd(),
+      type: "unordered-list",
+    };
+  }
+
+  const ordered = /^([ \t]*)(\d+)\.\s+(.+)$/.exec(line);
+
+  if (ordered) {
+    return {
+      indent: getIndentColumns(ordered[1]),
+      text: ordered[3].trimEnd(),
+      type: "ordered-list",
+      value: Number.parseInt(ordered[2], 10),
+    };
+  }
+
+  return null;
+}
+
+function parseListBlocks(items: ParsedListItem[]): MarkdownListBlock[] {
+  const blocks: MarkdownListBlock[] = [];
+  const stack: ListStackEntry[] = [];
+
+  for (const item of items) {
+    const targetIndent = getTargetIndent(item.indent, stack);
+    const current = stack.at(-1);
+    let block: MarkdownListBlock;
+
+    if (!current) {
+      block = createListBlock(item.type);
+      blocks.push(block);
+      stack.push({ block, indent: targetIndent, parentItem: null });
+    } else if (targetIndent > current.indent) {
+      const parentItem = current.block.items.at(-1);
+
+      if (parentItem) {
+        block = createListBlock(item.type);
+        parentItem.children.push(block);
+        stack.push({ block, indent: targetIndent, parentItem });
+      } else {
+        block = current.block;
+      }
+    } else if (targetIndent === current.indent && current.block.type === item.type) {
+      block = current.block;
+    } else {
+      block = createListBlock(item.type);
+
+      if (current.parentItem) {
+        current.parentItem.children.push(block);
+      } else {
+        blocks.push(block);
+      }
+
+      stack[stack.length - 1] = {
+        block,
+        indent: targetIndent,
+        parentItem: current.parentItem,
+      };
+    }
+
+    block.items.push({
+      children: [],
+      text: item.text,
+      value: item.value,
+    });
+  }
+
+  return blocks;
+}
+
+function getTargetIndent(indent: number, stack: ListStackEntry[]) {
+  while (stack.length > 0 && indent < stack[stack.length - 1].indent) {
+    stack.pop();
+  }
+
+  const current = stack.at(-1);
+
+  if (current && indent > current.indent && indent - current.indent < 2) {
+    return current.indent;
+  }
+
+  return indent;
+}
+
+function createListBlock(type: MarkdownListType): MarkdownListBlock {
+  return { items: [], type };
+}
+
+function getIndentColumns(value: string) {
+  let columns = 0;
+
+  for (const character of value) {
+    columns += character === "\t" ? 4 : 1;
+  }
+
+  return columns;
+}
+
+function isListBlock(block: MarkdownBlock): block is MarkdownListBlock & {
+  align: MarkdownAlign;
+} {
+  return block.type === "ordered-list" || block.type === "unordered-list";
 }
 
 function alignClass(align: MarkdownAlign) {
@@ -226,6 +302,46 @@ function alignClass(align: MarkdownAlign) {
 
 function listClass(align: MarkdownAlign) {
   return align === "center" ? "list-inside pl-0" : "pl-5";
+}
+
+function MarkdownList({
+  align,
+  list,
+  nested = false,
+}: {
+  align: MarkdownAlign;
+  list: MarkdownListBlock;
+  nested?: boolean;
+}) {
+  const List = list.type === "ordered-list" ? "ol" : "ul";
+
+  return (
+    <List
+      className={cn(
+        list.type === "ordered-list" ? "list-decimal" : "list-disc",
+        nested ? "mt-1 space-y-0.5" : "space-y-1",
+        listClass(align),
+      )}
+    >
+      {list.items.map((item, itemIndex) => (
+        <li
+          className={alignClass(align)}
+          key={itemIndex}
+          value={list.type === "ordered-list" ? item.value : undefined}
+        >
+          <InlineMarkdown value={item.text} />
+          {item.children.map((child, childIndex) => (
+            <MarkdownList
+              align={align}
+              key={childIndex}
+              list={child}
+              nested
+            />
+          ))}
+        </li>
+      ))}
+    </List>
+  );
 }
 
 function InlineMarkdown({ value }: { value: string }) {

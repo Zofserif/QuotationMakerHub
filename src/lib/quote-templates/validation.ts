@@ -30,7 +30,7 @@ export const quoteTemplateSchema = z.object({
   }),
   company: z.object({
     name: toggleTextSchema,
-    address: z.string().min(1).max(1000),
+    address: z.string().trim().max(1000),
     telephone: toggleTextSchema,
     phone: toggleTextSchema,
     email: toggleTextSchema.extend({
