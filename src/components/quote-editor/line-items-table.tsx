@@ -20,13 +20,12 @@ import {
 } from "@/components/image-upload/image-crop-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import {
-  MarkdownFormatHint,
   MarkdownText,
   markdownTextareaPlaceholder,
 } from "@/components/ui/markdown-text";
 import { NumericInput } from "@/components/ui/numeric-input";
-import { Textarea } from "@/components/ui/textarea";
 import { getLineItemImageSrc } from "@/lib/line-item-data/images";
 import type { LineItemData } from "@/lib/line-item-data/types";
 import {
@@ -564,18 +563,17 @@ export function LineItemsTable({
                   </div>
 
                   <Field label="Line item description">
-                    <Textarea
+                    <MarkdownEditor
                       aria-label="Line item description"
                       className="min-h-36 bg-white"
                       placeholder={descriptionPlaceholder}
-                      value={lineItem.description}
-                      onChange={(event) =>
+                      value={lineItem.description ?? ""}
+                      onValueChange={(description) =>
                         updateLineItem(index, {
-                          description: event.target.value,
+                          description,
                         })
                       }
                     />
-                    <MarkdownFormatHint />
                   </Field>
                 </div>
               ) : hasLineItemDetails(lineItem) ? (

@@ -31,12 +31,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  MarkdownFormatHint,
-  markdownTextareaPlaceholder,
-} from "@/components/ui/markdown-text";
+import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import { NumericInput } from "@/components/ui/numeric-input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   getCurrencyDisplayName,
   normalizeCurrency,
@@ -855,32 +851,28 @@ export function QuoteTemplateDesigner({
         <Section icon={ReceiptText} title="Terms">
           <div className="grid gap-4">
             <Field label="Payment terms">
-              <Textarea
+              <MarkdownEditor
                 required
-                placeholder={markdownTextareaPlaceholder}
                 value={template.paymentTerms}
-                onChange={(event) =>
+                onValueChange={(paymentTerms) =>
                   setTemplate((current) => ({
                     ...current,
-                    paymentTerms: event.target.value,
+                    paymentTerms,
                   }))
                 }
               />
-              <MarkdownFormatHint />
             </Field>
             <Field label="Terms & conditions">
-              <Textarea
+              <MarkdownEditor
                 required
-                placeholder={markdownTextareaPlaceholder}
                 value={template.termsAndConditions}
-                onChange={(event) =>
+                onValueChange={(termsAndConditions) =>
                   setTemplate((current) => ({
                     ...current,
-                    termsAndConditions: event.target.value,
+                    termsAndConditions,
                   }))
                 }
               />
-              <MarkdownFormatHint />
             </Field>
           </div>
         </Section>
@@ -1052,14 +1044,12 @@ function ToggleMarkdownField({
           />
           Enabled
         </label>
-        <Textarea
-          placeholder={markdownTextareaPlaceholder}
+        <MarkdownEditor
           value={value.value}
-          onChange={(event) =>
-            onChange(updateToggleText(value, { value: event.target.value }))
+          onValueChange={(nextValue) =>
+            onChange(updateToggleText(value, { value: nextValue }))
           }
         />
-        <MarkdownFormatHint />
       </div>
     </Field>
   );

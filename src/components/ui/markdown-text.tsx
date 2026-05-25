@@ -345,7 +345,9 @@ function MarkdownList({
 }
 
 function InlineMarkdown({ value }: { value: string }) {
-  const segments = value.split(/(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g);
+  const segments = value.split(
+    /(`[^`]+`|\*\*[^*]+\*\*|~~[^~]+~~|<u>[^<]+<\/u>|<sup>[^<]+<\/sup>|<sub>[^<]+<\/sub>|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g,
+  );
 
   return (
     <>
@@ -367,6 +369,22 @@ function InlineMarkdown({ value }: { value: string }) {
 
         if (segment.startsWith("**") && segment.endsWith("**")) {
           return <strong key={index}>{segment.slice(2, -2)}</strong>;
+        }
+
+        if (segment.startsWith("~~") && segment.endsWith("~~")) {
+          return <s key={index}>{segment.slice(2, -2)}</s>;
+        }
+
+        if (segment.startsWith("<u>") && segment.endsWith("</u>")) {
+          return <u key={index}>{segment.slice(3, -4)}</u>;
+        }
+
+        if (segment.startsWith("<sup>") && segment.endsWith("</sup>")) {
+          return <sup key={index}>{segment.slice(5, -6)}</sup>;
+        }
+
+        if (segment.startsWith("<sub>") && segment.endsWith("</sub>")) {
+          return <sub key={index}>{segment.slice(5, -6)}</sub>;
         }
 
         if (segment.startsWith("*") && segment.endsWith("*")) {

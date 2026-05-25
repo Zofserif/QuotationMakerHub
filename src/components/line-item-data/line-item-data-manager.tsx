@@ -30,13 +30,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import {
-  MarkdownFormatHint,
   MarkdownText,
-  markdownTextareaPlaceholder,
 } from "@/components/ui/markdown-text";
 import { NumericInput } from "@/components/ui/numeric-input";
-import { Textarea } from "@/components/ui/textarea";
 import { getLineItemImageSrc } from "@/lib/line-item-data/images";
 import {
   dedupeLineItemDataDraftsByTitle,
@@ -1070,16 +1068,14 @@ function LineItemDataFormFields({
         </div>
       </Field>
       <Field label="Detailed Description">
-        <Textarea
+        <MarkdownEditor
           className="min-h-40"
           disabled={disabled}
-          placeholder={markdownTextareaPlaceholder}
           value={form.detailedDescription}
-          onChange={(event) =>
-            onChange({ detailedDescription: event.target.value })
+          onValueChange={(detailedDescription) =>
+            onChange({ detailedDescription })
           }
         />
-        <MarkdownFormatHint />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Unit">

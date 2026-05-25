@@ -15,11 +15,7 @@ import { QuoteTotalsView } from "@/components/quote-editor/quote-totals";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  MarkdownFormatHint,
-  markdownTextareaPlaceholder,
-} from "@/components/ui/markdown-text";
-import { Textarea } from "@/components/ui/textarea";
+import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import { SignatureModal } from "@/components/signature/signature-modal";
 import { normalizeCurrency } from "@/lib/currency";
 import {
@@ -517,15 +513,11 @@ export function QuoteEditor({
         {effectiveTemplate.requestSummary.enabled ? (
           <section className="rounded-lg border border-stone-200 bg-white p-5">
             <h2 className="mb-5 font-semibold text-stone-950">Request Summary</h2>
-            <Textarea
+            <MarkdownEditor
               className="min-h-32"
-              placeholder={markdownTextareaPlaceholder}
               value={draft.requestSummary ?? ""}
-              onChange={(event) =>
-                updateDraft({ requestSummary: event.target.value })
-              }
+              onValueChange={(requestSummary) => updateDraft({ requestSummary })}
             />
-            <MarkdownFormatHint />
           </section>
         ) : null}
 
@@ -554,29 +546,21 @@ export function QuoteEditor({
           </h2>
           <div className="grid gap-4">
             <Field label="Payment Terms" error={fieldError(["terms"])}>
-              <Textarea
+              <MarkdownEditor
                 className="min-h-36"
-                placeholder={markdownTextareaPlaceholder}
                 value={draft.terms ?? ""}
-                onChange={(event) =>
-                  updateDraft({ terms: event.target.value })
-                }
+                onValueChange={(terms) => updateDraft({ terms })}
               />
-              <MarkdownFormatHint />
             </Field>
             <Field
               label="Terms & Conditions"
               error={fieldError(["notes"])}
             >
-              <Textarea
+              <MarkdownEditor
                 className="min-h-36"
-                placeholder={markdownTextareaPlaceholder}
                 value={draft.notes ?? ""}
-                onChange={(event) =>
-                  updateDraft({ notes: event.target.value })
-                }
+                onValueChange={(notes) => updateDraft({ notes })}
               />
-              <MarkdownFormatHint />
             </Field>
           </div>
         </section>
